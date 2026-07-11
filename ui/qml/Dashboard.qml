@@ -190,39 +190,39 @@ Item {
                     columnSpacing: 6; rowSpacing: 6
 
                     // POMODORO
-                    WidgetCard { title: "Focus Timer"; icon: "⏱"
+                    WidgetCard { id: pomoCard; title: "Focus Timer"; icon: "⏱"
                         Layout.fillWidth: true; Layout.preferredHeight: 175; Layout.columnSpan: isLandscape ? 2 : 2
                         property int pMinutes: 25; property int pSeconds: 0; property bool pRunning: false
                         ColumnLayout { anchors.centerIn: parent; spacing: 6
                             Text { Layout.alignment: Qt.AlignHCenter
-                                text: String(parent.parent.pMinutes).padStart(2,'0') + ':' + String(parent.parent.pSeconds).padStart(2,'0')
-                                font.pixelSize: 48; font.bold: true; font.family: "monospace"
-                                color: parent.parent.pRunning ? theme.accent : theme.textPrimary }
-                            Rectangle { Layout.preferredWidth: 100; Layout.preferredHeight: 32; Layout.alignment: Qt.AlignHCenter
-                                radius: 8; color: parent.parent.pRunning ? theme.error : theme.accent
-                                Text { anchors.centerIn: parent; text: parent.parent.pRunning ? "Stop" : "Start"; font.pixelSize: 13; color: "#fff" }
-                                MouseArea { anchors.fill: parent;
-                                    onClicked: { parent.parent.parent.pRunning = !parent.parent.parent.pRunning } }
+                                text: String(pomoCard.pMinutes).padStart(2,'0') + ':' + String(pomoCard.pSeconds).padStart(2,'0')
+                                font.pixelSize: 48; font.bold: true; font.family: theme.fontMono
+                                color: pomoCard.pRunning ? theme.accent : theme.textPrimary }
+                            Rectangle { Layout.preferredWidth: 120; Layout.preferredHeight: theme.touchSecondary; Layout.alignment: Qt.AlignHCenter
+                                radius: theme.radiusSm; color: pomoCard.pRunning ? theme.error : theme.accent
+                                Text { anchors.centerIn: parent; text: pomoCard.pRunning ? "Stop" : "Start"; font.pixelSize: theme.fontLabel; color: "#fff" }
+                                MouseArea { anchors.fill: parent
+                                    onClicked: pomoCard.pRunning = !pomoCard.pRunning }
                             }
-                            Timer { interval: 1000; repeat: true; running: pRunning
-                                onTriggered: { if(pSeconds>0)pSeconds--; else if(pMinutes>0){pMinutes--;pSeconds=59}else pRunning=false }
+                            Timer { interval: 1000; repeat: true; running: pomoCard.pRunning
+                                onTriggered: { if(pomoCard.pSeconds>0)pomoCard.pSeconds--; else if(pomoCard.pMinutes>0){pomoCard.pMinutes--;pomoCard.pSeconds=59}else pomoCard.pRunning=false }
                             }
                         }
                         onTapped: { _expandedWidget = "Focus Timer"; _expandedComponent = pomoExp }
                     }
 
                     // CHECKLIST
-                    WidgetCard { title: "Checklist"; icon: "✅"
+                    WidgetCard { id: checkCard; title: "Checklist"; icon: "✅"
                         Layout.fillWidth: true; Layout.preferredHeight: 175; Layout.columnSpan: isLandscape ? 2 : 2
                         property var items: ["Review PRs","Update docs","Standup","Sync","Deploy"]
                         property var checked: [false,false,false,false,false]
-                        ListView { anchors.fill: parent; anchors.margins: 4; model: items; spacing: 3; clip: true
-                            delegate: RowLayout { width: ListView.view.width - 8; spacing: 6
-                                Rectangle { width: 18; height: 18; radius: 5; color: checked[index] ? theme.accent : theme.cardBorder
-                                    Text { anchors.centerIn: parent; visible: checked[index]; text: "✓"; font.pixelSize: 10; color: "#000" } }
-                                Text { text: modelData; font.pixelSize: 12; color: checked[index] ? theme.textSecondary : theme.textPrimary; Layout.fillWidth: true; elide: Text.ElideRight }
-                                MouseArea { width: parent.width; height: 20
-                                    onClicked: { var c=checked; c[index]=!c[index]; checked=c } }
+                        ListView { anchors.fill: parent; anchors.margins: 4; model: checkCard.items; spacing: 4; clip: true
+                            delegate: RowLayout { width: ListView.view.width - 8; spacing: 8
+                                Rectangle { width: 24; height: 24; radius: 6; color: checkCard.checked[index] ? theme.accent : theme.cardBorder
+                                    Text { anchors.centerIn: parent; visible: checkCard.checked[index]; text: "✓"; font.pixelSize: 13; color: "#000" } }
+                                Text { text: modelData; font.pixelSize: theme.fontCaption; color: checkCard.checked[index] ? theme.textSecondary : theme.textPrimary; Layout.fillWidth: true; elide: Text.ElideRight }
+                                MouseArea { Layout.fillWidth: true; Layout.preferredHeight: 28; width: parent.width; height: 28
+                                    onClicked: { var c=checkCard.checked.slice(); c[index]=!c[index]; checkCard.checked=c } }
                             }
                         }
                         onTapped: { _expandedWidget = "Checklist"; _expandedComponent = checkExp }
@@ -254,60 +254,65 @@ Item {
                     }
 
                     // DICE ROLLER
-                    WidgetCard { title: "Dice"; icon: "🎲"
+                    WidgetCard { id: diceCard; title: "Dice"; icon: "🎲"
                         Layout.fillWidth: true; Layout.preferredHeight: 160
                         property int lastRoll: 0; property int sides: 6
-                        ColumnLayout { anchors.centerIn: parent; spacing: 6
+                        function roll() { diceCard.lastRoll = Math.floor(Math.random()*diceCard.sides)+1 }
+                        ColumnLayout { anchors.centerIn: parent; spacing: 6; width: parent.width - 16
                             Text { Layout.alignment: Qt.AlignHCenter
-                                text: lastRoll>0?"🎲 "+lastRoll:"Roll d"+sides
-                                font.pixelSize: lastRoll>0?40:20; font.bold: lastRoll>0; color: theme.textPrimary }
+                                text: diceCard.lastRoll>0 ? "🎲 "+diceCard.lastRoll : "Roll d"+diceCard.sides
+                                font.pixelSize: diceCard.lastRoll>0?40:20; font.bold: diceCard.lastRoll>0; color: theme.textPrimary }
                             RowLayout { Layout.alignment: Qt.AlignHCenter; spacing: 4
                                 Repeater { model: [4,6,8,10,12,20]
-                                    Rectangle { width: 22; height: 22; radius: 5; color: sides===modelData?theme.accent:theme.cardBorder
-                                        Text { anchors.centerIn: parent; text: "d"+modelData; font.pixelSize: 7; color: sides===modelData?"#000":theme.textSecondary }
-                                        MouseArea { anchors.fill: parent; onClicked: { sides=modelData; lastRoll=0 } } }
+                                    Rectangle { width: 30; height: 30; radius: 6; color: diceCard.sides===modelData?theme.accent:theme.cardBorder
+                                        Text { anchors.centerIn: parent; text: "d"+modelData; font.pixelSize: 9; color: diceCard.sides===modelData?"#000":theme.textSecondary }
+                                        MouseArea { anchors.fill: parent; onClicked: { diceCard.sides=modelData; diceCard.lastRoll=0 } } }
                                 }
                             }
-                            MouseArea { anchors.fill: parent; onClicked: { parent.parent.lastRoll=Math.floor(Math.random()*parent.parent.sides)+1 } }
+                            Rectangle { Layout.preferredWidth: 120; Layout.preferredHeight: theme.touchSecondary; Layout.alignment: Qt.AlignHCenter
+                                radius: theme.radiusSm; color: theme.accent
+                                Text { anchors.centerIn: parent; text: "🎲 Roll"; font.pixelSize: theme.fontLabel; color: "#fff" }
+                                MouseArea { anchors.fill: parent; onClicked: diceCard.roll() }
+                            }
                         }
                         onTapped: { _expandedWidget = "Dice Roller"; _expandedComponent = diceExp }
                     }
 
                     // LUNCH ROULETTE
-                    WidgetCard { title: "Lunch"; icon: "🍔"
+                    WidgetCard { id: lunchCard; title: "Lunch"; icon: "🍔"
                         Layout.fillWidth: true; Layout.preferredHeight: 160
                         property var options: ["🍕 Pizza","🍣 Sushi","🌮 Tacos","🍜 Ramen","🥗 Salad","🍔 Burger","🥙 Kebab","🍝 Pasta"]
                         property string selected: ""
                         ColumnLayout { anchors.centerIn: parent; spacing: 6
                             Text { Layout.alignment: Qt.AlignHCenter
-                                text: selected || "Tap to spin!"
-                                font.pixelSize: selected?24:16; font.bold: selected!=""; color: selected?theme.accent:theme.textSecondary }
-                            Rectangle { Layout.preferredWidth: 100; Layout.preferredHeight: 30; Layout.alignment: Qt.AlignHCenter
-                                radius: 8; color: theme.accent
-                                Text { anchors.centerIn: parent; text: "🎰 Spin"; font.pixelSize: 12; color: "#fff" }
+                                text: lunchCard.selected || "Tap to spin!"
+                                font.pixelSize: lunchCard.selected?24:16; font.bold: lunchCard.selected!==""; color: lunchCard.selected?theme.accent:theme.textSecondary }
+                            Rectangle { Layout.preferredWidth: 120; Layout.preferredHeight: theme.touchSecondary; Layout.alignment: Qt.AlignHCenter
+                                radius: theme.radiusSm; color: theme.accent
+                                Text { anchors.centerIn: parent; text: "🎰 Spin"; font.pixelSize: theme.fontLabel; color: "#fff" }
                                 MouseArea { anchors.fill: parent; onClicked: {
-                                    parent.parent.parent.selected = parent.parent.parent.options[Math.floor(Math.random()*parent.parent.parent.options.length)] } }
+                                    lunchCard.selected = lunchCard.options[Math.floor(Math.random()*lunchCard.options.length)] } }
                             }
                         }
                         onTapped: { _expandedWidget = "Lunch"; _expandedComponent = lunchExp }
                     }
 
                     // LOSS TRACKER
-                    WidgetCard { title: "Tracker"; icon: "📈"
+                    WidgetCard { id: lossCard; title: "Tracker"; icon: "📈"
                         Layout.fillWidth: true; Layout.preferredHeight: 160
                         property int wins: 42; property int losses: 18
                         ColumnLayout { anchors.centerIn: parent; spacing: 6
                             Text { Layout.alignment: Qt.AlignHCenter; font.pixelSize: 36; font.bold: true; color: theme.accent
-                                text: (wins/(wins+losses)*100).toFixed(0)+"%" }
-                            Text { Layout.alignment: Qt.AlignHCenter; font.pixelSize: 12; color: theme.textSecondary
-                                text: wins+"W / "+losses+"L" }
-                            RowLayout { Layout.alignment: Qt.AlignHCenter; spacing: 4
-                                Rectangle { width: 24; height: 24; radius: 5; color: theme.success
-                                    Text { anchors.centerIn: parent; text: "+"; font.pixelSize: 14; color: "#000" }
-                                    MouseArea { anchors.fill: parent; onClicked: { wins=wins+1 } } }
-                                Rectangle { width: 24; height: 24; radius: 5; color: theme.error
-                                    Text { anchors.centerIn: parent; text: "−"; font.pixelSize: 14; color: "#fff" }
-                                    MouseArea { anchors.fill: parent; onClicked: { losses=losses+1 } } }
+                                text: (lossCard.wins/(lossCard.wins+lossCard.losses)*100).toFixed(0)+"%" }
+                            Text { Layout.alignment: Qt.AlignHCenter; font.pixelSize: theme.fontCaption; color: theme.textSecondary
+                                text: lossCard.wins+"W / "+lossCard.losses+"L" }
+                            RowLayout { Layout.alignment: Qt.AlignHCenter; spacing: 10
+                                Rectangle { width: theme.touchSecondary; height: theme.touchSecondary; radius: theme.radiusSm; color: theme.success
+                                    Text { anchors.centerIn: parent; text: "+"; font.pixelSize: 20; color: "#000" }
+                                    MouseArea { anchors.fill: parent; onClicked: lossCard.wins = lossCard.wins+1 } }
+                                Rectangle { width: theme.touchSecondary; height: theme.touchSecondary; radius: theme.radiusSm; color: theme.error
+                                    Text { anchors.centerIn: parent; text: "−"; font.pixelSize: 20; color: "#fff" }
+                                    MouseArea { anchors.fill: parent; onClicked: lossCard.losses = lossCard.losses+1 } }
                             }
                         }
                         onTapped: { _expandedWidget = "Win/Loss"; _expandedComponent = lossExp }
