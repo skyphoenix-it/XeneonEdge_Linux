@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Xeneon Edge Linux Hub
+Comment=Native Linux widget platform for secondary touchscreen displays
+Exec=xeneon-edge-hub
+Icon=xeneon-edge-hub
+Categories=Utility;
+Terminal=false
+StartupNotify=false
+X-GNOME-Autostart-enabled=true
+

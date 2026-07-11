@@ -1,22 +1,87 @@
-# Build output
-out/
+# Build artifacts
 build/
 target/
+cmake-build-*/
+out/
 dist/
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+moc_*.cpp
+qrc_*.cpp
+ui_*.h
 
-# IntelliJ / JetBrains
-.idea/workspace.xml
-.idea/tasks.xml
-.idea/usage.statistics.xml
-.idea/dictionaries
-.idea/shelf/
-*.iws
+# Rust
+**/target/
+**/*.rs.bk
+*.pdb
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
 *.ipr
+*.iws
 
 # OS files
 .DS_Store
 Thumbs.db
 
-# Logs
-*.log
+# Qt
+*.pro.user
+*.autosave
+Makefile
+*.qm
 
+# Packaging artifacts
+*.pkg.tar.zst
+*.pkg.tar.xz
+*.deb
+*.rpm
+*.flatpak
+*.AppImage
+*.snap
+packages/**/*.tar.*
+packages/**/src/
+packages/**/pkg/
+
+# Testing
+coverage/
+*.profraw
+*.profdata
+lcov.info
+html/
+
+# Documentation build
+docs/book/
+docs/site/
+docs/node_modules/
+
+# Secrets and local config
+.env
+.env.local
+*.secret
+secrets/
+
+# Core dumps
+core
+core.*
+
+# Logs (keep pattern but be more specific)
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+
+# Flatpak build
+.flatpak-builder/
+build-dir/
+repo/

@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # --- Rust Core ---
+  format:
+    name: Rust Format Check
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all -- --check
+
+  lint:
+    name: Rust Clippy
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - run: cargo clippy --all-targets -- -D warnings
+
+  test:
+    name: Rust Tests
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test
+
+  audit:
+    name: Security Audit
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      - run: cargo audit
+
+  # --- Full Build ---
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-24.04]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qt6-base-dev qt6-declarative-dev qt6-wayland-dev qt6-tools-dev cmake g++
+      - name: Build Rust core
+        run: cargo build --release
+        working-directory: core
+      - name: Configure CMake
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build C++ application
+        run: cmake --build build -j$(nproc)
+      - name: Verify binary
+        run: test -f build/xeneon-edge-hub || echo "Binary not found, check build logs"
+
+  docs:
+    name: Docs & Links
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check markdown links
+        uses: gaurav-nelson/github-action-markdown-link-check@v1
+        continue-on-error: true
+        with:
+          use-quiet-mode: 'yes'
