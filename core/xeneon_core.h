@@ -1,0 +1,81 @@
+#ifndef XENEON_CORE_H
+#define XENEON_CORE_H
+
+#include <stdint.h>
+#include <stddef.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// === Opaque Handles ===
+typedef struct ConfigHandle ConfigHandle;
+typedef struct MetricsHandle MetricsHandle;
+
+// === Logging ===
+
+typedef enum {
+    XENEON_LOG_ERROR = 0,
+    XENEON_LOG_WARN  = 1,
+    XENEON_LOG_INFO  = 2,
+    XENEON_LOG_DEBUG = 3,
+    XENEON_LOG_TRACE = 4,
+} XeneonLogLevel;
+
+void xeneon_logging_init(const char* level);
+void xeneon_logging_log(int level, const char* file, int line, const char* message);
+
+// === Configuration ===
+ConfigHandle* xeneon_config_load(void);
+int xeneon_config_save(const ConfigHandle* handle);
+void xeneon_config_free(ConfigHandle* handle);
+int xeneon_config_is_first_run(const ConfigHandle* handle);
+int xeneon_config_set_first_run_complete(ConfigHandle* handle);
+
+char* xeneon_config_get_target_edid_hash(const ConfigHandle* handle);
+char* xeneon_config_get_target_connector(const ConfigHandle* handle);
+char* xeneon_config_get_target_model(const ConfigHandle* handle);
+
+int xeneon_config_set_target_edid_hash(ConfigHandle* handle, const char* hash);
+int xeneon_config_set_target_connector(ConfigHandle* handle, const char* connector);
+int xeneon_config_set_target_model(ConfigHandle* handle, const char* model);
+
+char* xeneon_config_get_theme_mode(const ConfigHandle* handle);
+char* xeneon_config_dir(void);
+char* xeneon_config_to_json(const ConfigHandle* handle);
+ConfigHandle* xeneon_config_reset(void);
+
+int xeneon_config_set_theme_mode(ConfigHandle* handle, const char* mode);
+int xeneon_config_set_theme_accent(ConfigHandle* handle, const char* color);
+int xeneon_config_set_autostart(ConfigHandle* handle, int enabled);
+int xeneon_config_set_reconnect(ConfigHandle* handle, int enabled);
+int xeneon_config_set_notify_disconnect(ConfigHandle* handle, int enabled);
+int xeneon_config_set_starter_layout(ConfigHandle* handle, const char* layout_id);
+
+// === Display Utilities ===
+char* xeneon_display_compute_edid_hash(const uint8_t* edid_data, size_t len);
+char* xeneon_display_parse_manufacturer(const uint8_t* edid_data, size_t len);
+char* xeneon_display_parse_model_name(const uint8_t* edid_data, size_t len);
+int xeneon_display_is_xeneon_edge(const uint8_t* edid_data, size_t len);
+
+// === System Metrics ===
+MetricsHandle* xeneon_metrics_collect(void);
+void xeneon_metrics_free(MetricsHandle* handle);
+
+double xeneon_metrics_get_cpu_usage(const MetricsHandle* handle);
+double xeneon_metrics_get_cpu_temp(const MetricsHandle* handle);
+double xeneon_metrics_get_ram_usage(const MetricsHandle* handle);
+uint64_t xeneon_metrics_get_ram_total(const MetricsHandle* handle);
+uint64_t xeneon_metrics_get_ram_used(const MetricsHandle* handle);
+uint32_t xeneon_metrics_get_cpu_cores(const MetricsHandle* handle);
+char* xeneon_metrics_to_json(const MetricsHandle* handle);
+
+// === String Utilities ===
+void xeneon_string_free(char* s);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // XENEON_CORE_H
+
