@@ -28,6 +28,30 @@ Item {
         return Math.max(1, Math.min(2, want))
     }
 
+    // ── Page background (mirrors Dashboard.qml so the clone is truly WYSIWYG:
+    //    animated style OR wallpaper, per-page override → global default) ──
+    property var pageBg: {
+        store.revision
+        var pages = store.pages()
+        var p = (pageIndex >= 0 && pageIndex < pages.length) ? pages[pageIndex] : ({})
+        var pbg = p.bg || ({})
+        var a = store.appearance() || ({})
+        if (pbg.wallpaper) return { wallpaper: pbg.wallpaper, style: pbg.style || a.bgStyle || "orbs" }
+        if (pbg.style)     return { wallpaper: "", style: pbg.style }
+        return { wallpaper: a.wallpaper || "", style: a.bgStyle || "orbs" }
+    }
+    property string wallpaperSource: {
+        var wp = clone.pageBg.wallpaper
+        if (!wp || !wp.length) return ""
+        return String(wp).charAt(0) === "/" ? "file://" + wp : wp
+    }
+    property bool animatedBg: {
+        store.revision
+        var a = store.appearance() || ({})
+        return a.animatedBg === undefined ? true : a.animatedBg
+    }
+    property bool reduceMotion: { store.revision; return store.appearance().reduceMotion || false }
+
     property int tick: 0
     property var metricsObj: ({})
     Timer { interval: 1000; running: true; repeat: true; onTriggered: clone.tick++ }
@@ -43,7 +67,9 @@ Item {
         var s = catalog.source(type)
         return s ? s.replace("qrc:/qml/", "qrc:/manager/") : ""
     }
-    function unitH(h) { return (h === 2 ? 360 : 180) }
+    // Total pixel height a tile spanning `h` rows occupies, including the row gap
+    // between the spanned rows (so a 2-tall tile lines up with two stacked 1-talls).
+    function spanH(h) { var n = Math.max(1, h); return 180 * n + 10 * (n - 1) }
     function injectInto(item, id, type) {
         if (!item) return
         store.ensureSettings(id, catalog.defaults(type))
@@ -109,6 +135,28 @@ Item {
                 GradientStop { position: 1.0; color: theme.backgroundColor3 }
             }
 
+            // Animated backdrop (orbs / waves / stars / …) — shown when no wallpaper
+            // is set, mirroring the hub so the "Animated background" toggle + style
+            // choice preview live. Declared before the grid so it sits underneath.
+            BackdropLayer {
+                anchors.fill: parent
+                visible: clone.wallpaperSource === "" && theme.decorative
+                style: clone.pageBg.style
+                running: clone.animatedBg && !clone.reduceMotion
+            }
+            Image {
+                id: cloneWall
+                anchors.fill: parent
+                source: clone.wallpaperSource
+                visible: source != ""
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true; cache: true
+            }
+            Rectangle {
+                anchors.fill: parent; visible: cloneWall.visible
+                color: Qt.rgba(theme.backgroundColor.r, theme.backgroundColor.g, theme.backgroundColor.b, 0.28)
+            }
+
             GridLayout {
                 id: grid
                 x: 12; y: 12; width: parent.width - 24
@@ -124,9 +172,15 @@ Item {
                             required property var modelData
                             property int pvW: 0   // preview span/height during a resize drag
                             property int pvH: 0
+                            property int effH: Math.max(1, (pvH > 0 ? pvH : (modelData.h || 1)))
                             Layout.fillWidth: true
+                            Layout.fillHeight: true
                             Layout.columnSpan: Math.min((pvW > 0 ? pvW : (modelData.w || 1)), clone.cols)
-                            Layout.preferredHeight: clone.unitH(pvH > 0 ? pvH : (modelData.h || 1))
+                            // Tall (h=2) tiles span two GRID ROWS — mirrors Dashboard.qml so a
+                            // short neighbour keeps its own row instead of floating in dead space.
+                            Layout.rowSpan: tile.effH
+                            Layout.minimumHeight: clone.spanH(tile.effH)
+                            Layout.preferredHeight: clone.spanH(tile.effH)
                             opacity: clone.dragIndex === tile.index ? 0.3 : 1.0
 
                             Rectangle {   // placeholder / loading
@@ -220,17 +274,22 @@ Item {
                                     cursorShape: Qt.SizeFDiagCursor
                                     preventStealing: true
                                     property real sx: 0; property real sy: 0; property int sw: 1; property int sh: 1
+                                    // Work in the UNSCALED content ("screen") space so the drag
+                                    // distance needed to flip a span matches the visible tile edge
+                                    // regardless of the device frame's fit-to-view scale.
                                     onPressed: (mp) => {
-                                        var c = mapToItem(clone, mp.x, mp.y)
+                                        var c = mapToItem(screen, mp.x, mp.y)
                                         sx = c.x; sy = c.y
                                         sw = tile.modelData.w || 1; sh = tile.modelData.h || 1
                                         tile.pvW = sw; tile.pvH = sh
                                     }
                                     onPositionChanged: (mp) => {
-                                        var c = mapToItem(clone, mp.x, mp.y)
+                                        var c = mapToItem(screen, mp.x, mp.y)
                                         var dx = c.x - sx, dy = c.y - sy
-                                        tile.pvW = clone.cols >= 2 ? (dx > 70 ? 2 : (dx < -70 ? 1 : sw)) : 1
-                                        tile.pvH = dy > 80 ? 2 : (dy < -80 ? 1 : sh)
+                                        var tW = tile.width * 0.55        // ~half a tile → flip
+                                        var tH = clone.spanH(1) * 0.55
+                                        tile.pvW = clone.cols >= 2 ? (dx > tW ? 2 : (dx < -tW ? 1 : sw)) : 1
+                                        tile.pvH = dy > tH ? 2 : (dy < -tH ? 1 : sh)
                                     }
                                     onReleased: {
                                         var nw = tile.pvW > 0 ? tile.pvW : (tile.modelData.w || 1)
@@ -254,12 +313,13 @@ Item {
         }
     }
 
-    // Floating drag ghost.
+    // Floating drag ghost — tracks the cursor (both axes) and stays on-screen.
     Rectangle {
+        id: dragGhost
         visible: clone.dragIndex >= 0 && clone.dragIndex < clone.tiles.length
         width: 210; height: 46; radius: 12; z: 100
-        x: frame.x - 224
-        y: clone.dragY - 23
+        x: Math.max(6, Math.min(clone.width - width - 6, clone.dragX + 18))
+        y: Math.max(6, Math.min(clone.height - height - 6, clone.dragY - height / 2))
         color: theme.cardBackgroundAlt; border.width: 1; border.color: theme.accent
         Row {
             anchors.centerIn: parent; spacing: 10

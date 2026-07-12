@@ -51,14 +51,29 @@ Dialog {
         if (item.hasOwnProperty("tick")) item.tick = Qt.binding(function () { return dlg.tick })
     }
 
+    // In-flight geocode request, so a new lookup aborts the previous one
+    // (re-entrancy guard) and closing the dialog cancels a pending request.
+    property var _geoXhr: null
+    function _cancelGeo() { if (_geoXhr) { try { _geoXhr.abort() } catch (e) {} _geoXhr = null } }
+
     function doAction(action) {
         if (action === "geocode") {
             var place = store.settingsFor(wId).place || ""
             if (!place.trim().length) { geoStatus = "Type a place name first"; return }
+            dlg._cancelGeo()                       // supersede any in-flight lookup
             geoStatus = "Searching…"
             var xhr = new XMLHttpRequest()
+            dlg._geoXhr = xhr
+            xhr.timeout = 8000
+            xhr.ontimeout = function () {
+                if (dlg._geoXhr !== xhr) return
+                dlg._geoXhr = null; dlg.geoStatus = "Lookup timed out — try again"
+            }
             xhr.onreadystatechange = function () {
                 if (xhr.readyState !== XMLHttpRequest.DONE) return
+                if (dlg._geoXhr !== xhr) return     // superseded or aborted
+                dlg._geoXhr = null
+                if (xhr.status === 0) return         // aborted / network down
                 try {
                     var d = JSON.parse(xhr.responseText)
                     if (d && d.results && d.results.length) {
@@ -72,6 +87,22 @@ Dialog {
             xhr.open("GET", "https://geocoding-api.open-meteo.com/v1/search?count=1&name=" + encodeURIComponent(place.trim()))
             xhr.send()
         }
+    }
+
+    onClosed: dlg._cancelGeo()
+
+    // Confirm before wiping a widget's settings back to defaults.
+    Dialog {
+        id: resetConfirm
+        anchors.centerIn: parent
+        modal: true; title: "Reset this widget?"
+        standardButtons: Dialog.Yes | Dialog.No
+        background: Rectangle { color: m.panel; radius: m.radius; border.width: 1; border.color: m.border }
+        contentItem: Text {
+            text: "Reset " + catalog.title(dlg.wType) + " to its default settings? This can't be undone."
+            color: m.textPrimary; wrapMode: Text.WordWrap; padding: 14; font.pixelSize: 14
+        }
+        onAccepted: store.resetSettings(dlg.wId, catalog.defaults(dlg.wType))
     }
 
     header: Rectangle {
@@ -118,17 +149,7 @@ Dialog {
             }
             Button {
                 text: "Reset to defaults"; Layout.fillWidth: true
-                onClicked: {
-                    var defs = catalog.defaults(dlg.wType)
-                    var clean = {}
-                    for (var k in defs) clean[k] = defs[k]
-                    store.setSetting(dlg.wId, "__noop", 0)   // ensure map exists
-                    // Replace the whole settings object with defaults.
-                    var s = store.settingsFor(dlg.wId)
-                    for (var kk in s) delete s[kk]
-                    for (var d in defs) s[d] = defs[d]
-                    store._touchSettings()
-                }
+                onClicked: resetConfirm.open()
             }
         }
 
@@ -136,7 +157,7 @@ Dialog {
 
         // ── Form (shared panel — identical rendering to the on-device config) ──
         WidgetConfigPanel {
-            Layout.fillWidth: true; Layout.fillHeight: true
+            Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumWidth: 320
             schema: dlg.schema
             store: store
             instanceId: dlg.wId

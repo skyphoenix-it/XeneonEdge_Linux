@@ -125,7 +125,7 @@ Item {
             Rectangle {
                 Layout.preferredWidth: f.ctlH; Layout.preferredHeight: f.ctlH
                 radius: 10; color: dec.pressed ? f.col.accent : f.col.panelAlt; border.width: 1; border.color: f.col.border
-                Text { anchors.centerIn: parent; text: "−"; color: f.col.textPrimary; font.pixelSize: 24 }
+                AppIcon { anchors.centerIn: parent; name: "ui-minus"; size: 18; color: f.col.textPrimary }
                 MouseArea { id: dec; anchors.fill: parent; onClicked: f.setV(parent.parent.clamp(Number(f.cur()) - parent.parent.step())) }
             }
             Rectangle {
@@ -140,7 +140,7 @@ Item {
             Rectangle {
                 Layout.preferredWidth: f.ctlH; Layout.preferredHeight: f.ctlH
                 radius: 10; color: inc.pressed ? f.col.accent : f.col.panelAlt; border.width: 1; border.color: f.col.border
-                Text { anchors.centerIn: parent; text: "+"; color: f.col.textPrimary; font.pixelSize: 24 }
+                AppIcon { anchors.centerIn: parent; name: "ui-plus"; size: 18; color: f.col.textPrimary }
                 MouseArea { id: inc; anchors.fill: parent; onClicked: f.setV(parent.parent.clamp(Number(f.cur()) + parent.parent.step())) }
             }
         }
@@ -255,7 +255,7 @@ Item {
                         width: 30; height: 30; radius: 6
                         color: modelData.done ? f.col.accent : "transparent"
                         border.width: 2; border.color: modelData.done ? f.col.accent : f.col.border
-                        Text { anchors.centerIn: parent; visible: modelData.done; text: "✓"; color: "#0D1117"; font.bold: true }
+                        AppIcon { anchors.centerIn: parent; visible: modelData.done; name: "ui-check"; size: 16; color: "#0D1117" }
                         MouseArea { anchors.fill: parent; onClicked: {
                             var a = (f.cur() || []).slice()
                             a[index] = { text: a[index].text, done: !a[index].done }; f.setV(a) } }
@@ -272,7 +272,7 @@ Item {
                     }
                     Rectangle {
                         width: 34; height: 34; radius: 6; color: f.col.panelAlt
-                        Text { anchors.centerIn: parent; text: "✕"; color: f.col.textSecondary; font.pixelSize: 15 }
+                        AppIcon { anchors.centerIn: parent; name: "ui-close"; size: 13; color: f.col.textSecondary }
                         MouseArea { anchors.fill: parent; onClicked: {
                             var a = (f.cur() || []).slice(); a.splice(index, 1); f.setV(a) } }
                     }

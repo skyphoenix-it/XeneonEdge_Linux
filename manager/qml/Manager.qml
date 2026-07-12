@@ -10,11 +10,12 @@ import QtQuick.Dialogs
 ApplicationWindow {
     id: win
     // Open large enough that the fit-to-fit Edge clone reads clearly (the whole
-    // page visible without scrolling, ~half of the panel's 2560px tall).
-    width: 1440
-    height: 1300
-    minimumWidth: 1120
-    minimumHeight: 900
+    // page visible without scrolling, ~half of the panel's 2560px tall), but
+    // never larger than the screen — clamp so it fits smaller laptop displays.
+    width: Math.min(1440, Screen.desktopAvailableWidth - 80)
+    height: Math.min(1300, Screen.desktopAvailableHeight - 80)
+    minimumWidth: Math.min(1120, Screen.desktopAvailableWidth - 40)
+    minimumHeight: Math.min(760, Screen.desktopAvailableHeight - 40)
     visible: true
     title: "Xeneon Edge Manager"
     color: m.bg
@@ -28,7 +29,10 @@ ApplicationWindow {
         readonly property color border: "#30363D"
         readonly property color textPrimary: "#E6EDF3"
         readonly property color textSecondary: "#8B949E"
-        readonly property color accent: "#58A6FF"
+        // Chrome stays dark, but the ACCENT follows the user's chosen Edge accent
+        // so selection highlights match what they picked (falls back to blue).
+        readonly property color accent: theme.accent
+        readonly property color textOnAccent: "#0D1117"    // legible text on the accent
         readonly property color success: "#3FB950"
         readonly property color danger: "#F85149"
         readonly property int radius: 12
@@ -39,6 +43,65 @@ ApplicationWindow {
             { name: "pink", c: "#F778BA" }, { name: "teal", c: "#56D4DD" },
             { name: "red", c: "#F85149" }, { name: "gold", c: "#E3B341" }
         ]
+    }
+
+    // ── Reusable, token-styled controls (inline so they capture `m`/`theme`) ──
+    // Replaces the default Fusion Switch/Button, which ignored the chosen accent
+    // and clashed with the hand-drawn UI. MButton also takes an optional AppIcon
+    // so callers stop hand-typing emoji glyphs.
+    component MButton: Button {
+        id: mbtn
+        property string iconName: ""
+        property bool primary: false
+        property color tone: primary ? m.accent : m.panel
+        implicitHeight: 40; hoverEnabled: true
+        contentItem: Item {
+            implicitWidth: mbtnRow.implicitWidth; implicitHeight: mbtnRow.implicitHeight
+            Row {
+                id: mbtnRow; anchors.centerIn: parent; spacing: 8
+                AppIcon {
+                    visible: mbtn.iconName !== ""; name: mbtn.iconName; size: 16
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: mbtn.primary ? m.textOnAccent : m.textPrimary
+                }
+                Text {
+                    text: mbtn.text; anchors.verticalCenter: parent.verticalCenter
+                    color: mbtn.primary ? m.textOnAccent : m.textPrimary
+                    font.pixelSize: 14; font.bold: mbtn.primary
+                }
+            }
+        }
+        background: Rectangle {
+            radius: m.radius
+            color: mbtn.primary
+                   ? (mbtn.down ? Qt.darker(mbtn.tone, 1.2) : (mbtn.hovered ? Qt.lighter(mbtn.tone, 1.1) : mbtn.tone))
+                   : (mbtn.down || mbtn.hovered ? m.panelAlt : m.panel)
+            border.width: mbtn.primary ? 0 : 1
+            border.color: m.border
+        }
+    }
+
+    component MSwitch: Switch {
+        id: msw
+        implicitHeight: 30
+        indicator: Rectangle {
+            implicitWidth: 46; implicitHeight: 26; radius: 13
+            x: msw.leftPadding; anchors.verticalCenter: parent.verticalCenter
+            color: msw.checked ? m.accent : m.panelAlt
+            border.width: 1; border.color: msw.checked ? m.accent : m.border
+            Behavior on color { ColorAnimation { duration: 120 } }
+            Rectangle {
+                x: msw.checked ? parent.width - width - 3 : 3
+                y: 3; width: 20; height: 20; radius: 10
+                color: msw.checked ? m.textOnAccent : m.textSecondary
+                Behavior on x { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+            }
+        }
+        contentItem: Text {
+            text: msw.text; color: m.textPrimary; font.pixelSize: 14
+            verticalAlignment: Text.AlignVCenter
+            leftPadding: msw.indicator.width + 10
+        }
     }
 
     // Shared hub model + registry.
@@ -65,6 +128,13 @@ ApplicationWindow {
     MockMedia { id: media }
 
     property int currentPageIndex: 0
+    function currentPageName() {
+        var p = store.pages()[currentPageIndex]
+        return p ? p.name : ""
+    }
+    // Keep the rename field in step with the selected page WITHOUT a `text:` binding
+    // (a binding breaks the moment the user types, which caused wrong-page renames).
+    onCurrentPageIndexChanged: pageName.text = currentPageName()
 
     function syncTheme() {
         var a = store.appearance() || ({})
@@ -205,18 +275,30 @@ ApplicationWindow {
                     // Page tools
                     RowLayout {
                         Layout.fillWidth: true; spacing: 8
+                        Text { text: "Page name:"; color: m.textSecondary; font.pixelSize: 13
+                            Layout.alignment: Qt.AlignVCenter }
                         TextField {
                             id: pageName; Layout.preferredWidth: 240; Layout.preferredHeight: m.touch
-                            text: { store.revision; var p = store.pages()[win.currentPageIndex]; return p ? p.name : "" }
-                            color: m.textPrimary
-                            background: Rectangle { radius: 8; color: m.panel; border.color: m.border; border.width: 1 }
-                            onEditingFinished: store.renamePage(win.currentPageIndex, text)
+                            color: m.textPrimary; selectByMouse: true
+                            Component.onCompleted: text = win.currentPageName()
+                            background: Rectangle { radius: 8; color: m.panel; border.width: 1
+                                border.color: pageName.activeFocus ? m.accent : m.border }
+                            // Commit on Enter/blur, then reflect the validated (trimmed/
+                            // de-duped) name the store actually stored.
+                            onEditingFinished: {
+                                store.renamePage(win.currentPageIndex, text)
+                                text = win.currentPageName()
+                            }
                         }
-                        Button { text: "Rename"; onClicked: store.renamePage(win.currentPageIndex, pageName.text) }
                         Item { Layout.fillWidth: true }
-                        Button { text: "Remove page"; enabled: store.pageCount() > 1
-                            onClicked: { store.removePage(win.currentPageIndex)
-                                win.currentPageIndex = Math.max(0, win.currentPageIndex - 1) } }
+                        MButton { text: "Remove page"; iconName: "ui-trash"
+                            enabled: (store.revision, store.pageCount() > 1)
+                            onClicked: {
+                                var removed = win.currentPageIndex
+                                store.removePage(removed)
+                                // Stay on the page that slid into this slot (clamped).
+                                win.currentPageIndex = Math.min(removed, store.pageCount() - 1)
+                            } }
                     }
 
                     // This page's background — one control, overrides the global
@@ -267,7 +349,8 @@ ApplicationWindow {
                         // Helper column.
                         ColumnLayout {
                             Layout.fillWidth: true; Layout.alignment: Qt.AlignTop; spacing: 12
-                            Button { text: "＋  Add widget"; Layout.fillWidth: true; Layout.preferredHeight: m.touch
+                            MButton { text: "Add widget"; iconName: "ui-plus"; primary: true
+                                Layout.fillWidth: true; Layout.preferredHeight: m.touch
                                 onClicked: addPicker.open() }
                             Rectangle {
                                 Layout.fillWidth: true; Layout.preferredHeight: hintCol.implicitHeight + 24
@@ -276,7 +359,7 @@ ApplicationWindow {
                                     id: hintCol; anchors.fill: parent; anchors.margins: 12; spacing: 6
                                     Text { text: "This is your Edge"; color: m.textPrimary; font.pixelSize: 15; font.bold: true }
                                     Text { Layout.fillWidth: true; wrapMode: Text.WordWrap; color: m.textSecondary; font.pixelSize: 13
-                                        text: "• Drag a tile onto another to reorder\n• Drag the ⤡ corner to resize (width & height)\n• Switch 1 / 2 columns above\n• ⚙ configure  ·  ✕ remove\nChanges apply live to the display." }
+                                        text: "• Tap a tile (or ⚙) to configure it\n• Drag a tile onto another to reorder\n• Drag the ⤡ corner to resize (width & height)\n• Switch 1 / 2 columns above\n• ✕ removes a tile\nChanges apply live to the display." }
                                 }
                             }
                             Item { Layout.fillHeight: true }
@@ -287,8 +370,13 @@ ApplicationWindow {
 
             // ═══ 2. APPEARANCE ═══
             Item {
+              ScrollView {
+                id: apScroll
+                anchors.fill: parent; clip: true
+                contentWidth: availableWidth
                 ColumnLayout {
-                    anchors.fill: parent; anchors.margins: 24; spacing: 18
+                    width: apScroll.availableWidth - 48
+                    x: 24; y: 24; spacing: 18
                     Text { text: "Appearance"; color: m.textPrimary; font.pixelSize: 24; font.bold: true }
 
                     Text { text: "Theme"; color: m.textSecondary; font.pixelSize: 14 }
@@ -317,8 +405,9 @@ ApplicationWindow {
                                 Text { anchors.left: parent.left; anchors.bottom: parent.bottom; anchors.margins: 8
                                     text: modelData.n; font.pixelSize: 14; font.bold: true
                                     color: modelData.k === "light" ? "#1F2328" : "#FFFFFF" }
-                                Text { visible: parent.sel; anchors.top: parent.top; anchors.right: parent.right
-                                    anchors.margins: 6; text: "✓"; color: m.accent; font.pixelSize: 18; font.bold: true }
+                                Rectangle { visible: parent.sel; anchors.top: parent.top; anchors.right: parent.right
+                                    anchors.margins: 6; width: 22; height: 22; radius: 11; color: m.accent
+                                    AppIcon { anchors.centerIn: parent; name: "ui-check"; size: 13; color: m.textOnAccent } }
                                 MouseArea { anchors.fill: parent
                                     onClicked: store.setAppearance("themeMode", modelData.k) }
                             }
@@ -332,9 +421,12 @@ ApplicationWindow {
                             model: m.accentPresets
                             delegate: Rectangle {
                                 required property var modelData
+                                property bool sel: (store.revision, store.appearance().accent === modelData.name)
                                 width: 46; height: 46; radius: 23; color: modelData.c
-                                border.width: (store.revision, store.appearance().accent === modelData.name) ? 3 : 0
+                                border.width: sel ? 3 : 0
                                 border.color: m.textPrimary
+                                AppIcon { visible: parent.sel; anchors.centerIn: parent
+                                    name: "ui-check"; size: 20; color: "#FFFFFF" }
                                 MouseArea { anchors.fill: parent
                                     onClicked: store.setAppearance("accent", modelData.name) }
                             }
@@ -345,9 +437,10 @@ ApplicationWindow {
                         Layout.topMargin: 4 }
                     Text { text: "Pick an animated style OR a wallpaper — this is the default for every page. A page can override it in the Layout tab."
                         color: m.textSecondary; font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.WordWrap }
-                    Text { visible: !theme.decorative
-                        text: "⚠  The High Contrast theme keeps backgrounds off for legibility — switch themes to see them."
-                        color: m.danger; font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                    RowLayout { visible: !theme.decorative; Layout.fillWidth: true; spacing: 6
+                        AppIcon { name: "ui-warning"; size: 14; color: m.danger; Layout.alignment: Qt.AlignTop }
+                        Text { text: "The High Contrast theme keeps backgrounds off for legibility — switch themes to see them."
+                            color: m.danger; font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.WordWrap } }
                     BackgroundPicker {
                         Layout.fillWidth: true
                         store: store; pageIndex: -1; col: win.mCol
@@ -378,30 +471,39 @@ ApplicationWindow {
                         Slider {
                             id: glassSlider; Layout.fillWidth: true; from: 0; to: 1
                             value: { store.revision; var g = store.appearance().glass; return g === undefined ? 0.55 : g }
-                            onMoved: store.setAppearance("glass", value)
+                            // Live-preview the theme while dragging (cheap: opacity only),
+                            // but debounce the persisted store write so we don't reapply the
+                            // whole theme + save on every frame.
+                            onMoved: { theme.glassOpacity = value; glassCommit.restart() }
+                            Timer { id: glassCommit; interval: 180; repeat: false
+                                onTriggered: store.setAppearance("glass", glassSlider.value) }
                         }
+                        Text { text: Math.round(glassSlider.value * 100) + "%"
+                            color: m.textPrimary; font.pixelSize: 13; font.bold: true
+                            Layout.preferredWidth: 44; horizontalAlignment: Text.AlignRight }
                     }
 
                     RowLayout {
-                        spacing: 12
-                        Switch {
+                        spacing: 20
+                        MSwitch {
                             text: "Widget glow"
                             checked: { store.revision; var g = store.appearance().glow; return g === undefined ? true : g }
                             onToggled: store.setAppearance("glow", checked)
                         }
-                        Switch {
+                        MSwitch {
                             text: "Animated background"
                             checked: { store.revision; var g = store.appearance().animatedBg; return g === undefined ? true : g }
                             onToggled: store.setAppearance("animatedBg", checked)
                         }
-                        Switch {
+                        MSwitch {
                             text: "Reduce motion"
                             checked: (store.revision, store.appearance().reduceMotion || false)
                             onToggled: store.setAppearance("reduceMotion", checked)
                         }
                     }
-                    Item { Layout.fillHeight: true }
+                    Item { Layout.preferredHeight: 12 }   // bottom padding
                 }
+              }
             }
 
             // ═══ 3. IMAGES ═══
@@ -414,13 +516,21 @@ ApplicationWindow {
 
                     RowLayout {
                         Layout.fillWidth: true; spacing: 8
-                        Button { text: "＋  Import image…"; Layout.preferredHeight: m.touch
-                            onClicked: fileDialog.open() }
+                        MButton { text: "Import image…"; iconName: "ui-plus"; primary: true
+                            Layout.preferredHeight: m.touch; onClicked: fileDialog.open() }
                         Item { Layout.fillWidth: true }
                     }
 
                     Text { text: "Your images"; color: m.textSecondary; font.pixelSize: 14; font.bold: true }
+                    Text { text: "Click an image to use it as the wallpaper."
+                        color: m.textSecondary; font.pixelSize: 12; visible: imagesModel.count > 0 }
+                    // Empty state.
+                    Text { visible: imagesModel.count === 0; Layout.fillWidth: true; Layout.topMargin: 24
+                        horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap
+                        text: "No images yet — use “Import image…” to add one."
+                        color: m.textSecondary; font.pixelSize: 14 }
                     ScrollView {
+                        visible: imagesModel.count > 0
                         Layout.fillWidth: true; Layout.fillHeight: true; clip: true
                         GridView {
                             id: imgGrid
@@ -430,27 +540,40 @@ ApplicationWindow {
                                 id: imgCard
                                 required property var modelData
                                 width: 180; height: 180; radius: m.radius
-                                property string fullPath: backend.imagesDir() + "/" + modelData
+                                // Wallpapers are stored as file:// URLs (matching the
+                                // BackgroundPicker), so compare against that form.
+                                property string fullPath: "file://" + backend.imagesDir() + "/" + modelData
                                 property bool isWall: (store.revision, store.appearance().wallpaper) === fullPath
-                                color: m.panel; border.width: isWall ? 2 : 1
-                                border.color: isWall ? m.accent : m.border
+                                color: cardMA.containsMouse ? m.panelAlt : m.panel
+                                border.width: isWall ? 3 : 1; border.color: isWall ? m.accent : m.border
                                 ColumnLayout {
                                     anchors.fill: parent; anchors.margins: 8; spacing: 4
                                     Image {
                                         Layout.fillWidth: true; Layout.fillHeight: true
-                                        source: "file://" + imgCard.fullPath
+                                        source: imgCard.fullPath
                                         fillMode: Image.PreserveAspectCrop; asynchronous: true; clip: true
                                     }
                                     RowLayout {
                                         Layout.fillWidth: true; spacing: 4
-                                        Text { text: imgCard.isWall ? "★ wallpaper" : imgCard.modelData
+                                        AppIcon { visible: imgCard.isWall; name: "ui-check"; size: 14; color: m.accent }
+                                        Text { text: imgCard.isWall ? "wallpaper" : imgCard.modelData
                                             color: imgCard.isWall ? m.accent : m.textSecondary; font.pixelSize: 11
                                             elide: Text.ElideRight; Layout.fillWidth: true }
-                                        AppIcon { name: "ui-trash"; size: 18; color: m.danger
-                                            MouseArea { anchors.fill: parent
-                                                onClicked: { backend.deleteImage(imgCard.modelData); win.refreshImages() } } }
+                                        // Bigger, padded delete hit target.
+                                        Rectangle { Layout.preferredWidth: 30; Layout.preferredHeight: 26; radius: 6
+                                            color: delMA.containsMouse ? Qt.rgba(m.danger.r, m.danger.g, m.danger.b, 0.18) : "transparent"
+                                            AppIcon { anchors.centerIn: parent; name: "ui-trash"; size: 16; color: m.danger }
+                                            MouseArea { id: delMA; anchors.fill: parent; hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: win.confirmDeleteImage(imgCard.modelData, imgCard.fullPath) } }
                                     }
                                 }
+                                // Click the card body → set as wallpaper.
+                                MouseArea { id: cardMA; anchors.fill: parent; hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    // Let the trash button win.
+                                    onClicked: (mouse) => store.setAppearance("wallpaper", imgCard.fullPath)
+                                    z: -1 }
                             }
                         }
                     }
@@ -459,8 +582,13 @@ ApplicationWindow {
 
             // ═══ 4. DISPLAY ═══
             Item {
+              ScrollView {
+                id: dpScroll
+                anchors.fill: parent; clip: true
+                contentWidth: availableWidth
                 ColumnLayout {
-                    anchors.fill: parent; anchors.margins: 24; spacing: 16
+                    width: dpScroll.availableWidth - 48
+                    x: 24; y: 24; spacing: 16
                     Text { text: "Display & Startup"; color: m.textPrimary; font.pixelSize: 24; font.bold: true }
                     Text { text: "Choose which screen the hub runs on. Applies next time the hub starts."
                         color: m.textSecondary; font.pixelSize: 14 }
@@ -483,7 +611,11 @@ ApplicationWindow {
                                     Text { text: modelData.name + "  ·  " + modelData.width + "×" + modelData.height
                                         color: m.textSecondary; font.pixelSize: 12 }
                                 }
-                                Button { text: modelData.name === win.currentTarget ? "Target ✓" : "Set as target"
+                                MButton {
+                                    property bool isTarget: modelData.name === win.currentTarget
+                                    text: isTarget ? "Target" : "Set as target"
+                                    iconName: isTarget ? "ui-check" : ""
+                                    primary: isTarget
                                     onClicked: { backend.setTargetDisplay(modelData.name, modelData.model)
                                         win.currentTarget = modelData.name } }
                             }
@@ -512,13 +644,14 @@ ApplicationWindow {
                         }
                     }
 
-                    Switch {
+                    MSwitch {
                         id: autostartSwitch; text: "Start the hub automatically on login"
                         checked: backend.isAutostart()
                         onToggled: backend.setAutostart(checked)
                     }
-                    Item { Layout.fillHeight: true }
+                    Item { Layout.preferredHeight: 12 }   // bottom padding
                 }
+              }
             }
         }
     }
@@ -580,6 +713,35 @@ ApplicationWindow {
         onAccepted: { backend.importImage(selectedFile); win.refreshImages() }
     }
 
+    // Reusable confirm dialog (destructive actions).
+    Dialog {
+        id: confirmDialog
+        property string message: ""
+        property var onConfirm: null
+        anchors.centerIn: parent
+        modal: true; title: "Please confirm"
+        standardButtons: Dialog.Yes | Dialog.No
+        background: Rectangle { color: m.panel; radius: m.radius; border.width: 1; border.color: m.border }
+        contentItem: Text { text: confirmDialog.message; color: m.textPrimary
+            wrapMode: Text.WordWrap; padding: 14; font.pixelSize: 14 }
+        onAccepted: if (onConfirm) onConfirm()
+    }
+
+    // Delete an image, clearing the wallpaper anywhere it points at that file.
+    function confirmDeleteImage(name, fullPath) {
+        confirmDialog.message = "Delete “" + name + "”? This can't be undone."
+        confirmDialog.onConfirm = function () {
+            if (store.appearance().wallpaper === fullPath) store.setAppearance("wallpaper", "")
+            var pages = store.pages()
+            for (var i = 0; i < pages.length; i++)
+                if (store.pageBackground(i).wallpaper === fullPath)
+                    store.setPageBackground(i, "wallpaper", "")
+            backend.deleteImage(name)
+            win.refreshImages()
+        }
+        confirmDialog.open()
+    }
+
     ListModel { id: imagesModel }
     function refreshImages() {
         imagesModel.clear()
@@ -596,5 +758,26 @@ ApplicationWindow {
     Connections {
         target: backend
         function onImagesChanged() { win.refreshImages() }
+        // The hub (or disk) changed the config externally — adopt it live.
+        function onConfigChanged() {
+            store.load(backend.starterLayout())
+            win.syncTheme()
+            win.refreshImages()
+            if (win.currentPageIndex >= store.pageCount())
+                win.currentPageIndex = Math.max(0, store.pageCount() - 1)
+            pageName.text = win.currentPageName()
+        }
+        // Display hotplug.
+        function onScreensChanged() {
+            try { win.screens = JSON.parse(backend.screensJson() || "[]") } catch (e) { win.screens = [] }
+            win.currentTarget = backend.targetConnector()
+        }
+    }
+
+    // Pull the hub's latest + refresh live state whenever the Manager regains focus.
+    onActiveChanged: if (active) {
+        backend.syncFromHub()
+        try { win.screens = JSON.parse(backend.screensJson() || "[]") } catch (e) {}
+        if (autostartSwitch) autostartSwitch.checked = backend.isAutostart()
     }
 }

@@ -129,6 +129,17 @@ Item {
         for (var k in obj) s[k] = obj[k]
         _touchSettings()
     }
+    // Replace an instance's settings with a DEEP COPY of `defaults` (drops any
+    // stale keys). The clone is essential: assigning array/object defaults by
+    // reference would share one instance across every reset (e.g. every widget's
+    // tasks:[] becoming the same list). Used by "Reset to defaults".
+    function resetSettings(id, defaults) {
+        var s = settingsFor(id)
+        for (var k in s) delete s[k]
+        var d = _clone(defaults || {})
+        for (var kk in d) s[kk] = d[kk]
+        _touchSettings()
+    }
 
     // ── Pages / tiles ────────────────────────────────────────────────────────
     function pages() { return data.pages || [] }
@@ -201,9 +212,21 @@ Item {
                 delete data.settings[removed.tiles[i].id]
         _commitStructure()
     }
+    // Validated: trims, keeps the old name if blank, and de-duplicates against the
+    // other pages (so the tab bar never gets an empty or ambiguous label).
     function renamePage(pageIdx, name) {
         if (pageIdx < 0 || pageIdx >= data.pages.length) return
-        data.pages[pageIdx].name = name
+        var trimmed = String(name || "").trim()
+        if (trimmed === "") trimmed = data.pages[pageIdx].name
+        var others = {}
+        for (var i = 0; i < data.pages.length; i++)
+            if (i !== pageIdx) others[data.pages[i].name] = true
+        if (others[trimmed]) {
+            var base = trimmed, n = 2
+            while (others[base + " " + n]) n++
+            trimmed = base + " " + n
+        }
+        data.pages[pageIdx].name = trimmed
         _commitStructure()
     }
 
