@@ -85,3 +85,7 @@ temp/
 .flatpak-builder/
 build-dir/
 repo/
+
+# Python bytecode cache
+__pycache__/
+*.pyc
