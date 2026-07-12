@@ -182,8 +182,48 @@ endforeach()
 # License.
 install(FILES LICENSE DESTINATION share/licenses/xeneon-edge-hub)
 
-# udev rule for Edge orientation-sensor access (installed under /usr by default;
-# override with -DUDEV_RULES_DIR=/etc/udev/rules.d for a system install).
-set(UDEV_RULES_DIR "${CMAKE_INSTALL_PREFIX}/lib/udev/rules.d" CACHE PATH "udev rules directory")
+# udev rule for Edge orientation-sensor access. DESTINATION is RELATIVE to the
+# install prefix (→ <prefix>/lib/udev/rules.d) so it stages correctly under CPack
+# and DESTDIR. For a manual system install to a fixed location, override with an
+# absolute path, e.g. -DUDEV_RULES_DIR=/etc/udev/rules.d.
+set(UDEV_RULES_DIR "lib/udev/rules.d" CACHE PATH "udev rules dir (relative to prefix, or absolute)")
 install(FILES packaging/udev/99-xeneon-edge.rules DESTINATION "${UDEV_RULES_DIR}" OPTIONAL)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CPack: generate distro packages from the install rules above.
+#   cpack -G TGZ   (portable tarball; works anywhere)
+#   cpack -G DEB   (build on Debian/Ubuntu — needs dpkg for shlibdeps)
+#   cpack -G RPM   (build on Fedora/openSUSE — needs rpmbuild)
+# ─────────────────────────────────────────────────────────────────────────────
+if(PROJECT_IS_TOP_LEVEL)
+    set(CPACK_PACKAGE_NAME "xeneon-edge-hub")
+    set(CPACK_PACKAGE_VENDOR "SkyPhoenix IT")
+    set(CPACK_PACKAGE_CONTACT "Simon Kreitmayer <simon.kreitmayer@skyphoenix-it.com>")
+    set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+    set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
+        "Native Linux widget dashboard for the Corsair Xeneon Edge and other secondary touchscreens")
+    set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/skyphoenix-it/XeneonEdge_Linux")
+    set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+    set(CPACK_PACKAGING_INSTALL_PREFIX "/usr")
+    set(CPACK_STRIP_FILES ON)
+    set(CPACK_PACKAGE_FILE_NAME "xeneon-edge-hub_${PROJECT_VERSION}_${CMAKE_SYSTEM_PROCESSOR}")
+
+    # Debian/Ubuntu
+    set(CPACK_DEBIAN_PACKAGE_SECTION "utils")
+    set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)   # auto-resolve lib deps (needs dpkg-shlibdeps)
+    set(CPACK_DEBIAN_PACKAGE_DEPENDS
+        "libqt6svg6, qml6-module-qtquick-virtualkeyboard | qt6-virtualkeyboard, qt6-wayland")
+    set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
+
+    # Fedora/openSUSE
+    set(CPACK_RPM_PACKAGE_LICENSE "MIT")
+    set(CPACK_RPM_PACKAGE_GROUP "Applications/System")
+    set(CPACK_RPM_PACKAGE_REQUIRES
+        "qt6-qtbase >= 6.5, qt6-qtdeclarative, qt6-qtsvg, qt6-qtvirtualkeyboard, qt6-qtwayland")
+    set(CPACK_RPM_FILE_NAME "RPM-DEFAULT")
+
+    # Default to a portable tarball; DEB/RPM are opt-in via `cpack -G`.
+    set(CPACK_GENERATOR "TGZ")
+    include(CPack)
+endif()
 

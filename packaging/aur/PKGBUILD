@@ -19,7 +19,6 @@ build() {
   cmake -B build -S . \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX=/usr \
-    -DUDEV_RULES_DIR=/usr/lib/udev/rules.d \
     -Wno-dev
   cmake --build build -j"$(nproc)"
 }
