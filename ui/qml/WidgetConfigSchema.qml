@@ -21,8 +21,30 @@ QtObject {
     function about(text) {
         return { title: "About this widget", cols: 1, fields: [ { type: "info", text: text } ] }
     }
+    // Universal per-widget appearance — added to EVERY widget so any of them can
+    // be given its own accent + an animated in-card backdrop to stand out.
+    function appearanceSection() {
+        return { title: "Widget appearance", cols: 1,
+            desc: "Give this widget its own look so it stands out.", fields: [
+            { key: "accent", label: "Accent colour", type: "accent", dflt: "",
+              help: "Recolours this widget's icon, glow and highlights." },
+            { key: "cardBackdrop", label: "Card backdrop", type: "segmented", dflt: "none",
+              help: "A subtle animated backdrop inside this widget's card.", options: [
+                { value: "none", label: "None" }, { value: "orbs", label: "Orbs" },
+                { value: "mesh", label: "Mesh" }, { value: "aurora", label: "Aurora" },
+                { value: "waves", label: "Waves" }, { value: "stars", label: "Stars" },
+                { value: "bokeh", label: "Bokeh" }, { value: "grid", label: "Grid" } ] } ] }
+    }
 
+    // Public entry: the per-type schema PLUS the universal appearance section.
     function schemaFor(type) {
+        var s = _schemaFor(type)
+        if (s && s.sections)
+            s.sections.push(appearanceSection())
+        return s
+    }
+
+    function _schemaFor(type) {
         switch (type) {
 
         case "clock": return { sections: [

@@ -23,6 +23,14 @@ Item {
     property string titleOverride: ""   // user-set custom title (from config), wins if set
     property string iconName: ""        // professional SVG icon (qrc:/icons/<name>.svg)
     property color accentColor: theme.accent
+    // Per-widget appearance (set per-instance via config; applies to ANY widget):
+    //   accentName  — a theme accent preset name that overrides accentColor.
+    //   cardBackdrop — an animated backdrop rendered INSIDE this card so the widget
+    //                  stands out ("none" | orbs | mesh | aurora | waves | stars | bokeh | grid).
+    property string accentName: ""
+    property string cardBackdrop: "none"
+    readonly property color effAccent: (accentName !== "" && theme.accentPresets[accentName])
+                                       ? theme.accentPresets[accentName].a : accentColor
     property string status: ""          // small trailing status text (top-right)
     property color statusColor: theme.textSecondary
     property bool big: height > 240      // "expanded" mode (richer content)
@@ -48,8 +56,19 @@ Item {
         color: theme.cardFill()
         border.width: theme.cardBorderWidth
         border.color: chrome.interactive && hoverArea.containsMouse
-                      ? chrome.accentColor : theme.cardBorder
+                      ? chrome.effAccent : theme.cardBorder
         Behavior on border.color { ColorAnimation { duration: theme.motionFast } }
+        clip: true
+
+        // Per-widget animated backdrop, inset from the rounded corners so it never
+        // pokes past them. Sits behind the glass overlays + the widget content.
+        BackdropLayer {
+            anchors.fill: parent
+            anchors.margins: parent.radius
+            visible: chrome.cardBackdrop !== "none" && chrome.cardBackdrop !== "" && theme.decorative
+            style: chrome.cardBackdrop
+            running: !theme.reduceMotion
+        }
 
         // Diagonal glass gradient
         Rectangle {
@@ -72,7 +91,7 @@ Item {
             opacity: 0.10
             gradient: Gradient {
                 orientation: Gradient.Horizontal
-                GradientStop { position: 0.0; color: chrome.accentColor }
+                GradientStop { position: 0.0; color: chrome.effAccent }
                 GradientStop { position: 0.55; color: "transparent" }
             }
         }
@@ -90,7 +109,7 @@ Item {
             gradient: Gradient {
                 orientation: Gradient.Horizontal
                 GradientStop { position: 0.0; color: "transparent" }
-                GradientStop { position: 0.5; color: chrome.accentColor }
+                GradientStop { position: 0.5; color: chrome.effAccent }
                 GradientStop { position: 1.0; color: "transparent" }
             }
             opacity: 0.7
@@ -113,7 +132,7 @@ Item {
             AppIcon {
                 visible: chrome.iconName !== ""
                 name: chrome.iconName
-                color: chrome.accentColor
+                color: chrome.effAccent
                 size: chrome.big ? 30 : 26
                 Layout.alignment: Qt.AlignVCenter
             }

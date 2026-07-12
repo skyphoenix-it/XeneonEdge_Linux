@@ -68,6 +68,7 @@ Item {
                 case "slider": return sliderC
                 case "toggle": return toggleC
                 case "segmented": return segC
+                case "accent": return accentC
                 case "date": return dateC
                 case "tasks": return tasksC
                 case "action": return actionC
@@ -177,6 +178,32 @@ Item {
                     Text { id: segLbl; anchors.centerIn: parent; text: modelData.label
                         color: sel ? "#0D1117" : f.col.textPrimary; font.pixelSize: f.fontBase - 1 }
                     MouseArea { anchors.fill: parent; onClicked: f.setV(modelData.value) }
+                }
+            }
+        }
+    }
+    // Accent-colour swatches (theme presets) + a "Default" (no override) chip.
+    Component {
+        id: accentC
+        Flow {
+            spacing: 8
+            Rectangle {
+                width: f.ctlH; height: f.ctlH; radius: 10
+                property bool sel: f.cur() === "" || f.cur() === undefined
+                color: f.col.panelAlt; border.width: sel ? 3 : 1
+                border.color: sel ? f.col.accent : f.col.border
+                Text { anchors.centerIn: parent; text: "Auto"; color: f.col.textSecondary; font.pixelSize: f.fontBase - 4 }
+                MouseArea { anchors.fill: parent; onClicked: f.setV("") }
+            }
+            Repeater {
+                model: Object.keys(theme.accentPresets)
+                delegate: Rectangle {
+                    required property var modelData
+                    width: f.ctlH; height: f.ctlH; radius: 10
+                    property bool sel: f.cur() === modelData
+                    color: theme.accentPresets[modelData].a
+                    border.width: sel ? 3 : 1; border.color: sel ? "#FFFFFF" : f.col.border
+                    MouseArea { anchors.fill: parent; onClicked: f.setV(modelData) }
                 }
             }
         }

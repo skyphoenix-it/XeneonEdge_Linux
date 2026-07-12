@@ -42,6 +42,10 @@ Dialog {
         item.metrics = Qt.binding(function () { return dlg.metricsObj })
         if (item.hasOwnProperty("titleOverride"))
             item.titleOverride = Qt.binding(function () { store.revision; var s = store.settingsFor(dlg.wId); return (s && s.title) ? s.title : "" })
+        if (item.hasOwnProperty("accentName"))
+            item.accentName = Qt.binding(function () { store.revision; var s = store.settingsFor(dlg.wId); return (s && s.accent) ? s.accent : "" })
+        if (item.hasOwnProperty("cardBackdrop"))
+            item.cardBackdrop = Qt.binding(function () { store.revision; var s = store.settingsFor(dlg.wId); return (s && s.cardBackdrop) ? s.cardBackdrop : "none" })
         if (item.hasOwnProperty("tick")) item.tick = Qt.binding(function () { return dlg.tick })
     }
 

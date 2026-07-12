@@ -40,9 +40,24 @@ Item {
             }
         }
 
+        function test_every_widget_has_appearance_section() {
+            var items = catalog.items
+            for (var i = 0; i < items.length; i++) {
+                var s = sc.schemaFor(items[i].type)
+                var hasAccent = false, hasBackdrop = false
+                for (var j = 0; j < s.sections.length; j++)
+                    for (var k = 0; k < (s.sections[j].fields || []).length; k++) {
+                        if (s.sections[j].fields[k].key === "accent") hasAccent = true
+                        if (s.sections[j].fields[k].key === "cardBackdrop") hasBackdrop = true
+                    }
+                verify(hasAccent, items[i].type + " exposes a per-widget accent")
+                verify(hasBackdrop, items[i].type + " exposes a per-widget card backdrop")
+            }
+        }
+
         function test_field_types_are_known() {
             var known = ["text", "textarea", "number", "hour", "slider", "toggle",
-                         "segmented", "date", "tasks", "action", "info"]
+                         "segmented", "accent", "date", "tasks", "action", "info"]
             var items = catalog.items
             for (var i = 0; i < items.length; i++) {
                 var s = sc.schemaFor(items[i].type)

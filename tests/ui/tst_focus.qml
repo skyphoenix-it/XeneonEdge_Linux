@@ -136,6 +136,25 @@ Item {
             verify(w.celebrateMsg.length > 0, "a celebration message pops on a completed session")
         }
 
+        // Per-widget appearance (WidgetChrome, so it applies to every widget).
+        function test_accent_override() {
+            var w = h.item
+            compare(String(w.effAccent), String(w.accentColor), "no override → widget's own accent")
+            w.accentName = "green"
+            compare(String(w.effAccent), String(Qt.color(h.theme.accentPresets["green"].a)),
+                    "accent name overrides the effective accent")
+            w.accentName = ""
+            compare(String(w.effAccent), String(w.accentColor), "cleared override falls back")
+        }
+
+        function test_card_backdrop_property() {
+            var w = h.item
+            compare(w.cardBackdrop, "none")
+            w.cardBackdrop = "orbs"
+            compare(w.cardBackdrop, "orbs", "per-widget backdrop is settable")
+            w.cardBackdrop = "none"
+        }
+
         function test_points_off_when_disabled() {
             var w = h.item
             w.reset()

@@ -56,6 +56,14 @@ Item {
             item.titleOverride = Qt.binding(function () {
                 store.revision; var s = store.settingsFor(id); return (s && s.title) ? s.title : ""
             })
+        if (item.hasOwnProperty("accentName"))
+            item.accentName = Qt.binding(function () {
+                store.revision; var s = store.settingsFor(id); return (s && s.accent) ? s.accent : ""
+            })
+        if (item.hasOwnProperty("cardBackdrop"))
+            item.cardBackdrop = Qt.binding(function () {
+                store.revision; var s = store.settingsFor(id); return (s && s.cardBackdrop) ? s.cardBackdrop : "none"
+            })
         if (item.hasOwnProperty("tick"))
             item.tick = Qt.binding(function () { return clone.tick })
     }
