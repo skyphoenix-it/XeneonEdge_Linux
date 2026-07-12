@@ -66,7 +66,12 @@ Item {
         }
     }
 
-    Timer { interval: 1000; running: Qt.application.active; repeat: true; onTriggered: dashboard._tick++ }
+    // Drive time-based widgets once per second. Runs unconditionally: this is an
+    // always-on secondary-display dashboard that is rarely the "active" window, and
+    // gating on Qt.application.active previously froze updates (and, since the scene
+    // then never changed, the compositor stopped presenting frames — which made
+    // taps appear to do nothing for seconds).
+    Timer { interval: 1000; running: true; repeat: true; onTriggered: dashboard._tick++ }
 
     DashboardStore { id: store }
     WidgetCatalog { id: catalog }

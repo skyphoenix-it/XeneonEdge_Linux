@@ -198,37 +198,10 @@ ApplicationWindow {
 
     property alias theme: _theme
 
-    // Touch-enabled tap handler for the entire window (exit fullscreen, etc.)
-    TapHandler {
-        onTapped: function(eventPoint, button) {
-            // Three-finger tap → toggle diagnostics
-            if (eventPoint.pointCount >= 3) {
-                if (stackView.depth > 1) {
-                    stackView.pop();
-                } else {
-                    stackView.push("qrc:/qml/Diagnostics.qml", {
-                        "metricsJson": root.metricsJson,
-                        "screensData": root.screensData
-                    });
-                }
-            }
-        }
-        gesturePolicy: TapHandler.WithinBounds
-    }
-
-    // Long press handler for context menu on touch devices
-    TapHandler {
-        acceptedButtons: Qt.RightButton
-        onTapped: {
-            if (stackView.depth <= 1) {
-                stackView.push("qrc:/qml/Diagnostics.qml", {
-                    "metricsJson": root.metricsJson,
-                    "screensData": root.screensData,
-                    "configJson": (typeof configBridge !== "undefined" && configBridge) ? configBridge.configJson() : ""
-                });
-            }
-        }
-    }
+    // NOTE: Diagnostics is reached via the ⚙ button on the dashboard and the
+    // Ctrl+D shortcut. Earlier there were whole-window TapHandlers here (3-finger
+    // + right-click) — removed because a root-level gesture handler can delay
+    // touch delivery to the widget buttons underneath, hurting responsiveness.
 
     // Navigation stack for main ↔ diagnostics
     StackView {

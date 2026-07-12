@@ -37,10 +37,9 @@ Item {
             var grad = ctx.createLinearGradient(0, 0, width, height)
             grad.addColorStop(0, ring.progressColor)
             grad.addColorStop(1, ring.progressColor2)
-            if (ring.glow) {
-                ctx.shadowBlur = ring.thickness * 1.2
-                ctx.shadowColor = ring.progressColor
-            }
+            // (Canvas shadowBlur glow removed — it is a CPU-side blur that is
+            // recomputed on every repaint and caused noticeable jank when the
+            // ring animates each second. The gradient stroke reads well on its own.)
             ctx.beginPath()
             ctx.arc(cx, cy, r, start, end)
             ctx.strokeStyle = grad
