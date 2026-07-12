@@ -524,6 +524,12 @@ int main(int argc, char *argv[]) {
         for (auto* obj : engine.rootObjects())
             obj->setProperty("externalUiState", json);
     });
+    // Manager "Stop hub" → quit cleanly. Defer briefly so the "ok" ack flushes to
+    // the socket before the event loop tears down.
+    QObject::connect(controlServer, &ControlServer::shutdownRequested, &engine, [] {
+        qInfo() << "Hub: shutdown requested by Manager";
+        QTimer::singleShot(80, qApp, &QCoreApplication::quit);
+    });
     controlServer->start();
 
     // Load main QML

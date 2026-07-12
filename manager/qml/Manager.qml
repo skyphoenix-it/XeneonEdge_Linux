@@ -128,6 +128,12 @@ ApplicationWindow {
     MockMedia { id: media }
 
     property int currentPageIndex: 0
+    // Transient "Starting hub…" feedback: set when the user hits Start, cleared
+    // when the hub connects (see the backend Connections) or a safety timeout.
+    property bool hubStarting: false
+    Timer { id: hubStartTimeout; interval: 8000; repeat: false
+        onTriggered: win.hubStarting = false }
+
     function currentPageName() {
         var p = store.pages()[currentPageIndex]
         return p ? p.name : ""
@@ -216,13 +222,37 @@ ApplicationWindow {
 
                 Item { Layout.fillHeight: true }
 
-                // Hub connection status
-                RowLayout {
-                    spacing: 8
-                    Rectangle { width: 10; height: 10; radius: 5
-                        color: backend.hubConnected ? m.success : m.textSecondary }
-                    Text { text: backend.hubConnected ? "Hub connected (live)" : "Hub offline (saved)"
-                        color: m.textSecondary; font.pixelSize: 12 }
+                // Hub connection status + Start/Stop control.
+                ColumnLayout {
+                    Layout.fillWidth: true; spacing: 10
+                    RowLayout {
+                        spacing: 8; Layout.fillWidth: true
+                        Rectangle { width: 10; height: 10; radius: 5
+                            color: backend.hubConnected ? m.success
+                                   : (win.hubStarting ? m.accent : m.textSecondary) }
+                        Text {
+                            Layout.fillWidth: true
+                            text: backend.hubConnected ? "Hub connected (live)"
+                                  : (win.hubStarting ? "Starting hub…" : "Hub offline (saved)")
+                            color: m.textSecondary; font.pixelSize: 12; elide: Text.ElideRight
+                        }
+                    }
+                    MButton {
+                        Layout.fillWidth: true; implicitHeight: 36
+                        enabled: !win.hubStarting
+                        text: backend.hubConnected ? "Stop hub" : "Start hub"
+                        iconName: backend.hubConnected ? "ui-close" : "ui-play"
+                        primary: !backend.hubConnected
+                        onClicked: {
+                            if (backend.hubConnected) {
+                                backend.stopHub()
+                            } else {
+                                win.hubStarting = true
+                                if (!backend.startHub()) win.hubStarting = false
+                                else hubStartTimeout.restart()
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -772,6 +802,8 @@ ApplicationWindow {
             try { win.screens = JSON.parse(backend.screensJson() || "[]") } catch (e) { win.screens = [] }
             win.currentTarget = backend.targetConnector()
         }
+        // Clear the "Starting hub…" state once the hub actually connects.
+        function onHubConnectedChanged() { if (backend.hubConnected) win.hubStarting = false }
     }
 
     // Pull the hub's latest + refresh live state whenever the Manager regains focus.

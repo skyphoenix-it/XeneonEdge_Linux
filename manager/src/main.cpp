@@ -27,6 +27,7 @@
 #include <QQuickWindow>
 #include <QQuickStyle>
 #include <QLocalSocket>
+#include <QProcess>
 
 #include "xeneon_core.h"
 
@@ -119,6 +120,44 @@ public:
     }
 
     bool hubConnected() const { return m_hubConnected; }
+
+    // Launch the hub if it isn't already running. Returns false only when the
+    // launch could not be started (missing binary). If a hub is already up (or
+    // we're mid-connect to one), it's a no-op success — avoids a double instance.
+    Q_INVOKABLE bool startHub() {
+        if (m_hubConnected || m_sock->state() == QLocalSocket::ConnectedState)
+            return true;
+        // A hub may be running that we simply haven't connected to yet (e.g. the
+        // Manager just started). Probe synchronously before spawning a duplicate.
+        {
+            QLocalSocket probe;
+            probe.connectToServer(QStringLiteral("xeneon-edge-hub-ctl"));
+            if (probe.waitForConnected(250)) {
+                probe.disconnectFromServer();
+                tryConnectHub();
+                return true;
+            }
+        }
+        const bool ok = QProcess::startDetached(hubBinaryPath(), QStringList{});
+        if (!ok) {
+            qWarning() << "Manager: failed to launch hub" << hubBinaryPath();
+            return false;
+        }
+        // The hub needs a moment to come up and listen; nudge the connection a few
+        // times so the "connected" state (and Stop button) appears promptly.
+        for (int delay : {300, 700, 1200, 2000})
+            QTimer::singleShot(delay, this, [this] { tryConnectHub(); });
+        return true;
+    }
+
+    // Ask a running hub to quit cleanly over the control socket. Returns false if
+    // no hub is reachable to stop.
+    Q_INVOKABLE bool stopHub() {
+        if (m_sock->state() != QLocalSocket::ConnectedState) return false;
+        writeMsg(QJsonObject{{"type", "shutdown"}});
+        m_sock->flush();
+        return true;
+    }
 
     // Dev/doc affordances (headless capture).
     Q_INVOKABLE QString grabPath() const { return qEnvironmentVariable("XENEON_GRAB"); }
@@ -300,6 +339,13 @@ private:
     static QString autostartPath() {
         return QDir::homePath() + "/.config/autostart/xeneon-edge-hub.desktop";
     }
+    // Locate the hub executable: prefer the one shipped next to this Manager, else
+    // rely on PATH (installed system-wide). Returns an absolute path when found.
+    static QString hubBinaryPath() {
+        const QString local = QCoreApplication::applicationDirPath() + "/xeneon-edge-hub";
+        if (QFile::exists(local)) return local;
+        return QStringLiteral("xeneon-edge-hub");   // resolved via PATH by QProcess
+    }
     void markSelfWrite() { m_ignoreWatchUntilMs = QDateTime::currentMSecsSinceEpoch() + 900; }
     void tryConnectHub() {
         if (m_sock->state() == QLocalSocket::UnconnectedState)
@@ -334,12 +380,7 @@ private:
         QDir().mkpath(QFileInfo(path).absolutePath());
         QFile f(path);
         if (!f.open(QIODevice::WriteOnly | QIODevice::Text)) return false;
-        // Prefer the hub binary next to this Manager; fall back to PATH.
-        QString exec = QCoreApplication::applicationDirPath() + "/xeneon-edge-hub";
-        if (!QFile::exists(exec)) {
-            exec = QStringLiteral("xeneon-edge-hub");
-            qWarning() << "Manager: hub binary not next to the Manager; autostart Exec relies on PATH";
-        }
+        const QString exec = hubBinaryPath();   // absolute when shipped locally, else PATH
         QTextStream ts(&f);
         ts << "[Desktop Entry]\nType=Application\nName=Xeneon Edge Hub\n"
            << "Exec=" << exec << "\nX-GNOME-Autostart-enabled=true\n";

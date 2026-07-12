@@ -103,6 +103,12 @@ void ControlServer::handleLine(QLocalSocket* sock, const QByteArray& line) {
         writeJson(sock, QJsonDocument(QJsonObject{{"type", "ok"}}).toJson(QJsonDocument::Compact));
     } else if (type == "ping") {
         writeJson(sock, QJsonDocument(QJsonObject{{"type", "pong"}}).toJson(QJsonDocument::Compact));
+    } else if (type == "shutdown") {
+        // The companion Manager asked the hub to quit cleanly (Start/Stop control).
+        // Ack first so the client sees it, then let main() quit gracefully (which
+        // persists config + tears down normally).
+        writeJson(sock, QJsonDocument(QJsonObject{{"type", "ok"}}).toJson(QJsonDocument::Compact));
+        emit shutdownRequested();
     } else {
         writeJson(sock, QJsonDocument(QJsonObject{{"type", "error"},
                                                   {"message", "unknown type"}})

@@ -38,6 +38,8 @@ public:
 signals:
     // A client pushed a new UI-state document; main persists + reloads it.
     void uiStateReceived(const QString& json);
+    // A client asked the hub to quit (companion Manager's Stop control).
+    void shutdownRequested();
 
 private slots:
     void onNewConnection();
