@@ -22,6 +22,10 @@ Rectangle {
     // Bundled "standard" wallpapers + animated styles offered in the pickers below.
     WallpaperCatalog { id: wallpapers }
     BackgroundCatalog { id: bgCatalog }
+    // Colour tokens for the shared BackgroundPicker.
+    readonly property var pickerCol: ({ textPrimary: theme.textPrimary, textSecondary: theme.textSecondary,
+        panel: theme.cardBackground, panelAlt: theme.cardBackgroundAlt, border: theme.cardBorder,
+        accent: theme.accent, radius: theme.radiusMd })
 
     // scrim click closes
     MouseArea { anchors.fill: parent; onClicked: panel.closeRequested() }
@@ -141,73 +145,21 @@ Rectangle {
                         }
                     }
 
-                    // --- Animated background ---
+                    // --- Background (one unified picker: animated style OR wallpaper) ---
                     ColumnLayout {
                         Layout.fillWidth: true; spacing: theme.spacingSm
-                        Text { text: "Animated background"; font.pixelSize: theme.fontLabel; font.bold: true; color: theme.textSecondary }
-                        Text { text: "A living backdrop behind the frosted widgets. Picking one clears the wallpaper below."
+                        Text { text: "Background"; font.pixelSize: theme.fontLabel; font.bold: true; color: theme.textSecondary }
+                        Text { text: "Pick a living animation OR a wallpaper — they show through the frosted widgets."
                             font.pixelSize: theme.fontCaption; color: theme.textTertiary
                             Layout.fillWidth: true; wrapMode: Text.WordWrap }
                         Text { visible: !theme.decorative
                             text: "⚠  The High Contrast theme keeps backgrounds off for legibility — switch themes to see them."
                             font.pixelSize: theme.fontCaption; color: theme.warning
                             Layout.fillWidth: true; wrapMode: Text.WordWrap }
-                        Flow {
-                            Layout.fillWidth: true; spacing: theme.spacingSm
-                            Repeater {
-                                model: bgCatalog.styles
-                                delegate: Rectangle {
-                                    required property var modelData
-                                    width: 150; height: theme.touchSecondary; radius: theme.radiusMd
-                                    // A style is "active" only when no wallpaper is set (a wallpaper wins).
-                                    property bool active: (store.revision,
-                                        !store.appearance().wallpaper && (store.appearance().bgStyle || "orbs") === modelData.v)
-                                    color: active ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.18) : theme.cardBackground
-                                    border.width: active ? 2 : 1; border.color: active ? theme.accent : theme.cardBorder
-                                    Text { anchors.centerIn: parent; text: modelData.l; color: theme.textPrimary; font.pixelSize: theme.fontLabel }
-                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                        onClicked: { store.setAppearance("bgStyle", modelData.v); store.setAppearance("wallpaper", "") } }
-                                }
-                            }
-                        }
-                    }
-
-                    // --- Wallpaper ---
-                    ColumnLayout {
-                        Layout.fillWidth: true; spacing: theme.spacingSm
-                        Text { text: "Wallpaper"; font.pixelSize: theme.fontLabel; font.bold: true; color: theme.textSecondary }
-                        Text { text: "Shows through the frosted widgets. Set “None” to use the animated background only."
-                            font.pixelSize: theme.fontCaption; color: theme.textTertiary
-                            Layout.fillWidth: true; wrapMode: Text.WordWrap }
-                        Flow {
-                            Layout.fillWidth: true; spacing: theme.spacingSm
-                            // "None" clears the wallpaper (falls back to the animated backdrop).
-                            Rectangle {
-                                width: 88; height: 120; radius: theme.radiusMd
-                                property bool active: (store.revision, !(store.appearance().wallpaper))
-                                color: theme.cardBackground
-                                border.width: active ? 3 : 1; border.color: active ? theme.accent : theme.cardBorder
-                                Text { anchors.centerIn: parent; text: "None"; color: theme.textSecondary; font.pixelSize: theme.fontCaption }
-                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                    onClicked: store.setAppearance("wallpaper", "") }
-                            }
-                            Repeater {
-                                model: wallpapers.items
-                                delegate: Rectangle {
-                                    required property var modelData
-                                    width: 88; height: 120; radius: theme.radiusMd; clip: true
-                                    property bool active: (store.revision, store.appearance().wallpaper === modelData.source)
-                                    border.width: active ? 3 : 1; border.color: active ? theme.accent : theme.cardBorder
-                                    color: theme.cardBackground
-                                    Image { anchors.fill: parent; anchors.margins: 2; source: modelData.source
-                                        fillMode: Image.PreserveAspectCrop; asynchronous: true }
-                                    Rectangle { anchors.bottom: parent.bottom; anchors.left: parent.left; anchors.right: parent.right
-                                        height: 22; color: Qt.rgba(0, 0, 0, 0.45)
-                                        Text { anchors.centerIn: parent; text: modelData.label; color: "#fff"; font.pixelSize: 11 } }
-                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                        onClicked: store.setAppearance("wallpaper", modelData.source) }
-                                }
-                            }
+                        BackgroundPicker {
+                            Layout.fillWidth: true
+                            store: store; pageIndex: -1; col: panel.pickerCol
+                            bgCatalog: bgCatalog; wpCatalog: wallpapers
                         }
                     }
 

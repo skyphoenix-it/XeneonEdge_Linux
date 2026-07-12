@@ -25,6 +25,7 @@
         <file alias="WavesBackground.qml">../ui/qml/widgets/WavesBackground.qml</file>
         <file alias="StarfieldBackground.qml">../ui/qml/widgets/StarfieldBackground.qml</file>
         <file alias="BackdropLayer.qml">../ui/qml/widgets/BackdropLayer.qml</file>
+        <file alias="BackgroundPicker.qml">../ui/qml/widgets/BackgroundPicker.qml</file>
         <file alias="MeshGradientBackground.qml">../ui/qml/widgets/MeshGradientBackground.qml</file>
         <file alias="AuroraBackground.qml">../ui/qml/widgets/AuroraBackground.qml</file>
         <file alias="BokehBackground.qml">../ui/qml/widgets/BokehBackground.qml</file>

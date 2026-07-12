@@ -47,6 +47,18 @@ ApplicationWindow {
     WallpaperCatalog { id: bundledWallpapers }
     BackgroundCatalog { id: bgCatalog }
 
+    // Colour tokens + the user's uploaded images, for the shared BackgroundPicker.
+    readonly property var mCol: ({ textPrimary: m.textPrimary, textSecondary: m.textSecondary,
+        panel: m.panel, panelAlt: m.panelAlt, border: m.border, accent: m.accent, radius: m.radius })
+    property var uploadedWallpapers: {
+        var out = []
+        for (var i = 0; i < imagesModel.count; i++) {
+            var nm = imagesModel.get(i).modelData
+            out.push({ label: nm, source: "file://" + backend.imagesDir() + "/" + nm })
+        }
+        return out
+    }
+
     // Full design-system theme + a media stub, so the WYSIWYG clone renders the
     // REAL widgets exactly like the Edge. Driven from the store's appearance.
     Theme { id: theme }
@@ -207,64 +219,16 @@ ApplicationWindow {
                                 win.currentPageIndex = Math.max(0, win.currentPageIndex - 1) } }
                     }
 
-                    // Per-page animated background (overrides the global default for THIS page).
-                    Flow {
-                        Layout.fillWidth: true; spacing: 8
-                        Text { text: "Page background:"; color: m.textSecondary; font.pixelSize: 14
-                            height: m.touch; verticalAlignment: Text.AlignVCenter }
-                        Repeater {
-                            model: [ { v: "", l: "Global" } ].concat(bgCatalog.styles)
-                            delegate: Rectangle {
-                                required property var modelData
-                                width: bgLbl.implicitWidth + 24; height: m.touch; radius: m.radius
-                                property var pbg: { store.revision; return store.pageBackground(win.currentPageIndex) }
-                                // "Global" = no per-page override at all; a style is selected only
-                                // when this page has no per-page wallpaper.
-                                property bool sel: modelData.v === ""
-                                    ? (!pbg.style && !pbg.wallpaper)
-                                    : (!pbg.wallpaper && pbg.style === modelData.v)
-                                color: sel ? m.accent : m.panel; border.width: 1; border.color: m.border
-                                Text { id: bgLbl; anchors.centerIn: parent; text: modelData.l
-                                    color: sel ? "#0D1117" : m.textPrimary; font.pixelSize: 13 }
-                                MouseArea { anchors.fill: parent
-                                    onClicked: {
-                                        store.setPageBackground(win.currentPageIndex, "style", modelData.v)
-                                        // Choosing an animated style clears this page's wallpaper override;
-                                        // "Global" clears both so the page inherits global again.
-                                        store.setPageBackground(win.currentPageIndex, "wallpaper", "")
-                                    } }
-                            }
-                        }
-                    }
-
-                    // Per-page wallpaper (overrides the global wallpaper for THIS page).
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 8
-                        Text { text: "Page wallpaper:"; color: m.textSecondary; font.pixelSize: 14
-                            Layout.alignment: Qt.AlignVCenter }
-                        // "Global" clears the per-page override.
-                        Rectangle {
-                            width: 40; height: 54; radius: m.radius
-                            property bool sel: (store.revision, !(store.pageBackground(win.currentPageIndex).wallpaper))
-                            color: m.panel; border.width: sel ? 3 : 1; border.color: sel ? m.accent : m.border
-                            Text { anchors.centerIn: parent; text: "Global"; color: m.textSecondary; font.pixelSize: 9
-                                horizontalAlignment: Text.AlignHCenter; width: parent.width - 4; wrapMode: Text.WordWrap }
-                            MouseArea { anchors.fill: parent
-                                onClicked: store.setPageBackground(win.currentPageIndex, "wallpaper", "") }
-                        }
-                        Repeater {
-                            model: bundledWallpapers.items
-                            delegate: Rectangle {
-                                required property var modelData
-                                width: 40; height: 54; radius: m.radius; clip: true
-                                property bool sel: (store.revision, store.pageBackground(win.currentPageIndex).wallpaper === modelData.source)
-                                border.width: sel ? 3 : 1; border.color: sel ? m.accent : m.border; color: m.panel
-                                Image { anchors.fill: parent; anchors.margins: 2; source: modelData.source
-                                    fillMode: Image.PreserveAspectCrop; asynchronous: true }
-                                MouseArea { anchors.fill: parent
-                                    onClicked: store.setPageBackground(win.currentPageIndex, "wallpaper", modelData.source) }
-                            }
-                        }
+                    // This page's background — one control, overrides the global
+                    // default for THIS page ("Use global" drops the override).
+                    Text { text: "This page's background"; color: m.textPrimary; font.pixelSize: 14; font.bold: true
+                        Layout.topMargin: 4 }
+                    Text { text: "Overrides the global default (set in Appearance) for the current page only."
+                        color: m.textSecondary; font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                    BackgroundPicker {
+                        Layout.fillWidth: true
+                        store: store; pageIndex: win.currentPageIndex; col: win.mCol
+                        bgCatalog: bgCatalog; wpCatalog: bundledWallpapers; uploadedImages: win.uploadedWallpapers
                     }
 
                     // Per-page columns (overrides the global default).
@@ -377,28 +341,17 @@ ApplicationWindow {
                         }
                     }
 
-                    Text { text: "Default animated background"; color: m.textSecondary; font.pixelSize: 14 }
-                    Text { text: "Picking one clears the global wallpaper (a wallpaper always wins over the animation)."
+                    Text { text: "Background (global default)"; color: m.textPrimary; font.pixelSize: 15; font.bold: true
+                        Layout.topMargin: 4 }
+                    Text { text: "Pick an animated style OR a wallpaper — this is the default for every page. A page can override it in the Layout tab."
                         color: m.textSecondary; font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.WordWrap }
                     Text { visible: !theme.decorative
                         text: "⚠  The High Contrast theme keeps backgrounds off for legibility — switch themes to see them."
                         color: m.danger; font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.WordWrap }
-                    Flow {
-                        Layout.fillWidth: true; spacing: 8
-                        Repeater {
-                            model: bgCatalog.styles
-                            delegate: Rectangle {
-                                required property var modelData
-                                width: 150; height: m.touch; radius: m.radius
-                                property bool sel: (store.revision,
-                                    !store.appearance().wallpaper && (store.appearance().bgStyle || "orbs") === modelData.v)
-                                color: sel ? m.accent : m.panel; border.width: 1; border.color: m.border
-                                Text { anchors.centerIn: parent; text: modelData.l
-                                    color: sel ? "#0D1117" : m.textPrimary; font.pixelSize: 14 }
-                                MouseArea { anchors.fill: parent
-                                    onClicked: { store.setAppearance("bgStyle", modelData.v); store.setAppearance("wallpaper", "") } }
-                            }
-                        }
+                    BackgroundPicker {
+                        Layout.fillWidth: true
+                        store: store; pageIndex: -1; col: win.mCol
+                        bgCatalog: bgCatalog; wpCatalog: bundledWallpapers; uploadedImages: win.uploadedWallpapers
                     }
 
                     Text { text: "Layout columns (default)"; color: m.textSecondary; font.pixelSize: 14 }
@@ -456,45 +409,14 @@ ApplicationWindow {
                 ColumnLayout {
                     anchors.fill: parent; anchors.margins: 24; spacing: 16
                     Text { text: "Images"; color: m.textPrimary; font.pixelSize: 24; font.bold: true }
-                    Text { text: "Upload images to the Edge (stored under the hub's config directory)."
-                        color: m.textSecondary; font.pixelSize: 14 }
+                    Text { text: "Upload your own images here — they then appear as wallpaper options in the background picker (Appearance → Background, or per-page in Layout)."
+                        color: m.textSecondary; font.pixelSize: 14; Layout.fillWidth: true; wrapMode: Text.WordWrap }
 
                     RowLayout {
                         Layout.fillWidth: true; spacing: 8
                         Button { text: "＋  Import image…"; Layout.preferredHeight: m.touch
                             onClicked: fileDialog.open() }
                         Item { Layout.fillWidth: true }
-                        Text {
-                            text: { store.revision; var wp = store.appearance().wallpaper || ""
-                                return wp.length ? "Wallpaper: " + wp.split("/").pop() : "No wallpaper set" }
-                            color: m.textSecondary; font.pixelSize: 13; Layout.alignment: Qt.AlignVCenter
-                        }
-                        Button { text: "Clear wallpaper"; Layout.preferredHeight: m.touch
-                            enabled: (store.revision, (store.appearance().wallpaper || "").length > 0)
-                            onClicked: store.setAppearance("wallpaper", "") }
-                    }
-
-                    // Bundled "standard" wallpapers (ship with the app).
-                    Text { text: "Standard wallpapers"; color: m.textSecondary; font.pixelSize: 14; font.bold: true }
-                    Flow {
-                        Layout.fillWidth: true; spacing: 8
-                        Repeater {
-                            model: bundledWallpapers.items
-                            delegate: Rectangle {
-                                required property var modelData
-                                width: 96; height: 132; radius: m.radius; clip: true
-                                property bool isWall: (store.revision, store.appearance().wallpaper === modelData.source)
-                                color: m.panel; border.width: isWall ? 3 : 1; border.color: isWall ? m.accent : m.border
-                                Image { anchors.fill: parent; anchors.margins: 2; source: modelData.source
-                                    fillMode: Image.PreserveAspectCrop; asynchronous: true }
-                                Rectangle { anchors.bottom: parent.bottom; anchors.left: parent.left; anchors.right: parent.right
-                                    height: 24; color: Qt.rgba(0, 0, 0, 0.5)
-                                    Text { anchors.centerIn: parent; text: modelData.label + (parent.parent.isWall ? "  ✓" : "")
-                                        color: "#fff"; font.pixelSize: 11 } }
-                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                    onClicked: store.setAppearance("wallpaper", modelData.source) }
-                            }
-                        }
                     }
 
                     Text { text: "Your images"; color: m.textSecondary; font.pixelSize: 14; font.bold: true }
@@ -521,11 +443,9 @@ ApplicationWindow {
                                     }
                                     RowLayout {
                                         Layout.fillWidth: true; spacing: 4
-                                        Button {
-                                            text: imgCard.isWall ? "Wallpaper ✓" : "Set wallpaper"
-                                            Layout.fillWidth: true; font.pixelSize: 12
-                                            onClicked: store.setAppearance("wallpaper", imgCard.fullPath)
-                                        }
+                                        Text { text: imgCard.isWall ? "★ wallpaper" : imgCard.modelData
+                                            color: imgCard.isWall ? m.accent : m.textSecondary; font.pixelSize: 11
+                                            elide: Text.ElideRight; Layout.fillWidth: true }
                                         AppIcon { name: "ui-trash"; size: 18; color: m.danger
                                             MouseArea { anchors.fill: parent
                                                 onClicked: { backend.deleteImage(imgCard.modelData); win.refreshImages() } } }
