@@ -227,4 +227,77 @@ mod tests {
         assert_eq!(hex::encode(&[0xAB, 0xCD]), "abcd");
         assert_eq!(hex::encode(&[]), "");
     }
+
+    #[test]
+    fn test_is_xeneon_edge_landscape_2560x720() {
+        // Portrait was covered above; verify the landscape native resolution.
+        let mut edid = minimal_edid();
+        // Neutralize manufacturer + size so only the resolution can match.
+        edid[8] = 0x10;
+        edid[9] = 0xAC; // "DEL"
+        edid[21] = 60;
+        edid[22] = 34;
+        set_dtd_resolution(&mut edid, 2560, 720);
+        assert!(is_xeneon_edge(&edid));
+    }
+
+    #[test]
+    fn test_parse_model_name_in_each_descriptor_slot() {
+        // The 0xFC monitor-name descriptor can live in any of the 4 base-block
+        // descriptor slots (offsets 54, 72, 90, 108).
+        for slot in [54usize, 72, 90, 108] {
+            let mut edid = minimal_edid();
+            set_descriptor(&mut edid, slot, 0xFC, "SLOTNAME");
+            assert_eq!(
+                parse_model_name(&edid),
+                Some("SLOTNAME".to_string()),
+                "monitor name not read from descriptor at offset {slot}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_parse_model_name_truncated_does_not_panic() {
+        // Buffers that end partway through a descriptor block must not panic.
+        for len in [54usize, 60, 71, 89, 125] {
+            let edid = vec![0u8; len];
+            let _ = parse_model_name(&edid);
+        }
+    }
+
+    // --- BUG: parse_manufacturer emits non-alphabetic / control chars ---
+
+    #[test]
+    fn bug_parse_manufacturer_rejects_zero_group() {
+        // Manufacturer bytes 8-9 == 0x0000 → every 5-bit group is 0, which maps
+        // to (0 + b'A' - 1) = '@' (0x40), an invalid non-alphabetic code.
+        let mut edid = vec![0u8; 128];
+        edid[8] = 0x00;
+        edid[9] = 0x00;
+        let mfg = parse_manufacturer(&edid);
+        // Correct behavior: an out-of-range (0) group is not a valid PNP letter,
+        // so this should be rejected (None), not returned as "@@@".
+        assert_eq!(
+            mfg, None,
+            "BUG: parse_manufacturer returned {mfg:?} instead of None for an invalid (0) group"
+        );
+    }
+
+    #[test]
+    fn bug_parse_manufacturer_only_emits_uppercase_letters() {
+        // For a valid PNP id every character must be 'A'..='Z'. Feed an EDID
+        // whose decoded groups include a 0 group and assert no control/symbol
+        // characters leak out.
+        let mut edid = vec![0u8; 128];
+        // group1 = 1 ('A'), group2 = 0 ('@' — invalid), group3 = 1 ('A')
+        let mfg_bits: u16 = (1u16 << 10) | (0u16 << 5) | 1u16;
+        edid[8] = (mfg_bits >> 8) as u8;
+        edid[9] = (mfg_bits & 0xFF) as u8;
+        if let Some(code) = parse_manufacturer(&edid) {
+            assert!(
+                code.chars().all(|c| c.is_ascii_uppercase()),
+                "BUG: manufacturer code {code:?} contains non-alphabetic characters"
+            );
+        }
+    }
 }

@@ -733,4 +733,244 @@ mod tests {
         assert!(xeneon_display_parse_model_name(ptr::null(), 0).is_null());
         assert_eq!(xeneon_display_is_xeneon_edge(ptr::null(), 0), 0);
     }
+
+    // --- Comprehensive null-handle sentinel coverage ---
+
+    #[test]
+    fn every_getter_setter_null_handle_returns_documented_sentinel() {
+        use std::ptr;
+        let n: *const ConfigHandle = ptr::null();
+        let nm: *mut ConfigHandle = ptr::null_mut();
+
+        // Config: i32 setters return -1.
+        assert_eq!(xeneon_config_set_theme_mode(nm, ptr::null()), -1);
+        assert_eq!(xeneon_config_set_theme_accent(nm, ptr::null()), -1);
+        assert_eq!(xeneon_config_set_reconnect(nm, 1), -1);
+        assert_eq!(xeneon_config_set_notify_disconnect(nm, 1), -1);
+        assert_eq!(xeneon_config_set_starter_layout(nm, ptr::null()), -1);
+        assert_eq!(xeneon_config_set_ui_state(nm, ptr::null()), -1);
+        assert_eq!(xeneon_config_set_target_edid_hash(nm, ptr::null()), -1);
+        assert_eq!(xeneon_config_set_target_connector(nm, ptr::null()), -1);
+        assert_eq!(xeneon_config_set_target_model(nm, ptr::null()), -1);
+        // Config: string getters return null.
+        assert!(xeneon_config_get_target_edid_hash(n).is_null());
+        assert!(xeneon_config_get_target_model(n).is_null());
+        assert!(xeneon_config_get_theme_mode(n).is_null());
+        assert!(xeneon_config_get_starter_layout(n).is_null());
+
+        // Metrics: numeric getters return their documented sentinels.
+        let mh: *const MetricsHandle = ptr::null();
+        assert_eq!(xeneon_metrics_get_cpu_usage(mh), 0.0);
+        assert_eq!(xeneon_metrics_get_cpu_temp(mh), -1.0);
+        assert_eq!(xeneon_metrics_get_ram_usage(mh), 0.0);
+        assert_eq!(xeneon_metrics_get_ram_total(mh), 0);
+        assert_eq!(xeneon_metrics_get_ram_used(mh), 0);
+        assert_eq!(xeneon_metrics_get_cpu_cores(mh), 0);
+        assert_eq!(xeneon_metrics_get_gpu_usage(mh), -1.0);
+        assert_eq!(xeneon_metrics_get_gpu_temp(mh), -1.0);
+        assert_eq!(xeneon_metrics_get_net_rx(mh), 0.0);
+        assert_eq!(xeneon_metrics_get_net_tx(mh), 0.0);
+        assert_eq!(xeneon_metrics_get_disk_total(mh), 0);
+        assert_eq!(xeneon_metrics_get_disk_used(mh), 0);
+        assert!(xeneon_metrics_to_json(mh).is_null());
+    }
+
+    // --- Config FFI setter/getter round-trips (in-memory, no disk) ---
+
+    fn cstr(s: &str) -> CString {
+        CString::new(s).unwrap()
+    }
+
+    #[test]
+    fn existing_config_setters_roundtrip_through_to_json() {
+        let mut h = ConfigHandle {
+            config: AppConfig::default(),
+        };
+        let p = &mut h as *mut ConfigHandle;
+
+        assert_eq!(xeneon_config_set_first_run_complete(p), 0);
+        assert_eq!(xeneon_config_set_autostart(p, 1), 0);
+        assert_eq!(xeneon_config_set_reconnect(p, 0), 0);
+        assert_eq!(xeneon_config_set_notify_disconnect(p, 1), 0);
+        let mode = cstr("light");
+        assert_eq!(xeneon_config_set_theme_mode(p, mode.as_ptr()), 0);
+        let accent = cstr("#FF0000");
+        assert_eq!(xeneon_config_set_theme_accent(p, accent.as_ptr()), 0);
+        let layout = cstr("gaming");
+        assert_eq!(xeneon_config_set_starter_layout(p, layout.as_ptr()), 0);
+        let ui = cstr(r#"{"pages":[1]}"#);
+        assert_eq!(xeneon_config_set_ui_state(p, ui.as_ptr()), 0);
+
+        // starter_layout has a dedicated getter — round-trip it.
+        let got_layout = unsafe { take(xeneon_config_get_starter_layout(p)) };
+        assert_eq!(got_layout, "gaming");
+
+        // Everything else observable via to_json.
+        let json = unsafe { take(xeneon_config_to_json(p)) };
+        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(v["first_run_complete"], true);
+        assert_eq!(v["startup"]["autostart"], true);
+        assert_eq!(v["startup"]["reconnect_on_hotplug"], false);
+        assert_eq!(v["startup"]["notify_on_disconnect"], true);
+        assert_eq!(v["theme"]["mode"], "light");
+        assert_eq!(v["theme"]["accent_color"], "#FF0000");
+        assert_eq!(v["ui_state"], r#"{"pages":[1]}"#);
+    }
+
+    // --- BUG: no FFI setter for fallback_behavior ---
+
+    #[test]
+    fn bug_no_ffi_setter_for_fallback_behavior() {
+        // Simulate the wizard choosing "Notify on missing display". There is no
+        // xeneon_config_set_fallback_behavior, so the choice cannot be persisted
+        // through the core API and the typed field stays at its default "hide".
+        let mut h = ConfigHandle {
+            config: AppConfig::default(),
+        };
+        let p = &mut h as *mut ConfigHandle;
+        // (No setter exists to call here — that is the bug.)
+        let json = unsafe { take(xeneon_config_to_json(p)) };
+        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(
+            v["display"]["fallback_behavior"], "notify",
+            "BUG: no FFI setter for fallback_behavior; wizard 'notify' choice cannot be persisted"
+        );
+    }
+
+    // --- BUG: no FFI setter for reduced_motion ---
+
+    #[test]
+    fn bug_no_ffi_setter_for_reduced_motion() {
+        // Simulate the accessibility toggle "Reduce motion". Only theme_mode and
+        // accent have setters, so reduced_motion can never be toggled via FFI.
+        let mut h = ConfigHandle {
+            config: AppConfig::default(),
+        };
+        let p = &mut h as *mut ConfigHandle;
+        // (No xeneon_config_set_reduced_motion exists to call here.)
+        let json = unsafe { take(xeneon_config_to_json(p)) };
+        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(
+            v["theme"]["reduced_motion"], true,
+            "BUG: no FFI setter for reduced_motion; accessibility toggle is dead"
+        );
+    }
+
+    // --- BUG: no FFI accessor for the typed widgets list ---
+
+    #[test]
+    fn bug_no_ffi_accessor_for_typed_widgets() {
+        // The typed widgets.instances surface has no FFI setter/getter, so it can
+        // never be populated through the core API (widget layout lives only in
+        // the opaque ui_state). Anything trusting the typed list sees zero widgets.
+        let mut h = ConfigHandle {
+            config: AppConfig::default(),
+        };
+        let p = &mut h as *mut ConfigHandle;
+        let json = unsafe { take(xeneon_config_to_json(p)) };
+        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let instances = v["widgets"]["instances"].as_array().unwrap();
+        assert!(
+            !instances.is_empty(),
+            "BUG: no FFI accessor for typed widgets; widgets.instances is permanently empty"
+        );
+    }
+
+    // --- BUG: -1.0 'unavailable' sentinel collides with a real -1.0 reading ---
+
+    #[test]
+    fn bug_cpu_temp_sentinel_collides_with_subzero_reading() {
+        // A genuine -1.0 °C reading (cold ambient / chilled rig) is reported by
+        // the FFI as -1.0, which C++ treats as "no sensor".
+        let h = MetricsHandle {
+            metrics: SystemMetrics {
+                cpu_temp_celsius: Some(-1.0),
+                ..Default::default()
+            },
+        };
+        let v = xeneon_metrics_get_cpu_temp(&h as *const MetricsHandle);
+        assert_ne!(
+            v, -1.0,
+            "BUG: a real -1.0 °C CPU reading is indistinguishable from the 'unavailable' sentinel"
+        );
+    }
+
+    #[test]
+    fn bug_gpu_temp_sentinel_collides_with_subzero_reading() {
+        let h = MetricsHandle {
+            metrics: SystemMetrics {
+                gpu_temp_celsius: Some(-1.0),
+                ..Default::default()
+            },
+        };
+        let v = xeneon_metrics_get_gpu_temp(&h as *const MetricsHandle);
+        assert_ne!(
+            v, -1.0,
+            "BUG: a real -1.0 °C GPU reading is indistinguishable from the 'unavailable' sentinel"
+        );
+    }
+
+    // --- metrics_to_json: correct null-vs-number typing for optionals ---
+
+    #[test]
+    fn metrics_to_json_emits_all_keys_with_correct_types() {
+        // Optional temps absent → JSON null; present → JSON number.
+        let h = MetricsHandle {
+            metrics: SystemMetrics {
+                cpu_usage_percent: 12.5,
+                cpu_temp_celsius: None,
+                ram_usage_percent: 40.0,
+                ram_total_bytes: 16,
+                ram_used_bytes: 8,
+                cpu_core_count: 8,
+                gpu_usage_percent: Some(55.0),
+                gpu_temp_celsius: None,
+                net_rx_bytes_per_sec: 1.0,
+                net_tx_bytes_per_sec: 2.0,
+                disk_total_bytes: 100,
+                disk_used_bytes: 50,
+                disk_usage_percent: 50.0,
+            },
+        };
+        let json = unsafe { take(xeneon_metrics_to_json(&h as *const MetricsHandle)) };
+        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        for key in [
+            "cpu_usage_percent",
+            "cpu_temp_celsius",
+            "ram_usage_percent",
+            "ram_total_bytes",
+            "ram_used_bytes",
+            "cpu_core_count",
+            "gpu_usage_percent",
+            "gpu_temp_celsius",
+            "net_rx_bytes_per_sec",
+            "net_tx_bytes_per_sec",
+            "disk_total_bytes",
+            "disk_used_bytes",
+            "disk_usage_percent",
+        ] {
+            assert!(v.get(key).is_some(), "missing key {key}");
+        }
+        assert!(v["cpu_temp_celsius"].is_null());
+        assert!(v["gpu_temp_celsius"].is_null());
+        assert!(v["gpu_usage_percent"].is_number());
+        assert_eq!(v["gpu_usage_percent"], 55.0);
+        assert_eq!(v["cpu_core_count"], 8);
+    }
+
+    #[test]
+    fn metrics_to_json_present_temps_are_numbers() {
+        let h = MetricsHandle {
+            metrics: SystemMetrics {
+                cpu_temp_celsius: Some(42.0),
+                gpu_temp_celsius: Some(50.0),
+                ..Default::default()
+            },
+        };
+        let json = unsafe { take(xeneon_metrics_to_json(&h as *const MetricsHandle)) };
+        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(v["cpu_temp_celsius"], 42.0);
+        assert_eq!(v["gpu_temp_celsius"], 50.0);
+    }
 }

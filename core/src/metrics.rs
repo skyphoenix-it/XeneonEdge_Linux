@@ -99,15 +99,30 @@ fn read_disk_info() -> DiskInfo {
     if rc != 0 {
         return default;
     }
-    let frsize = stat.f_frsize as u64;
-    let total = (stat.f_blocks as u64).saturating_mul(frsize);
+    disk_info_from_statvfs(
+        stat.f_blocks as u64,
+        stat.f_bfree as u64,
+        stat.f_bavail as u64,
+        stat.f_frsize as u64,
+    )
+}
+
+/// Pure computation of disk usage from raw `statvfs` counters, matching `df`'s
+/// accounting. Extracted so it can be tested without a real syscall.
+fn disk_info_from_statvfs(f_blocks: u64, f_bfree: u64, f_bavail: u64, f_frsize: u64) -> DiskInfo {
+    let frsize = f_frsize;
+    let total = f_blocks.saturating_mul(frsize);
     // `f_bavail` is space usable by unprivileged processes (what `df` reports as
     // "Avail"); `f_bfree` includes root-reserved blocks. Match `df`'s accounting:
     // Used = total - f_bfree, and percent is over the user-visible (used+avail).
-    let avail = (stat.f_bavail as u64).saturating_mul(frsize);
-    let free_all = (stat.f_bfree as u64).saturating_mul(frsize);
+    let avail = f_bavail.saturating_mul(frsize);
+    let free_all = f_bfree.saturating_mul(frsize);
     if total == 0 {
-        return default;
+        return DiskInfo {
+            total: 0,
+            used: 0,
+            percent: 0.0,
+        };
     }
     let used = total.saturating_sub(free_all);
     let denom = used.saturating_add(avail);
@@ -135,32 +150,37 @@ fn read_cpu_usage() -> f64 {
     // (the crate unwinds, and there is no catch_unwind at the C boundary).
     let mut prev = PREV_CPU_TIMES.lock().unwrap_or_else(|e| e.into_inner());
     let result = match prev.as_ref() {
-        Some(p) => {
-            let idle1 = p.idle + p.iowait;
-            let idle2 = current.idle + current.iowait;
-            let total1: u64 =
-                p.user + p.nice + p.system + p.idle + p.iowait + p.irq + p.softirq + p.steal;
-            let total2: u64 = current.user
-                + current.nice
-                + current.system
-                + current.idle
-                + current.iowait
-                + current.irq
-                + current.softirq
-                + current.steal;
-            let total_delta = total2.saturating_sub(total1);
-            let idle_delta = idle2.saturating_sub(idle1);
-            if total_delta == 0 {
-                0.0
-            } else {
-                ((total_delta - idle_delta) as f64 / total_delta as f64) * 100.0
-            }
-        }
+        Some(p) => cpu_usage_from_times(p, &current),
         None => 0.0,
     };
 
     *prev = Some(current);
     result
+}
+
+/// Compute CPU utilization percentage from two `/proc/stat` samples.
+/// Returns 0.0 when there is no forward progress between samples.
+/// Extracted from `read_cpu_usage` so the delta math can be tested directly.
+fn cpu_usage_from_times(prev: &CpuTimes, current: &CpuTimes) -> f64 {
+    let idle1 = prev.idle + prev.iowait;
+    let idle2 = current.idle + current.iowait;
+    let total1: u64 =
+        prev.user + prev.nice + prev.system + prev.idle + prev.iowait + prev.irq + prev.softirq + prev.steal;
+    let total2: u64 = current.user
+        + current.nice
+        + current.system
+        + current.idle
+        + current.iowait
+        + current.irq
+        + current.softirq
+        + current.steal;
+    let total_delta = total2.saturating_sub(total1);
+    let idle_delta = idle2.saturating_sub(idle1);
+    if total_delta == 0 {
+        0.0
+    } else {
+        ((total_delta - idle_delta) as f64 / total_delta as f64) * 100.0
+    }
 }
 
 struct CpuTimes {
@@ -438,6 +458,22 @@ struct NetSample {
 /// virtual interfaces (docker/veth/bridge) so the rate reflects real traffic.
 fn read_net_totals() -> Option<(u64, u64)> {
     let content = fs::read_to_string("/proc/net/dev").ok()?;
+    Some(parse_net_dev(&content))
+}
+
+/// Return true if `iface` is a virtual/local interface whose bytes should not
+/// be counted toward real network throughput.
+fn is_excluded_iface(iface: &str) -> bool {
+    iface == "lo"
+        || iface.starts_with("veth")
+        || iface.starts_with("docker")
+        || iface.starts_with("br-")
+        || iface.starts_with("virbr")
+}
+
+/// Sum rx/tx byte counters from `/proc/net/dev` contents, excluding virtual
+/// interfaces. Extracted so it can be tested against synthetic content.
+fn parse_net_dev(content: &str) -> (u64, u64) {
     let mut rx_total: u64 = 0;
     let mut tx_total: u64 = 0;
     for line in content.lines() {
@@ -446,12 +482,7 @@ fn read_net_totals() -> Option<(u64, u64)> {
             None => continue,
         };
         let iface = iface.trim();
-        if iface == "lo"
-            || iface.starts_with("veth")
-            || iface.starts_with("docker")
-            || iface.starts_with("br-")
-            || iface.starts_with("virbr")
-        {
+        if is_excluded_iface(iface) {
             continue;
         }
         let fields: Vec<&str> = rest.split_whitespace().collect();
@@ -462,7 +493,7 @@ fn read_net_totals() -> Option<(u64, u64)> {
         rx_total += fields[0].parse::<u64>().unwrap_or(0);
         tx_total += fields[8].parse::<u64>().unwrap_or(0);
     }
-    Some((rx_total, tx_total))
+    (rx_total, tx_total)
 }
 
 /// Compute rx/tx byte-rates (bytes/sec) using the cached previous sample.
@@ -501,15 +532,27 @@ struct RamInfo {
 
 /// Read RAM information from /proc/meminfo.
 fn read_ram_info() -> RamInfo {
+    let content = match fs::read_to_string("/proc/meminfo") {
+        Ok(c) => c,
+        Err(_) => {
+            return RamInfo {
+                total: 0,
+                used: 0,
+                percent: 0.0,
+            }
+        }
+    };
+    ram_info_from_meminfo(&content)
+}
+
+/// Parse RAM usage from `/proc/meminfo` contents. Prefers `MemAvailable`
+/// (Linux 3.14+); otherwise falls back to `free + buffers + cached`.
+/// Extracted so it can be tested against synthetic content.
+fn ram_info_from_meminfo(content: &str) -> RamInfo {
     let default = RamInfo {
         total: 0,
         used: 0,
         percent: 0.0,
-    };
-
-    let content = match fs::read_to_string("/proc/meminfo") {
-        Ok(c) => c,
-        Err(_) => return default,
     };
 
     let mut total_kb: u64 = 0;
@@ -641,5 +684,211 @@ mod tests {
     fn test_glob_simple_nonexistent() {
         let result = glob_simple("/nonexistent/path*/file").unwrap();
         assert!(result.is_empty());
+    }
+
+    // --- Disk accounting (synthetic statvfs) ---
+
+    #[test]
+    fn test_disk_info_from_statvfs_matches_df() {
+        // 100 blocks total, 20 free (incl. root reservation), 10 available to
+        // users, 4096-byte fragments. df: Used = total - f_bfree.
+        let d = disk_info_from_statvfs(100, 20, 10, 4096);
+        assert_eq!(d.total, 100 * 4096);
+        assert_eq!(d.used, (100 - 20) * 4096);
+        // percent over (used + avail) = 80 / (80 + 10) blocks.
+        let expected = (80.0 / 90.0) * 100.0;
+        assert!((d.percent - expected).abs() < 1e-6, "percent={}", d.percent);
+    }
+
+    #[test]
+    fn test_disk_info_from_statvfs_zero_total_is_default() {
+        let d = disk_info_from_statvfs(0, 0, 0, 4096);
+        assert_eq!(d.total, 0);
+        assert_eq!(d.used, 0);
+        assert_eq!(d.percent, 0.0);
+    }
+
+    // --- RAM parsing (synthetic /proc/meminfo) ---
+
+    #[test]
+    fn test_ram_info_uses_memavailable_when_present() {
+        let meminfo = "\
+MemTotal:       16000000 kB
+MemFree:         1000000 kB
+MemAvailable:    8000000 kB
+Buffers:          500000 kB
+Cached:          4000000 kB
+";
+        let info = ram_info_from_meminfo(meminfo);
+        // used = total - available = 16000000 - 8000000 = 8000000 kB
+        assert_eq!(info.total, 16_000_000 * 1024);
+        assert_eq!(info.used, 8_000_000 * 1024);
+        assert!((info.percent - 50.0).abs() < 1e-6, "percent={}", info.percent);
+    }
+
+    #[test]
+    fn test_ram_info_fallback_without_memavailable() {
+        // No MemAvailable line → used = total - free - buffers - cached.
+        let meminfo = "\
+MemTotal:       16000000 kB
+MemFree:         1000000 kB
+Buffers:          500000 kB
+Cached:          4000000 kB
+";
+        let info = ram_info_from_meminfo(meminfo);
+        let used_kb = 16_000_000u64 - 1_000_000 - 500_000 - 4_000_000; // 10_500_000
+        assert_eq!(info.used, used_kb * 1024);
+        assert_eq!(info.total, 16_000_000 * 1024);
+    }
+
+    #[test]
+    fn test_ram_info_empty_is_zeroed() {
+        let info = ram_info_from_meminfo("");
+        assert_eq!(info.total, 0);
+        assert_eq!(info.used, 0);
+        assert_eq!(info.percent, 0.0);
+    }
+
+    // --- Network interface filtering (synthetic /proc/net/dev) ---
+
+    /// One /proc/net/dev data line: iface + 16 numeric fields (rx bytes first,
+    /// tx bytes at index 8).
+    fn net_line(iface: &str, rx: u64, tx: u64) -> String {
+        format!(
+            "{iface}: {rx} 0 0 0 0 0 0 0 {tx} 0 0 0 0 0 0 0\n"
+        )
+    }
+
+    #[test]
+    fn test_parse_net_dev_excludes_local_and_container_ifaces() {
+        let mut content = String::from(
+            "Inter-|   Receive                                                |  Transmit\n\
+             face |bytes    packets errs drop fifo frame compressed multicast|bytes\n",
+        );
+        content.push_str(&net_line("lo", 111, 111));
+        content.push_str(&net_line("docker0", 222, 222));
+        content.push_str(&net_line("veth123", 333, 333));
+        content.push_str(&net_line("br-abcdef", 444, 444));
+        content.push_str(&net_line("virbr0", 555, 555));
+        content.push_str(&net_line("eth0", 1000, 2000));
+        let (rx, tx) = parse_net_dev(&content);
+        // Only eth0 should be counted.
+        assert_eq!(rx, 1000, "loopback/container ifaces must be excluded");
+        assert_eq!(tx, 2000);
+    }
+
+    #[test]
+    fn test_is_excluded_iface_covers_local_and_container() {
+        assert!(is_excluded_iface("lo"));
+        assert!(is_excluded_iface("docker0"));
+        assert!(is_excluded_iface("veth9a"));
+        assert!(is_excluded_iface("br-1234"));
+        assert!(is_excluded_iface("virbr0"));
+        assert!(!is_excluded_iface("eth0"));
+        assert!(!is_excluded_iface("enp3s0"));
+        assert!(!is_excluded_iface("wlan0"));
+    }
+
+    #[test]
+    fn bug_parse_net_dev_double_counts_vpn_tunnels() {
+        // A VPN (wg0) and the physical iface (eth0) carry the SAME bytes; the
+        // tunnel must be excluded or throughput is roughly doubled.
+        let mut content = String::new();
+        content.push_str(&net_line("eth0", 1000, 2000));
+        content.push_str(&net_line("wg0", 1000, 2000)); // WireGuard, same bytes
+        let (rx, tx) = parse_net_dev(&content);
+        // Correct behavior: only physical eth0 counted.
+        assert_eq!(
+            rx, 1000,
+            "BUG: tun/tap/wg/tailscale/zt interfaces are not excluded → VPN traffic double-counted"
+        );
+        assert_eq!(tx, 2000);
+    }
+
+    #[test]
+    fn bug_is_excluded_iface_misses_tunnel_interfaces() {
+        // Correct behavior: these tunnel/VPN interfaces should be excluded.
+        assert!(
+            is_excluded_iface("wg0"),
+            "BUG: WireGuard (wg*) not excluded"
+        );
+        assert!(is_excluded_iface("tun0"), "BUG: tun* not excluded");
+        assert!(is_excluded_iface("tap0"), "BUG: tap* not excluded");
+        assert!(
+            is_excluded_iface("tailscale0"),
+            "BUG: tailscale* not excluded"
+        );
+        assert!(is_excluded_iface("zt0"), "BUG: ZeroTier (zt*) not excluded");
+    }
+
+    // --- CPU delta math (synthetic /proc/stat samples) ---
+
+    fn cpu_times(user: u64, system: u64, idle: u64) -> CpuTimes {
+        CpuTimes {
+            user,
+            nice: 0,
+            system,
+            idle,
+            iowait: 0,
+            irq: 0,
+            softirq: 0,
+            steal: 0,
+        }
+    }
+
+    #[test]
+    fn test_cpu_usage_from_times_half_load() {
+        // Between samples: 50 ticks busy (user), 50 ticks idle → 50%.
+        let prev = cpu_times(0, 0, 0);
+        let cur = cpu_times(50, 0, 50);
+        let usage = cpu_usage_from_times(&prev, &cur);
+        assert!((usage - 50.0).abs() < 1e-6, "usage={}", usage);
+    }
+
+    #[test]
+    fn test_cpu_usage_from_times_all_idle_is_zero() {
+        let prev = cpu_times(10, 5, 100);
+        let cur = cpu_times(10, 5, 200); // only idle advanced
+        assert_eq!(cpu_usage_from_times(&prev, &cur), 0.0);
+    }
+
+    #[test]
+    fn test_cpu_usage_from_times_no_progress_is_zero() {
+        let prev = cpu_times(10, 5, 100);
+        let cur = cpu_times(10, 5, 100); // identical → total_delta == 0
+        assert_eq!(cpu_usage_from_times(&prev, &cur), 0.0);
+    }
+
+    #[test]
+    fn test_cpu_usage_from_times_full_load() {
+        let prev = cpu_times(0, 0, 0);
+        let cur = cpu_times(100, 0, 0); // all busy
+        let usage = cpu_usage_from_times(&prev, &cur);
+        assert!((usage - 100.0).abs() < 1e-6, "usage={}", usage);
+    }
+
+    // --- Thread-safety smoke test for the shared global baselines ---
+
+    #[test]
+    fn test_collect_metrics_from_multiple_threads_stays_finite() {
+        // read_cpu_usage / read_network_rates share process-global baselines
+        // (PREV_CPU_TIMES / PREV_NET). Concurrent callers must not panic or
+        // produce non-finite/negative values (guards against UB; the logic
+        // race over the shared baseline is not directly asserted here).
+        let handles: Vec<_> = (0..4)
+            .map(|_| {
+                std::thread::spawn(|| {
+                    for _ in 0..25 {
+                        let m = collect_metrics();
+                        assert!(m.cpu_usage_percent.is_finite() && m.cpu_usage_percent >= 0.0);
+                        assert!(m.net_rx_bytes_per_sec.is_finite() && m.net_rx_bytes_per_sec >= 0.0);
+                        assert!(m.net_tx_bytes_per_sec.is_finite() && m.net_tx_bytes_per_sec >= 0.0);
+                    }
+                })
+            })
+            .collect();
+        for h in handles {
+            h.join().expect("worker thread panicked");
+        }
     }
 }

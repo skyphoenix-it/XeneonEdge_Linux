@@ -165,14 +165,20 @@ pub fn config_path() -> PathBuf {
 /// Load configuration from the default XDG config path.
 /// Returns default configuration if the file does not exist.
 pub fn load_config() -> Result<AppConfig, ConfigError> {
-    let path = config_path();
+    load_config_from(&config_path())
+}
+
+/// Load configuration from an explicit path. Behaves like `load_config` but
+/// without depending on the process-global XDG path, so it can be tested with a
+/// temporary directory.
+fn load_config_from(path: &std::path::Path) -> Result<AppConfig, ConfigError> {
     if !path.exists() {
         tracing::info!(path = %path.display(), "No config file found, using defaults");
         return Ok(AppConfig::default());
     }
 
-    let contents = fs::read_to_string(&path).map_err(|e| ConfigError::Io {
-        path: path.clone(),
+    let contents = fs::read_to_string(path).map_err(|e| ConfigError::Io {
+        path: path.to_path_buf(),
         source: e,
     })?;
 
@@ -186,7 +192,7 @@ pub fn load_config() -> Result<AppConfig, ConfigError> {
                 error = %e,
                 "Config parse failed; backing up and starting from defaults"
             );
-            if let Err(be) = backup_config() {
+            if let Err(be) = backup_config_of(path) {
                 tracing::warn!(error = %be, "Failed to back up unparseable config");
             }
             return Ok(AppConfig::default());
@@ -246,12 +252,16 @@ pub fn save_config(config: &AppConfig) -> Result<(), ConfigError> {
 
 /// Backup existing configuration before migration.
 pub fn backup_config() -> Result<(), ConfigError> {
-    let path = config_path();
+    backup_config_of(&config_path())
+}
+
+/// Back up `path` to a fixed `<name>.toml.bak` beside it. Extracted for testing.
+fn backup_config_of(path: &std::path::Path) -> Result<(), ConfigError> {
     if !path.exists() {
         return Ok(());
     }
     let backup = path.with_extension("toml.bak");
-    fs::copy(&path, &backup).map_err(|e| ConfigError::Io {
+    fs::copy(path, &backup).map_err(|e| ConfigError::Io {
         path: backup,
         source: e,
     })?;
@@ -354,5 +364,134 @@ instances = []
         assert!(toml_str.contains("first_run_complete"));
         assert!(toml_str.contains("[display]"));
         assert!(toml_str.contains("[theme]"));
+    }
+
+    // --- FallbackBehavior / reduced_motion serde round-trips (typed layer) ---
+
+    #[test]
+    fn test_fallback_behavior_serde_variants() {
+        // The typed enum round-trips through TOML with the documented renames.
+        for (variant, rendered) in [
+            (FallbackBehavior::Hide, "hide"),
+            (FallbackBehavior::Notify, "notify"),
+            (FallbackBehavior::Ask, "ask"),
+        ] {
+            let mut cfg = AppConfig::default();
+            cfg.display.fallback_behavior = variant.clone();
+            let s = toml::to_string_pretty(&cfg).unwrap();
+            assert!(
+                s.contains(&format!("fallback_behavior = \"{rendered}\"")),
+                "expected {rendered} in:\n{s}"
+            );
+            let back: AppConfig = toml::from_str(&s).unwrap();
+            assert_eq!(back.display.fallback_behavior, variant);
+        }
+    }
+
+    // --- Persistence round-trip via explicit path (no global XDG dependency) ---
+
+    #[test]
+    fn test_save_then_load_roundtrip_preserves_all_fields() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+
+        let mut cfg = AppConfig::default();
+        cfg.first_run_complete = true;
+        cfg.display.fallback_behavior = FallbackBehavior::Notify;
+        cfg.display.starter_layout = Some("gaming".to_string());
+        cfg.theme.reduced_motion = true;
+        cfg.startup.autostart = true;
+        cfg.startup.reconnect_on_hotplug = false;
+        cfg.startup.notify_on_disconnect = true;
+        cfg.ui_state = Some(r#"{"pages":[]}"#.to_string());
+
+        // Serialize + write ourselves (save_config uses the global path).
+        let contents = toml::to_string_pretty(&cfg).unwrap();
+        fs::write(&path, contents).unwrap();
+
+        let loaded = load_config_from(&path).unwrap();
+        assert!(loaded.first_run_complete);
+        assert_eq!(loaded.display.fallback_behavior, FallbackBehavior::Notify);
+        assert_eq!(loaded.display.starter_layout.as_deref(), Some("gaming"));
+        assert!(loaded.theme.reduced_motion);
+        assert!(loaded.startup.autostart);
+        assert!(!loaded.startup.reconnect_on_hotplug);
+        assert!(loaded.startup.notify_on_disconnect);
+        assert_eq!(loaded.ui_state.as_deref(), Some(r#"{"pages":[]}"#));
+    }
+
+    #[test]
+    fn test_load_missing_file_returns_default() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("does-not-exist.toml");
+        let cfg = load_config_from(&path).unwrap();
+        assert!(!cfg.first_run_complete);
+    }
+
+    // --- BUG: corrupt config triggers a silent full reset (data loss) ---
+
+    #[test]
+    fn bug_corrupt_config_silently_resets_and_loses_state() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        // A torn / partially-written config (power-loss mid-write).
+        fs::write(&path, "first_run_complete = tru\nthis is not = = toml").unwrap();
+
+        let cfg = load_config_from(&path).unwrap();
+        // Correct behavior: the loader should NOT silently discard the user's
+        // completed-setup flag and dashboard layout. Today it returns
+        // AppConfig::default(), re-triggering the first-run wizard and dropping
+        // ui_state — a data-loss regression.
+        assert!(
+            cfg.first_run_complete,
+            "BUG: corrupt config silently resets first_run_complete → wizard reappears"
+        );
+    }
+
+    // --- BUG: repeated corruption clobbers the only recoverable backup ---
+
+    #[test]
+    fn bug_repeated_corruption_clobbers_prior_backup() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+
+        // 1) A good config with a real saved layout exists and is backed up.
+        let mut good = AppConfig::default();
+        good.first_run_complete = true;
+        good.ui_state = Some("LAYOUT_V1_IRREPLACEABLE".to_string());
+        fs::write(&path, toml::to_string_pretty(&good).unwrap()).unwrap();
+        backup_config_of(&path).unwrap(); // config.toml.bak now holds LAYOUT_V1
+
+        // 2) The config is later corrupted; loading backs it up again to the
+        //    SAME fixed .bak filename, overwriting the good backup.
+        fs::write(&path, "garbage = = = not toml").unwrap();
+        let _ = load_config_from(&path);
+
+        let bak = fs::read_to_string(path.with_extension("toml.bak")).unwrap();
+        assert!(
+            bak.contains("LAYOUT_V1_IRREPLACEABLE"),
+            "BUG: fixed .bak filename let a corrupt config overwrite the recoverable backup"
+        );
+    }
+
+    // --- BUG: schema_version migrations are unimplemented (no-op) ---
+
+    #[test]
+    fn bug_higher_schema_version_is_not_migrated() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        let mut cfg = AppConfig::default();
+        cfg.schema_version = 99; // a version newer than this build understands
+        fs::write(&path, toml::to_string_pretty(&cfg).unwrap()).unwrap();
+
+        let loaded = load_config_from(&path).unwrap();
+        // Correct behavior: a migration step should normalize the config to the
+        // schema version this build actually supports (1). Today the "Future:
+        // run schema migrations here" comment is a no-op, so the foreign version
+        // is loaded verbatim with no migration.
+        assert_eq!(
+            loaded.schema_version, 1,
+            "BUG: schema migrations are unimplemented; foreign schema_version loaded verbatim"
+        );
     }
 }
