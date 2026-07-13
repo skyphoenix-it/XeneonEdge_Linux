@@ -37,7 +37,23 @@ Item {
         contentHeight: formCol.implicitHeight
         boundsBehavior: Flickable.StopAtBounds
         pressDelay: 0
-        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+        // Dark, token-styled scrollbar (the default Fusion bar renders pale on the
+        // dark UI). Falls back to sane literals if col isn't wired yet.
+        ScrollBar.vertical: ScrollBar {
+            id: vsb
+            policy: ScrollBar.AsNeeded
+            contentItem: Rectangle {
+                implicitWidth: 6; radius: 3
+                color: vsb.pressed ? (panel.col ? panel.col.accent : "#58A6FF")
+                                   : (panel.col ? panel.col.border : "#30363D")
+                opacity: vsb.active ? 0.9 : 0.4
+            }
+            background: Rectangle {
+                implicitWidth: 6; radius: 3
+                color: panel.col ? panel.col.panelAlt : "#1C222B"
+                opacity: vsb.active ? 0.5 : 0
+            }
+        }
 
         WheelHandler {
             acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad

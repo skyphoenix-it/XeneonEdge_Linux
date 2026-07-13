@@ -12,12 +12,51 @@
 #include <QString>
 #include <QTimer>
 #include <QImage>
+#include <QPalette>
+#include <QColor>
 #include <QQuickWindow>
 #include <QQuickStyle>
 #include <QUrl>
 
 #include "xeneon_core.h"
 #include "manager_backend.h"
+
+// Build a dark QPalette from the app's dark design tokens. Fusion (set below)
+// draws every Qt Quick control that ISN'T hand-restyled (Switch/Slider/Button/
+// ScrollBar/Dialog button-boxes) from the application palette; without this it
+// falls back to Fusion's default LIGHT gray, which looks broken on the dark UI.
+static QPalette darkPalette() {
+    const QColor window("#0D1117");
+    const QColor base("#161B22");
+    const QColor alt("#1C222B");
+    const QColor button("#1C222B");
+    const QColor text("#E6EDF3");
+    const QColor muted("#8B949E");
+    const QColor accent("#F26D6D");
+    const QColor onAccent("#0D1117");
+
+    QPalette pal;
+    pal.setColor(QPalette::Window, window);
+    pal.setColor(QPalette::WindowText, text);
+    pal.setColor(QPalette::Base, base);
+    pal.setColor(QPalette::AlternateBase, alt);
+    pal.setColor(QPalette::Button, button);
+    pal.setColor(QPalette::ButtonText, text);
+    pal.setColor(QPalette::Text, text);
+    pal.setColor(QPalette::PlaceholderText, muted);
+    pal.setColor(QPalette::BrightText, text);
+    pal.setColor(QPalette::ToolTipBase, base);
+    pal.setColor(QPalette::ToolTipText, text);
+    pal.setColor(QPalette::Highlight, accent);
+    pal.setColor(QPalette::HighlightedText, onAccent);
+    pal.setColor(QPalette::Link, accent);
+    // Disabled group: dim text/placeholder so inactive controls read as muted.
+    pal.setColor(QPalette::Disabled, QPalette::Text, muted);
+    pal.setColor(QPalette::Disabled, QPalette::WindowText, muted);
+    pal.setColor(QPalette::Disabled, QPalette::ButtonText, muted);
+    pal.setColor(QPalette::Disabled, QPalette::Highlight, alt);
+    return pal;
+}
 
 int main(int argc, char* argv[]) {
     xeneon_logging_init("info");
@@ -26,8 +65,10 @@ int main(int argc, char* argv[]) {
     app.setApplicationVersion("0.1.0");
     app.setOrganizationName("xeneon-edge-hub");
 
-    // Fusion style so Switch/Button/Slider render properly on the desktop.
+    // Fusion style so Switch/Button/Slider render properly on the desktop, with a
+    // dark palette so those unstyled controls match the dark UI (not light gray).
     QQuickStyle::setStyle(QStringLiteral("Fusion"));
+    QGuiApplication::setPalette(darkPalette());
 
     // Declare the backend BEFORE the engine so it outlives it (locals destroy in
     // reverse order; the engine holds context-property references to the backend).

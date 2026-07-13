@@ -33,15 +33,33 @@ Item {
             spacing: 18
             ColumnLayout {
                 Layout.preferredWidth: 320; Layout.maximumWidth: 320; Layout.fillHeight: true
-                Loader {
-                    Layout.fillWidth: true; Layout.fillHeight: true
-                    source: "../../ui/qml/widgets/FocusWidget.qml"
-                    onLoaded: {
-                        if (!item) return
-                        store.ensureSettings("t", {})
-                        item.instanceId = "t"; item.store = store; item.expanded = true
-                        if (item.hasOwnProperty("active")) item.active = true
-                        if (item.hasOwnProperty("showHeader")) item.showHeader = false
+                // Mirrors WidgetConfigDialog's WYSIWYG preview: render the expanded
+                // widget at the Edge content width (logicalW) and scale it down to fit
+                // the narrow pane, so multi-button action rows don't overflow + clip.
+                Item {
+                    id: previewClip
+                    objectName: "previewClip"
+                    Layout.fillWidth: true; Layout.fillHeight: true; clip: true
+                    readonly property real logicalW: 688
+                    readonly property real fit: width > 0 ? width / logicalW : 1
+                    Item {
+                        id: previewScaler
+                        objectName: "previewScaler"
+                        width: previewClip.logicalW
+                        height: previewClip.fit > 0 ? previewClip.height / previewClip.fit : previewClip.height
+                        transformOrigin: Item.TopLeft
+                        scale: previewClip.fit
+                        Loader {
+                            anchors.fill: parent
+                            source: "../../ui/qml/widgets/FocusWidget.qml"
+                            onLoaded: {
+                                if (!item) return
+                                store.ensureSettings("t", {})
+                                item.instanceId = "t"; item.store = store; item.expanded = true
+                                if (item.hasOwnProperty("active")) item.active = true
+                                if (item.hasOwnProperty("showHeader")) item.showHeader = false
+                            }
+                        }
                     }
                 }
             }
@@ -62,6 +80,20 @@ Item {
 
         function cfg() { return store.settingsFor("t") }
         function toggleOf(key) { return findChild(findChild(panel, "field-" + key), "control") }
+
+        // Phase 1c: the scaled preview renders the 688px-wide expanded widget but its
+        // ON-SCREEN width (logicalW * scale) must fit inside the pane — no horizontal
+        // overflow/clip of the Focus 4-button action row.
+        function test_preview_content_not_clipped() {
+            var clip = findChild(dlg.contentItem, "previewClip")
+            var scaler = findChild(dlg.contentItem, "previewScaler")
+            verify(clip && scaler, "scaled preview present")
+            verify(clip.width > 0, "pane has width")
+            var onScreen = scaler.width * scaler.scale
+            verify(onScreen <= clip.width + 1,
+                   "scaled content (" + onScreen + ") fits pane (" + clip.width + ")")
+            verify(scaler.scale < 1, "wide expanded widget is scaled down, got " + scaler.scale)
+        }
 
         // A toggle near the TOP of the form (visible without scrolling).
         function test_top_toggle_clicks_inside_dialog() {

@@ -16,6 +16,9 @@
 #include <QDir>
 #include <QUrl>
 #include <QTextStream>
+#include <QQuickStyle>
+#include <QPalette>
+#include <QColor>
 #include <csignal>
 #include <unistd.h>
 #include <QSocketNotifier>
@@ -51,6 +54,43 @@ static void qtLogBridge(QtMsgType type, const QMessageLogContext& ctx, const QSt
     const char* file = ctx.file ? ctx.file : "qml";
     int line = ctx.line ? ctx.line : 0;
     xeneon_logging_log(qtMsgTypeToXeneon(type), file, line, msg.toUtf8().constData());
+}
+
+// --- Dark palette ---
+// Qt Quick Controls that aren't hand-restyled draw their chrome (Switch/Slider/
+// ScrollBar/Dialog button-boxes) from the application QPalette. Without a dark
+// one they fall back to the style's default LIGHT gray on the dark UI. Build it
+// from the same design tokens the QML theme uses.
+static QPalette darkPalette() {
+    const QColor window("#0D1117");
+    const QColor base("#161B22");
+    const QColor alt("#1C222B");
+    const QColor button("#1C222B");
+    const QColor text("#E6EDF3");
+    const QColor muted("#8B949E");
+    const QColor accent("#F26D6D");
+    const QColor onAccent("#0D1117");
+
+    QPalette pal;
+    pal.setColor(QPalette::Window, window);
+    pal.setColor(QPalette::WindowText, text);
+    pal.setColor(QPalette::Base, base);
+    pal.setColor(QPalette::AlternateBase, alt);
+    pal.setColor(QPalette::Button, button);
+    pal.setColor(QPalette::ButtonText, text);
+    pal.setColor(QPalette::Text, text);
+    pal.setColor(QPalette::PlaceholderText, muted);
+    pal.setColor(QPalette::BrightText, text);
+    pal.setColor(QPalette::ToolTipBase, base);
+    pal.setColor(QPalette::ToolTipText, text);
+    pal.setColor(QPalette::Highlight, accent);
+    pal.setColor(QPalette::HighlightedText, onAccent);
+    pal.setColor(QPalette::Link, accent);
+    pal.setColor(QPalette::Disabled, QPalette::Text, muted);
+    pal.setColor(QPalette::Disabled, QPalette::WindowText, muted);
+    pal.setColor(QPalette::Disabled, QPalette::ButtonText, muted);
+    pal.setColor(QPalette::Disabled, QPalette::Highlight, alt);
+    return pal;
 }
 
 // --- Display helper ---
@@ -197,6 +237,11 @@ int main(int argc, char *argv[]) {
     app.setApplicationName("Xeneon Edge Linux Hub");
     app.setApplicationVersion("0.1.0");
     app.setOrganizationName("xeneon-edge-hub");
+
+    // Fusion style + dark palette so on-device config controls (Switch/Slider/
+    // ScrollBar/Dialog button-boxes) render dark instead of the default light gray.
+    QQuickStyle::setStyle(QStringLiteral("Fusion"));
+    QGuiApplication::setPalette(darkPalette());
 
     // Self-pipe for signal handling: forward POSIX signals to Qt event loop safely
     if (::pipe(sigFd) == 0) {

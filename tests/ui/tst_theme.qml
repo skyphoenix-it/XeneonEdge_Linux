@@ -17,8 +17,9 @@ Item {
 
         // ── accentPresets ────────────────────────────────────────────────────
         function test_accent_presets_complete() {
-            var names = ["blue","purple","green","orange","pink","teal","red","gold"]
-            compare(Object.keys(theme.accentPresets).length, 8, "eight accent presets")
+            var names = ["blue","purple","green","orange","pink","teal","red","gold",
+                         "cyan","indigo","mint","coral","amber","magenta"]
+            compare(Object.keys(theme.accentPresets).length, 14, "fourteen accent presets")
             for (var i = 0; i < names.length; i++) {
                 var p = theme.accentPresets[names[i]]
                 verify(p && p.a !== undefined && p.b !== undefined, names[i] + " has a+b tones")
@@ -71,6 +72,49 @@ Item {
         function test_unknown_mode_uses_dark_default() {
             theme.applyTheme("banana")
             verify(Qt.colorEqual(theme.backgroundColor, "#0D1117"), "an unknown mode falls back to the dark default")
+        }
+
+        // ── New Phase-2 theme modes ──────────────────────────────────────────
+        // Shared assertions: every token the appliers set is populated, the
+        // theme is decorative (all 8 new modes are lush gradients), and the
+        // primary text is legibly distinct from the background.
+        function _assertThemeCoherent(mode, expectBg, expectDecorative) {
+            theme.applyTheme(mode)
+            verify(Qt.colorEqual(theme.backgroundColor, expectBg), mode + " sets its backgroundColor")
+            // All colour tokens set (non-empty).
+            verify(theme.backgroundColor2 != "" && theme.backgroundColor3 != "", mode + " sets bg2/bg3")
+            verify(theme.cardBackground != "" && theme.cardBackgroundAlt != "" && theme.cardBorder != "",
+                   mode + " sets card tokens")
+            verify(theme.textPrimary != "" && theme.textSecondary != "" && theme.textTertiary != "",
+                   mode + " sets text tokens")
+            // Radii + border width set to sane positive values.
+            verify(theme.radiusSm > 0 && theme.radiusMd > 0 && theme.radiusLg > 0 && theme.radiusXl > 0,
+                   mode + " sets all radii")
+            verify(theme.cardBorderWidth >= 1, mode + " sets a border width")
+            compare(theme.decorative, expectDecorative, mode + " decorative flag")
+            // Contrast: primary text must differ from the background.
+            verify(!Qt.colorEqual(theme.textPrimary, theme.backgroundColor),
+                   mode + " has text distinct from background")
+        }
+
+        function test_applyTheme_synthwave()   { _assertThemeCoherent("synthwave",   "#1A0B2E", true) }
+        function test_applyTheme_cyberpunk()   { _assertThemeCoherent("cyberpunk",   "#04110F", true) }
+        function test_applyTheme_deep_forest() { _assertThemeCoherent("deep_forest", "#0A1A0E", true) }
+        function test_applyTheme_deep_ocean()  { _assertThemeCoherent("deep_ocean",  "#04121F", true) }
+        function test_applyTheme_ember()       { _assertThemeCoherent("ember",       "#1A0E0A", true) }
+        function test_applyTheme_vaporwave()   { _assertThemeCoherent("vaporwave",   "#1E0F2E", true) }
+        function test_applyTheme_rose_gold()   { _assertThemeCoherent("rose_gold",   "#21121A", true) }
+        function test_applyTheme_matrix()      { _assertThemeCoherent("matrix",      "#000000", true) }
+
+        function test_new_accents_have_tones() {
+            var names = ["cyan","indigo","mint","coral","amber","magenta"]
+            for (var i = 0; i < names.length; i++) {
+                var p = theme.accentPresets[names[i]]
+                verify(p && p.a !== undefined && p.b !== undefined, names[i] + " has a+b tones")
+                theme.applyAccent(names[i])
+                compare(theme.accentName, names[i], names[i] + " applied")
+                verify(Qt.colorEqual(theme.accent, p.a), names[i] + " primary set")
+            }
         }
 
         // ── cardFill derivation ──────────────────────────────────────────────

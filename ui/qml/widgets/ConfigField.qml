@@ -34,6 +34,12 @@ Item {
         return field.dflt !== undefined ? field.dflt : ""
     }
     function setV(v) { if (st && instanceId !== "") st.setSetting(instanceId, field.key, v) }
+    // Text legible on an accent fill. Prefer a theme token so a dark accent can't
+    // make selected/on labels vanish; fall back to the historic literal.
+    function onAccent() { return (col && col.textOnAccent) ? col.textOnAccent : "#0D1117" }
+    // Tasks values are user/IPC-sourced — coerce to an array so a corrupt (non-array)
+    // stored value renders as empty instead of throwing on .slice()/Repeater.
+    function curTasks() { var v = cur(); return Array.isArray(v) ? v : [] }
     function numStr() {
         var n = Number(cur())
         if (isNaN(n)) n = 0
@@ -106,6 +112,19 @@ Item {
             border.color: ta.activeFocus ? f.col.accent : f.col.border
             ScrollView {
                 anchors.fill: parent; anchors.margins: 6; clip: true
+                // Dark, token-styled scrollbar (default Fusion bar clashes on the dark UI).
+                ScrollBar.vertical: ScrollBar {
+                    id: areaSb
+                    contentItem: Rectangle {
+                        implicitWidth: 5; radius: 3
+                        color: areaSb.pressed ? f.col.accent : f.col.border
+                        opacity: areaSb.active ? 0.9 : 0.35
+                    }
+                    background: Rectangle {
+                        implicitWidth: 5; radius: 3; color: f.col.panelAlt
+                        opacity: areaSb.active ? 0.4 : 0
+                    }
+                }
                 TextArea {
                     id: ta
                     text: f.cur(); wrapMode: TextArea.Wrap
@@ -167,7 +186,9 @@ Item {
                         var raw = String(text)
                         var n = (f.field.type === "hour") ? parseInt(raw, 10)
                                                           : parseFloat(raw.replace(/[^0-9.eE+\-]/g, ""))
-                        if (isNaN(n)) { text = f.numStr(); return }
+                        // Reject NaN AND non-finite (e.g. "1e400" → Infinity) before
+                        // clamp/snap, so a bad parse can't persist ±Infinity.
+                        if (!isFinite(n)) { text = f.numStr(); return }
                         f.setV(parent.parent.snap(parent.parent.clamp(n)))
                     }
                     // S2: re-assert the display after a stepper/external push (typing
@@ -189,10 +210,33 @@ Item {
         RowLayout {
             spacing: 12
             Slider {
+                id: sld
+                objectName: "control"
                 Layout.fillWidth: true; implicitHeight: f.ctlH
                 from: f.field.min || 0; to: f.field.max || 100; stepSize: f.field.step || 1
                 value: Number(f.cur())
                 onMoved: f.setV(value)
+                // Dark groove + accent-filled portion (mirrors the MSwitch/MButton
+                // token look instead of the pale default Fusion slider).
+                background: Rectangle {
+                    objectName: "groove"
+                    x: sld.leftPadding; y: sld.topPadding + sld.availableHeight / 2 - height / 2
+                    width: sld.availableWidth; height: 6; radius: 3
+                    color: f.col.panelAlt
+                    Rectangle {
+                        objectName: "grooveFill"
+                        width: sld.visualPosition * parent.width; height: parent.height
+                        radius: 3; color: f.col.accent
+                    }
+                }
+                handle: Rectangle {
+                    objectName: "handle"
+                    x: sld.leftPadding + sld.visualPosition * (sld.availableWidth - width)
+                    y: sld.topPadding + sld.availableHeight / 2 - height / 2
+                    width: 20; height: 20; radius: 10
+                    color: sld.pressed ? Qt.lighter(f.col.accent, 1.15) : f.col.accent
+                    border.width: 1; border.color: f.col.border
+                }
             }
             Text { text: f.cur() + (f.field.suffix || ""); color: f.col.accent
                 font.pixelSize: f.fontBase + 1; font.bold: true; Layout.preferredWidth: 90; horizontalAlignment: Text.AlignRight }
@@ -200,7 +244,35 @@ Item {
     }
     Component {
         id: toggleC
-        Switch { objectName: "control"; checked: f.cur() === true; onToggled: f.setV(checked) }
+        // Token-styled toggle mirroring the Manager's MSwitch: accent track when on,
+        // dark panelAlt track when off, so it matches the app design in both hosts
+        // instead of the pale default Fusion switch. Behaviour/signals unchanged.
+        Switch {
+            id: sw
+            objectName: "control"
+            checked: f.cur() === true
+            onToggled: f.setV(checked)
+            implicitHeight: f.ctlH
+            padding: 0
+            indicator: Rectangle {
+                objectName: "track"
+                implicitHeight: Math.max(26, f.ctlH * 0.5)
+                implicitWidth: implicitHeight * 1.85
+                x: sw.leftPadding; anchors.verticalCenter: parent.verticalCenter
+                radius: height / 2
+                color: sw.checked ? f.col.accent : f.col.panelAlt
+                border.width: 1; border.color: sw.checked ? f.col.accent : f.col.border
+                Behavior on color { ColorAnimation { duration: 120 } }
+                Rectangle {
+                    objectName: "knob"
+                    width: parent.height - 6; height: width; radius: height / 2
+                    y: 3
+                    x: sw.checked ? parent.width - width - 3 : 3
+                    color: sw.checked ? f.onAccent() : f.col.textSecondary
+                    Behavior on x { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                }
+            }
+        }
     }
     Component {
         id: segC
@@ -215,7 +287,7 @@ Item {
                     color: sel ? f.col.accent : f.col.panelAlt; border.width: 1
                     border.color: sel ? f.col.accent : f.col.border
                     Text { id: segLbl; anchors.centerIn: parent; text: modelData.label
-                        color: sel ? "#0D1117" : f.col.textPrimary; font.pixelSize: f.fontBase - 1 }
+                        color: sel ? f.onAccent() : f.col.textPrimary; font.pixelSize: f.fontBase - 1 }
                     MouseArea { anchors.fill: parent; onClicked: f.setV(modelData.value) }
                 }
             }
@@ -276,7 +348,7 @@ Item {
             color: actMA.pressed ? f.col.accent : f.col.panelAlt
             border.width: 1; border.color: f.col.accent
             Text { anchors.centerIn: parent; text: f.field.actionLabel || "Run"
-                color: actMA.pressed ? "#0D1117" : f.col.textPrimary; font.pixelSize: f.fontBase }
+                color: actMA.pressed ? f.onAccent() : f.col.textPrimary; font.pixelSize: f.fontBase }
             MouseArea { id: actMA; anchors.fill: parent; onClicked: f.actionRequested(f.field.action) }
         }
     }
@@ -294,7 +366,7 @@ Item {
         ColumnLayout {
             spacing: 6
             Repeater {
-                model: f.cur() || []
+                model: f.curTasks()
                 delegate: RowLayout {
                     required property int index
                     required property var modelData
@@ -304,9 +376,10 @@ Item {
                         width: Math.min(48, Math.max(44, f.ctlH - 14)); height: width; radius: 6
                         color: modelData.done ? f.col.accent : "transparent"
                         border.width: 2; border.color: modelData.done ? f.col.accent : f.col.border
-                        AppIcon { anchors.centerIn: parent; visible: modelData.done; name: "ui-check"; size: 16; color: "#0D1117" }
+                        AppIcon { anchors.centerIn: parent; visible: modelData.done; name: "ui-check"; size: 16; color: f.onAccent() }
                         MouseArea { anchors.fill: parent; onClicked: {
-                            var a = (f.cur() || []).slice()
+                            var a = f.curTasks().slice()
+                            if (!a[index]) return   // guard a corrupt/stale row
                             a[index] = { text: a[index].text, done: !a[index].done }; f.setV(a) } }
                     }
                     TextField {
@@ -315,7 +388,8 @@ Item {
                         background: Rectangle { radius: 6; color: f.col.bg; border.width: 1
                             border.color: parent.activeFocus ? f.col.accent : f.col.border }
                         onEditingFinished: {
-                            var a = (f.cur() || []).slice()
+                            var a = f.curTasks().slice()
+                            if (!a[index]) return   // row vanished (live push) — drop the edit
                             a[index] = { text: text, done: a[index].done }; f.setV(a)
                         }
                     }
@@ -324,7 +398,9 @@ Item {
                         width: Math.min(48, Math.max(44, f.ctlH - 12)); height: width; radius: 6; color: f.col.panelAlt
                         AppIcon { anchors.centerIn: parent; name: "ui-close"; size: 13; color: f.col.textSecondary }
                         MouseArea { anchors.fill: parent; onClicked: {
-                            var a = (f.cur() || []).slice(); a.splice(index, 1); f.setV(a) } }
+                            var a = f.curTasks().slice()
+                            if (index < 0 || index >= a.length) return
+                            a.splice(index, 1); f.setV(a) } }
                     }
                 }
             }
@@ -337,7 +413,7 @@ Item {
                         border.color: parent.activeFocus ? f.col.accent : f.col.border }
                     function commit() {
                         if (!text.trim().length) return
-                        var a = (f.cur() || []).slice(); a.push({ text: text.trim(), done: false }); f.setV(a); text = ""
+                        var a = f.curTasks().slice(); a.push({ text: text.trim(), done: false }); f.setV(a); text = ""
                     }
                     onAccepted: commit()
                 }

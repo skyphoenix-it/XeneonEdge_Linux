@@ -27,8 +27,31 @@ Dialog {
     width: Math.min(parent ? parent.width * 0.92 : 960, 1200)
     height: Math.min(parent ? parent.height * 0.9 : 680, 900)
     modal: true
-    standardButtons: Dialog.Close
     background: Rectangle { color: m.bg; radius: m.radius; border.width: 1; border.color: m.border }
+
+    // Custom token footer instead of the default Fusion DialogButtonBox (which
+    // renders a pale light-gray Close on the dark UI). A single accent Close button.
+    footer: Rectangle {
+        color: "transparent"; implicitHeight: 62
+        Button {
+            id: closeBtn
+            objectName: "closeBtn"
+            text: "Close"
+            anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+            anchors.rightMargin: 20
+            implicitHeight: 40; implicitWidth: 120; hoverEnabled: true
+            contentItem: Text {
+                text: closeBtn.text; color: m.textOnAccent; font.pixelSize: 14; font.bold: true
+                horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
+            }
+            background: Rectangle {
+                radius: m.radius
+                color: closeBtn.down ? Qt.darker(m.accent, 1.2)
+                       : (closeBtn.hovered ? Qt.lighter(m.accent, 1.1) : m.accent)
+            }
+            onClicked: dlg.close()
+        }
+    }
 
     WidgetConfigSchema { id: schemaReg }
 
@@ -142,17 +165,42 @@ Dialog {
                         GradientStop { position: 0.0; color: theme.backgroundColor }
                         GradientStop { position: 1.0; color: theme.backgroundColor3 }
                     }
-                    Loader {
-                        id: previewLoader
-                        anchors.fill: parent; anchors.margins: 10
-                        // Recreate the tile body on every open so reopening for a DIFFERENT
-                        // instance of the same type reloads and re-seeds against the new
-                        // instanceId — otherwise the source is unchanged, the Loader never
-                        // reloads, onLoaded never fires, and the previous instance's body
-                        // (with its stale instanceId) lingers (split-brain preview).
-                        active: dlg.visible
-                        source: dlg.wsrc(dlg.wType)
-                        onLoaded: dlg.inject(item)
+                    // WYSIWYG preview. The widget is rendered at the Edge content width
+                    // (`logicalW`, ~688px) — the width it was DESIGNED for — inside a
+                    // fixed-logical-size scaler, then scaled down to fit this ~300px pane
+                    // (the same trick EdgeClone uses on the whole device). Without this the
+                    // expanded layout (Focus's 4-button row, Media transport, Countdown's
+                    // label+date+Save, Tasks add-row, Hydration) overflows the narrow pane
+                    // and is clipped by WidgetChrome.body{clip:true}.
+                    Item {
+                        id: previewClip
+                        objectName: "previewClip"
+                        anchors.fill: parent; anchors.margins: 10; clip: true
+                        // Edge portrait content width the expanded widgets target.
+                        readonly property real logicalW: 688
+                        readonly property real fit: width > 0 ? width / logicalW : 1
+                        Item {
+                            id: previewScaler
+                            objectName: "previewScaler"
+                            width: previewClip.logicalW
+                            // Give the widget a tall logical canvas so that AFTER scaling it
+                            // exactly fills the pane's height (fit * height === pane height).
+                            height: previewClip.fit > 0 ? previewClip.height / previewClip.fit : previewClip.height
+                            transformOrigin: Item.TopLeft
+                            scale: previewClip.fit
+                            Loader {
+                                id: previewLoader
+                                anchors.fill: parent
+                                // Recreate the tile body on every open so reopening for a DIFFERENT
+                                // instance of the same type reloads and re-seeds against the new
+                                // instanceId — otherwise the source is unchanged, the Loader never
+                                // reloads, onLoaded never fires, and the previous instance's body
+                                // (with its stale instanceId) lingers (split-brain preview).
+                                active: dlg.visible
+                                source: dlg.wsrc(dlg.wType)
+                                onLoaded: dlg.inject(item)
+                            }
+                        }
                     }
                 }
             }
@@ -161,8 +209,21 @@ Dialog {
                 text: "Live & interactive — changes apply instantly to the Edge."
                 color: m.textSecondary; font.pixelSize: 12
             }
+            // Token-styled (mirrors Manager's MButton) so it matches the dark app
+            // palette instead of rendering as a pale default Fusion button.
             Button {
+                id: resetBtn
                 text: "Reset to defaults"; Layout.fillWidth: true
+                implicitHeight: 40; hoverEnabled: true
+                contentItem: Text {
+                    text: resetBtn.text; color: m.textPrimary; font.pixelSize: 14
+                    horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
+                }
+                background: Rectangle {
+                    radius: m.radius
+                    color: (resetBtn.down || resetBtn.hovered) ? m.panelAlt : m.panel
+                    border.width: 1; border.color: m.border
+                }
                 onClicked: resetConfirm.open()
             }
         }

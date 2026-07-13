@@ -492,6 +492,100 @@ Item {
     }
 
     // ══════════════════════════════════════════════════════════════════════════
+    // Phase 1b: the shared toggle/slider must be token-styled (accent/border/
+    // panelAlt) so they match the app design in both hosts, not the pale Fusion
+    // defaults.
+    TestCase {
+        name: "ControlTokenStyling"
+        when: windowShown
+        function init() { root.resetInstance("cf") }
+
+        function firstNamed(node, nm) {
+            return root.findAll(node, function (n) {
+                return n.hasOwnProperty("objectName") && n.objectName === nm
+            }, [])[0]
+        }
+
+        // Toggle: track ties to accent (on) / panelAlt+border (off); knob follows.
+        function test_toggle_track_uses_accent_tokens() {
+            var swOn = findChild(cfToggleT, "control")   // dflt:true
+            var swOff = findChild(cfToggleF, "control")  // dflt:false
+            verify(swOn && swOff, "both toggles rendered")
+            var trackOn = firstNamed(cfToggleT, "track")
+            var trackOff = firstNamed(cfToggleF, "track")
+            verify(trackOn && trackOff, "custom token track present (not default Fusion)")
+            // Behavior on color may still be settling from a prior test — wait it out.
+            tryVerify(function () { return Qt.colorEqual(trackOn.color, root.edgeCol.accent) }, 1000,
+                      "checked track = accent")
+            tryVerify(function () { return Qt.colorEqual(trackOff.color, root.edgeCol.panelAlt) }, 1000,
+                      "unchecked track = panelAlt")
+            verify(Qt.colorEqual(trackOff.border.color, root.edgeCol.border), "unchecked border = border token")
+        }
+
+        // Toggling a token switch still updates the track colour reactively.
+        function test_toggle_track_reacts_to_state() {
+            var sw = findChild(cfToggleF, "control")
+            var track = firstNamed(cfToggleF, "track")
+            verify(Qt.colorEqual(track.color, root.edgeCol.panelAlt), "starts off = panelAlt")
+            cstore.setSetting("cf", "format24", true)
+            compare(sw.checked, true, "control tracks store")
+            // Behavior on color animates the change — wait for it to settle on accent.
+            tryVerify(function () { return Qt.colorEqual(track.color, root.edgeCol.accent) }, 1000,
+                      "track flips to accent when on")
+        }
+
+        // Slider: dark groove + accent fill + accent handle (restyled, not Fusion).
+        function test_slider_groove_and_handle_use_tokens() {
+            var groove = firstNamed(cfSlider, "groove")
+            var fill = firstNamed(cfSlider, "grooveFill")
+            var handle = firstNamed(cfSlider, "handle")
+            verify(groove && fill && handle, "slider has custom groove/fill/handle")
+            verify(Qt.colorEqual(groove.color, root.edgeCol.panelAlt), "groove = panelAlt")
+            verify(Qt.colorEqual(fill.color, root.edgeCol.accent), "filled portion = accent")
+            verify(Qt.colorEqual(handle.color, root.edgeCol.accent), "handle = accent")
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Phase 3: field robustness guards.
+    TestCase {
+        name: "FieldGuards"
+        when: windowShown
+        function init() { root.resetInstance("cf") }
+
+        // A tasks field whose stored value is NOT an array must render empty (no
+        // throw) and still accept a new task via the add row.
+        function test_tasks_non_array_renders_empty_and_add_works() {
+            cstore.setSetting("cf", "items", "corrupt-not-an-array")
+            // curTasks() coerces to [] → no rows, no exception.
+            compare(cfTasks.curTasks().length, 0, "non-array tasks value coerces to empty")
+            var editables = root.editablesIn(cfTasks)  // the "Add a task…" field
+            verify(editables.length >= 1, "add-task field present")
+            var addField = editables[editables.length - 1]
+            addField.text = "recovered"
+            addField.accepted()   // commit()
+            var items = cstore.settingsFor("cf").items
+            verify(Array.isArray(items), "store now holds an array")
+            compare(items.length, 1, "the add recovered the corrupt value")
+            compare(items[0].text, "recovered", "new task text persisted")
+        }
+
+        // numberC must reject non-finite typed input (Infinity / NaN) and keep the
+        // prior stored value rather than persisting ±Infinity or NaN.
+        function test_number_rejects_non_finite_input() {
+            cstore.setSetting("cf", "lat", 12.34)
+            var e = root.editablesIn(cfNumber)[0]
+            verify(e, "number field editable present")
+            e.text = "1e400"            // parseFloat → Infinity
+            e.editingFinished()
+            compare(Number(cfNumber.cur()), 12.34, "1e400 (Infinity) rejected, value unchanged")
+            e.text = "abc"              // parseFloat → NaN
+            e.editingFinished()
+            compare(Number(cfNumber.cur()), 12.34, "abc (NaN) rejected, value unchanged")
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
     TestCase {
         name: "TaskEditor"
         when: windowShown

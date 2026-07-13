@@ -37,10 +37,13 @@ QtObject {
     property color catServices: "#56D4DD"
 
     readonly property var accentPresets: ({
-        "blue":   { a: "#58A6FF", b: "#79C0FF" }, "purple": { a: "#A371F7", b: "#D2A8FF" },
-        "green":  { a: "#3FB950", b: "#7EE787" }, "orange": { a: "#F0883E", b: "#FFA657" },
-        "pink":   { a: "#F778BA", b: "#FF9BCE" }, "teal":   { a: "#56D4DD", b: "#76E3EA" },
-        "red":    { a: "#F85149", b: "#FF7B72" }, "gold":   { a: "#E3B341", b: "#F2CC60" }
+        "blue":    { a: "#58A6FF", b: "#79C0FF" }, "purple":  { a: "#A371F7", b: "#D2A8FF" },
+        "green":   { a: "#3FB950", b: "#7EE787" }, "orange":  { a: "#F0883E", b: "#FFA657" },
+        "pink":    { a: "#F778BA", b: "#FF9BCE" }, "teal":    { a: "#56D4DD", b: "#76E3EA" },
+        "red":     { a: "#F85149", b: "#FF7B72" }, "gold":    { a: "#E3B341", b: "#F2CC60" },
+        "cyan":    { a: "#22D3EE", b: "#67E8F9" }, "indigo":  { a: "#818CF8", b: "#A5B4FC" },
+        "mint":    { a: "#34D399", b: "#6EE7B7" }, "coral":   { a: "#FB7185", b: "#FDA4AF" },
+        "amber":   { a: "#FBBF24", b: "#FCD34D" }, "magenta": { a: "#E879F9", b: "#F0ABFC" }
     })
 
     property int spacingXs: 4
@@ -134,6 +137,46 @@ QtObject {
             cardBackground = "#1A1132"; cardBackgroundAlt = "#2A1D48"; cardBorder = "#413063"
             textPrimary = "#F1EBFF"; textSecondary = "#B7A9D6"; textTertiary = "#8276A0"
             radiusSm = 10; radiusMd = 16; radiusLg = 22; radiusXl = 28; decorative = true; cardBorderWidth = 1; break
+        case "synthwave":
+            backgroundColor = "#1A0B2E"; backgroundColor2 = "#2D0B45"; backgroundColor3 = "#0F0524"
+            cardBackground = "#241141"; cardBackgroundAlt = "#34195C"; cardBorder = "#5B2A8C"
+            textPrimary = "#FCEEFF"; textSecondary = "#C89BE0"; textTertiary = "#9070B0"
+            radiusSm = 10; radiusMd = 16; radiusLg = 22; radiusXl = 28; decorative = true; cardBorderWidth = 1; break
+        case "cyberpunk":
+            backgroundColor = "#04110F"; backgroundColor2 = "#0A2A26"; backgroundColor3 = "#020A08"
+            cardBackground = "#0A1A18"; cardBackgroundAlt = "#12302B"; cardBorder = "#1C4A42"
+            textPrimary = "#EAFFF9"; textSecondary = "#7FD8C8"; textTertiary = "#559488"
+            radiusSm = 6; radiusMd = 9; radiusLg = 12; radiusXl = 16; decorative = true; cardBorderWidth = 1; break
+        case "deep_forest":
+            backgroundColor = "#0A1A0E"; backgroundColor2 = "#143021"; backgroundColor3 = "#06120A"
+            cardBackground = "#12251A"; cardBackgroundAlt = "#1B3626"; cardBorder = "#2E5238"
+            textPrimary = "#EAF7EC"; textSecondary = "#A8C9AE"; textTertiary = "#75997C"
+            radiusSm = 10; radiusMd = 16; radiusLg = 22; radiusXl = 28; decorative = true; cardBorderWidth = 1; break
+        case "deep_ocean":
+            backgroundColor = "#04121F"; backgroundColor2 = "#0A2A3F"; backgroundColor3 = "#020A14"
+            cardBackground = "#0A1E2E"; cardBackgroundAlt = "#12324A"; cardBorder = "#1E4A63"
+            textPrimary = "#E6F6FF"; textSecondary = "#9BC4DC"; textTertiary = "#6689A0"
+            radiusSm = 10; radiusMd = 16; radiusLg = 22; radiusXl = 28; decorative = true; cardBorderWidth = 1; break
+        case "ember":
+            backgroundColor = "#1A0E0A"; backgroundColor2 = "#3A1509"; backgroundColor3 = "#0F0705"
+            cardBackground = "#241310"; cardBackgroundAlt = "#38201A"; cardBorder = "#5C3324"
+            textPrimary = "#FFEFE6"; textSecondary = "#DDA989"; textTertiary = "#A67A61"
+            radiusSm = 10; radiusMd = 16; radiusLg = 22; radiusXl = 28; decorative = true; cardBorderWidth = 1; break
+        case "vaporwave":
+            backgroundColor = "#1E0F2E"; backgroundColor2 = "#3A1A52"; backgroundColor3 = "#140A20"
+            cardBackground = "#281640"; cardBackgroundAlt = "#382058"; cardBorder = "#563A78"
+            textPrimary = "#FBEEFF"; textSecondary = "#CBB0E6"; textTertiary = "#9986B8"
+            radiusSm = 12; radiusMd = 18; radiusLg = 24; radiusXl = 30; decorative = true; cardBorderWidth = 1; break
+        case "rose_gold":
+            backgroundColor = "#21121A"; backgroundColor2 = "#3A1E2C"; backgroundColor3 = "#170C12"
+            cardBackground = "#2A1721"; cardBackgroundAlt = "#3D2431"; cardBorder = "#5E3A4A"
+            textPrimary = "#FDEEF3"; textSecondary = "#D9AEBB"; textTertiary = "#A67E8B"
+            radiusSm = 12; radiusMd = 18; radiusLg = 24; radiusXl = 30; decorative = true; cardBorderWidth = 1; break
+        case "matrix":
+            backgroundColor = "#000000"; backgroundColor2 = "#030A03"; backgroundColor3 = "#000000"
+            cardBackground = "#050D05"; cardBackgroundAlt = "#0A160A"; cardBorder = "#164016"
+            textPrimary = "#B6FFB6"; textSecondary = "#5FCF5F"; textTertiary = "#3E8F3E"
+            radiusSm = 4; radiusMd = 6; radiusLg = 9; radiusXl = 12; decorative = true; cardBorderWidth = 1; break
         default:
             backgroundColor = "#0D1117"; backgroundColor2 = "#0A0E14"; backgroundColor3 = "#0A0E14"
             cardBackground = "#161B22"; cardBackgroundAlt = "#1C222B"; cardBorder = "#30363D"

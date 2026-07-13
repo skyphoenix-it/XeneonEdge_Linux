@@ -21,6 +21,10 @@ Item {
 
     implicitHeight: col2.implicitHeight
 
+    // Text legible on an accent fill — prefer a theme token so a dark accent can't
+    // make the selected chip's label vanish; fall back to the historic literal.
+    function onAccent() { return (col && col.textOnAccent) ? col.textOnAccent : "#0D1117" }
+
     // ── Current selection (reactive on store.revision) ──
     // Returns { kind: "global"|"style"|"wallpaper", val }.
     function current() {
@@ -74,7 +78,7 @@ Item {
                 // delegate/component root, so a bare `sel` in the child Text doesn't
                 // resolve (it threw "sel is not defined").
                 Text { id: gLbl; anchors.centerIn: parent; text: "Use global"
-                    color: globalChip.sel ? "#0D1117" : bp.col.textPrimary; font.pixelSize: 13 }
+                    color: globalChip.sel ? bp.onAccent() : bp.col.textPrimary; font.pixelSize: 13 }
                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: bp.useGlobal() }
             }
             Repeater {
@@ -86,7 +90,7 @@ Item {
                     color: sel ? bp.col.accent : bp.col.panelAlt
                     border.width: sel ? 2 : 1; border.color: sel ? bp.col.accent : bp.col.border
                     Text { id: sLbl; anchors.centerIn: parent; text: modelData.l
-                        color: sel ? "#0D1117" : bp.col.textPrimary; font.pixelSize: 13 }
+                        color: sel ? bp.onAccent() : bp.col.textPrimary; font.pixelSize: 13 }
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                         onClicked: bp.pickStyle(modelData.v) }
                 }

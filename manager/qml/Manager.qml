@@ -41,7 +41,10 @@ ApplicationWindow {
             { name: "blue", c: "#58A6FF" }, { name: "purple", c: "#A371F7" },
             { name: "green", c: "#3FB950" }, { name: "orange", c: "#F0883E" },
             { name: "pink", c: "#F778BA" }, { name: "teal", c: "#56D4DD" },
-            { name: "red", c: "#F85149" }, { name: "gold", c: "#E3B341" }
+            { name: "red", c: "#F85149" }, { name: "gold", c: "#E3B341" },
+            { name: "cyan", c: "#22D3EE" }, { name: "indigo", c: "#818CF8" },
+            { name: "mint", c: "#34D399" }, { name: "coral", c: "#FB7185" },
+            { name: "amber", c: "#FBBF24" }, { name: "magenta", c: "#E879F9" }
         ]
     }
 
@@ -220,10 +223,10 @@ ApplicationWindow {
                             anchors.verticalCenter: parent.verticalCenter; anchors.left: parent.left
                             anchors.leftMargin: 14; spacing: 10
                             AppIcon { name: modelData.i; size: 20
-                                color: nav.currentIndex === index ? "#0D1117" : m.textSecondary }
+                                color: nav.currentIndex === index ? m.textOnAccent : m.textSecondary }
                             Text {
                                 text: modelData.l
-                                color: nav.currentIndex === index ? "#0D1117" : m.textPrimary
+                                color: nav.currentIndex === index ? m.textOnAccent : m.textPrimary
                                 font.pixelSize: 15; font.bold: nav.currentIndex === index
                             }
                         }
@@ -299,19 +302,24 @@ ApplicationWindow {
                                 required property var modelData
                                 width: pageLbl.implicitWidth + 32; height: m.touch
                                 radius: m.radius
-                                color: win.currentPageIndex === index ? m.accent : m.panel
+                                color: win.currentPageIndex === index ? m.accent
+                                       : (pgMA.containsMouse ? m.panelAlt : m.panel)
                                 border.width: 1; border.color: m.border
                                 Text { id: pageLbl; anchors.centerIn: parent; text: modelData.name
-                                    color: win.currentPageIndex === index ? "#0D1117" : m.textPrimary
+                                    color: win.currentPageIndex === index ? m.textOnAccent : m.textPrimary
                                     font.pixelSize: 14; font.bold: win.currentPageIndex === index }
-                                MouseArea { anchors.fill: parent; onClicked: win.currentPageIndex = index }
+                                MouseArea { id: pgMA; anchors.fill: parent; hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: win.currentPageIndex = index }
                             }
                         }
                         Rectangle {
                             width: m.touch; height: m.touch; radius: m.radius
-                            color: m.panel; border.width: 1; border.color: m.border
+                            color: addPgMA.containsMouse ? m.panelAlt : m.panel
+                            border.width: 1; border.color: m.border
                             AppIcon { anchors.centerIn: parent; name: "ui-plus"; color: m.accent; size: 22 }
-                            MouseArea { anchors.fill: parent
+                            MouseArea { id: addPgMA; anchors.fill: parent; hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
                                 onClicked: { store.addPage(""); win.currentPageIndex = store.pageCount() - 1 } }
                         }
                     }
@@ -367,10 +375,12 @@ ApplicationWindow {
                                 required property var modelData
                                 width: colLbl.implicitWidth + 24; height: m.touch; radius: m.radius
                                 property bool sel: (store.revision, store.pageColumns(win.currentPageIndex)) === modelData.v
-                                color: sel ? m.accent : m.panel; border.width: 1; border.color: m.border
+                                color: sel ? m.accent : (pgColMA.containsMouse ? m.panelAlt : m.panel)
+                                border.width: 1; border.color: m.border
                                 Text { id: colLbl; anchors.centerIn: parent; text: modelData.l
-                                    color: sel ? "#0D1117" : m.textPrimary; font.pixelSize: 13 }
-                                MouseArea { anchors.fill: parent
+                                    color: sel ? m.textOnAccent : m.textPrimary; font.pixelSize: 13 }
+                                MouseArea { id: pgColMA; anchors.fill: parent; hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
                                     onClicked: store.setPageColumns(win.currentPageIndex, modelData.v) }
                             }
                         }
@@ -428,20 +438,29 @@ ApplicationWindow {
                         Layout.fillWidth: true; spacing: 10
                         Repeater {
                             model: [
-                                { k: "dark",          n: "Dark",     c1: "#161B22", c2: "#0A0E14" },
-                                { k: "midnight",      n: "Midnight", c1: "#1B1247", c2: "#070A1C" },
-                                { k: "aurora",        n: "Aurora",   c1: "#0C2E3A", c2: "#111C40" },
-                                { k: "sunset",        n: "Sunset",   c1: "#3A1230", c2: "#40161C" },
-                                { k: "nebula",        n: "Nebula",   c1: "#2A1048", c2: "#120A2E" },
-                                { k: "oled",          n: "OLED",     c1: "#0A0A0A", c2: "#000000" },
-                                { k: "light",         n: "Light",    c1: "#F6F8FA", c2: "#E4E9F0" },
-                                { k: "high_contrast", n: "Contrast", c1: "#1A1A1A", c2: "#000000" }
+                                { k: "dark",          n: "Dark",      c1: "#161B22", c2: "#0A0E14" },
+                                { k: "midnight",      n: "Midnight",  c1: "#1B1247", c2: "#070A1C" },
+                                { k: "aurora",        n: "Aurora",    c1: "#0C2E3A", c2: "#111C40" },
+                                { k: "sunset",        n: "Sunset",    c1: "#3A1230", c2: "#40161C" },
+                                { k: "nebula",        n: "Nebula",    c1: "#2A1048", c2: "#120A2E" },
+                                { k: "synthwave",     n: "Synthwave", c1: "#2D0B45", c2: "#0F0524" },
+                                { k: "cyberpunk",     n: "Cyberpunk", c1: "#0A2A26", c2: "#020A08" },
+                                { k: "deep_forest",   n: "Forest",    c1: "#143021", c2: "#06120A" },
+                                { k: "deep_ocean",    n: "Ocean",     c1: "#0A2A3F", c2: "#020A14" },
+                                { k: "ember",         n: "Ember",     c1: "#3A1509", c2: "#0F0705" },
+                                { k: "vaporwave",     n: "Vaporwave", c1: "#3A1A52", c2: "#140A20" },
+                                { k: "rose_gold",     n: "Rose Gold", c1: "#3A1E2C", c2: "#170C12" },
+                                { k: "matrix",        n: "Matrix",    c1: "#0A160A", c2: "#000000" },
+                                { k: "oled",          n: "OLED",      c1: "#0A0A0A", c2: "#000000" },
+                                { k: "light",         n: "Light",     c1: "#F6F8FA", c2: "#E4E9F0" },
+                                { k: "high_contrast", n: "Contrast",  c1: "#1A1A1A", c2: "#000000" }
                             ]
                             delegate: Rectangle {
                                 required property var modelData
                                 width: 150; height: 80; radius: m.radius; clip: true
                                 property bool sel: (store.revision, store.appearance().themeMode || "dark") === modelData.k
-                                border.width: sel ? 3 : 1; border.color: sel ? m.accent : m.border
+                                border.width: sel ? 3 : 1
+                                border.color: sel ? m.accent : (swMA.containsMouse ? m.accent : m.border)
                                 gradient: Gradient {
                                     GradientStop { position: 0.0; color: modelData.c1 }
                                     GradientStop { position: 1.0; color: modelData.c2 }
@@ -452,7 +471,8 @@ ApplicationWindow {
                                 Rectangle { visible: parent.sel; anchors.top: parent.top; anchors.right: parent.right
                                     anchors.margins: 6; width: 22; height: 22; radius: 11; color: m.accent
                                     AppIcon { anchors.centerIn: parent; name: "ui-check"; size: 13; color: m.textOnAccent } }
-                                MouseArea { anchors.fill: parent
+                                MouseArea { id: swMA; anchors.fill: parent; hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
                                     onClicked: store.setAppearance("themeMode", modelData.k) }
                             }
                         }
@@ -467,11 +487,12 @@ ApplicationWindow {
                                 required property var modelData
                                 property bool sel: (store.revision, store.appearance().accent === modelData.name)
                                 width: 46; height: 46; radius: 23; color: modelData.c
-                                border.width: sel ? 3 : 0
+                                border.width: sel ? 3 : (accMA.containsMouse ? 2 : 0)
                                 border.color: m.textPrimary
                                 AppIcon { visible: parent.sel; anchors.centerIn: parent
                                     name: "ui-check"; size: 20; color: "#FFFFFF" }
-                                MouseArea { anchors.fill: parent
+                                MouseArea { id: accMA; anchors.fill: parent; hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
                                     onClicked: store.setAppearance("accent", modelData.name) }
                             }
                         }
@@ -500,10 +521,12 @@ ApplicationWindow {
                                 required property var modelData
                                 width: 150; height: m.touch; radius: m.radius
                                 property bool sel: (store.revision, store.appearance().gridCols || 1) === modelData.v
-                                color: sel ? m.accent : m.panel; border.width: 1; border.color: m.border
+                                color: sel ? m.accent : (dfColMA.containsMouse ? m.panelAlt : m.panel)
+                                border.width: 1; border.color: m.border
                                 Text { anchors.centerIn: parent; text: modelData.l
-                                    color: sel ? "#0D1117" : m.textPrimary; font.pixelSize: 14 }
-                                MouseArea { anchors.fill: parent
+                                    color: sel ? m.textOnAccent : m.textPrimary; font.pixelSize: 14 }
+                                MouseArea { id: dfColMA; anchors.fill: parent; hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
                                     onClicked: store.setAppearance("gridCols", modelData.v) }
                             }
                         }
@@ -515,6 +538,25 @@ ApplicationWindow {
                         Slider {
                             id: glassSlider; Layout.fillWidth: true; from: 0; to: 1
                             value: { store.revision; var g = store.appearance().glass; return g === undefined ? 0.55 : g }
+                            // Token-styled groove/handle so the raw Fusion control follows
+                            // the chosen accent instead of the default light gray.
+                            background: Rectangle {
+                                x: glassSlider.leftPadding
+                                y: glassSlider.topPadding + glassSlider.availableHeight / 2 - height / 2
+                                width: glassSlider.availableWidth; height: 6; radius: 3
+                                color: m.panelAlt; border.width: 1; border.color: m.border
+                                Rectangle {
+                                    width: glassSlider.visualPosition * parent.width; height: parent.height
+                                    radius: 3; color: m.accent
+                                }
+                            }
+                            handle: Rectangle {
+                                x: glassSlider.leftPadding + glassSlider.visualPosition * (glassSlider.availableWidth - width)
+                                y: glassSlider.topPadding + glassSlider.availableHeight / 2 - height / 2
+                                width: 20; height: 20; radius: 10
+                                color: glassSlider.pressed ? Qt.lighter(m.accent, 1.15) : m.textOnAccent
+                                border.width: 2; border.color: m.accent
+                            }
                             // Live-preview the theme while dragging (cheap: opacity only),
                             // but debounce the persisted store write so we don't reapply the
                             // whole theme + save on every frame.
@@ -591,14 +633,17 @@ ApplicationWindow {
                         horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap
                         text: "No images yet — use “Import image…” to add one."
                         color: m.textSecondary; font.pixelSize: 14 }
-                    ScrollView {
+                    GridView {
+                        id: imgGrid
                         visible: imagesModel.count > 0
                         Layout.fillWidth: true; Layout.fillHeight: true; clip: true
-                        GridView {
-                            id: imgGrid
-                            cellWidth: 190; cellHeight: 190
-                            model: imagesModel
-                            delegate: Rectangle {
+                        cellWidth: 190; cellHeight: 190
+                        model: imagesModel
+                        ScrollBar.vertical: ScrollBar {
+                            policy: imgGrid.contentHeight > imgGrid.height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
+                            contentItem: Rectangle { implicitWidth: 6; radius: 3; color: m.border }
+                        }
+                        delegate: Rectangle {
                                 id: imgCard
                                 required property var modelData
                                 width: 180; height: 180; radius: m.radius
@@ -640,7 +685,6 @@ ApplicationWindow {
                         }
                     }
                 }
-            }
 
             // ═══ 4. DISPLAY ═══
             Item {
@@ -697,10 +741,12 @@ ApplicationWindow {
                                 required property var modelData
                                 width: oriLbl.implicitWidth + 24; height: m.touch; radius: m.radius
                                 property bool sel: (store.revision, store.appearance().orientation || "auto") === modelData.v
-                                color: sel ? m.accent : m.panel; border.width: 1; border.color: m.border
+                                color: sel ? m.accent : (oriMA.containsMouse ? m.panelAlt : m.panel)
+                                border.width: 1; border.color: m.border
                                 Text { id: oriLbl; anchors.centerIn: parent; text: modelData.l
-                                    color: sel ? "#0D1117" : m.textPrimary; font.pixelSize: 13 }
-                                MouseArea { anchors.fill: parent
+                                    color: sel ? m.textOnAccent : m.textPrimary; font.pixelSize: 13 }
+                                MouseArea { id: oriMA; anchors.fill: parent; hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
                                     onClicked: store.setAppearance("orientation", modelData.v) }
                             }
                         }
@@ -730,9 +776,19 @@ ApplicationWindow {
         title: "Add a widget"
         modal: true
         anchors.centerIn: parent
-        width: 720; height: 560
+        width: Math.min(parent ? parent.width * 0.9 : 720, 760)
+        height: Math.min(parent ? parent.height * 0.85 : 560, 620)
         standardButtons: Dialog.Close
         background: Rectangle { color: m.panel; radius: m.radius; border.width: 1; border.color: m.border }
+        header: Rectangle {
+            color: "transparent"; implicitHeight: 60
+            RowLayout {
+                anchors.fill: parent; anchors.leftMargin: 20; anchors.rightMargin: 20; spacing: 12
+                AppIcon { name: "ui-plus"; size: 24; color: m.accent; Layout.alignment: Qt.AlignVCenter }
+                Text { text: "Add a widget"; color: m.textPrimary; font.pixelSize: 19; font.bold: true
+                    Layout.fillWidth: true }
+            }
+        }
         contentItem: ScrollView {
             clip: true
             ColumnLayout {
@@ -760,6 +816,7 @@ ApplicationWindow {
                                             color: m.textPrimary; font.pixelSize: 13 }
                                     }
                                     MouseArea { id: itemMA; anchors.fill: parent; hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
                                         onClicked: { store.addTile(win.currentPageIndex, modelData.type); addPicker.close() } }
                                 }
                             }
@@ -790,8 +847,19 @@ ApplicationWindow {
         modal: true; title: "Please confirm"
         standardButtons: Dialog.Yes | Dialog.No
         background: Rectangle { color: m.panel; radius: m.radius; border.width: 1; border.color: m.border }
+        header: Rectangle {
+            color: "transparent"; implicitHeight: 52
+            RowLayout {
+                anchors.fill: parent; anchors.leftMargin: 18; anchors.rightMargin: 18; spacing: 10
+                AppIcon { name: "ui-warning"; size: 20; color: m.danger; Layout.alignment: Qt.AlignVCenter }
+                Text { text: "Please confirm"; color: m.textPrimary; font.pixelSize: 17; font.bold: true
+                    Layout.fillWidth: true }
+            }
+        }
         contentItem: Text { text: confirmDialog.message; color: m.textPrimary
-            wrapMode: Text.WordWrap; padding: 14; font.pixelSize: 14 }
+            wrapMode: Text.WordWrap; padding: 18; font.pixelSize: 14
+            // Cap the width so a long message wraps instead of stretching the dialog wide.
+            width: Math.min(implicitWidth, 360) }
         onAccepted: if (onConfirm) onConfirm()
     }
 

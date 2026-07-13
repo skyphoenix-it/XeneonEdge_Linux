@@ -82,14 +82,22 @@ Rectangle {
                             Layout.fillWidth: true; spacing: theme.spacingMd
                             Repeater {
                                 model: [
-                                    { v: "dark",          l: "Dark",     c1: "#161B22", c2: "#0A0E14" },
-                                    { v: "midnight",      l: "Midnight", c1: "#1B1247", c2: "#070A1C" },
-                                    { v: "aurora",        l: "Aurora",   c1: "#0C2E3A", c2: "#111C40" },
-                                    { v: "sunset",        l: "Sunset",   c1: "#3A1230", c2: "#40161C" },
-                                    { v: "nebula",        l: "Nebula",   c1: "#2A1048", c2: "#120A2E" },
-                                    { v: "oled",          l: "OLED",     c1: "#0A0A0A", c2: "#000000" },
-                                    { v: "light",         l: "Light",    c1: "#F6F8FA", c2: "#E4E9F0" },
-                                    { v: "high_contrast", l: "Contrast", c1: "#1A1A1A", c2: "#000000" }
+                                    { v: "dark",          l: "Dark",      c1: "#161B22", c2: "#0A0E14" },
+                                    { v: "midnight",      l: "Midnight",  c1: "#1B1247", c2: "#070A1C" },
+                                    { v: "aurora",        l: "Aurora",    c1: "#0C2E3A", c2: "#111C40" },
+                                    { v: "sunset",        l: "Sunset",    c1: "#3A1230", c2: "#40161C" },
+                                    { v: "nebula",        l: "Nebula",    c1: "#2A1048", c2: "#120A2E" },
+                                    { v: "synthwave",     l: "Synthwave", c1: "#2D0B45", c2: "#0F0524" },
+                                    { v: "cyberpunk",     l: "Cyberpunk", c1: "#0A2A26", c2: "#020A08" },
+                                    { v: "deep_forest",   l: "Forest",    c1: "#143021", c2: "#06120A" },
+                                    { v: "deep_ocean",    l: "Ocean",     c1: "#0A2A3F", c2: "#020A14" },
+                                    { v: "ember",         l: "Ember",     c1: "#3A1509", c2: "#0F0705" },
+                                    { v: "vaporwave",     l: "Vaporwave", c1: "#3A1A52", c2: "#140A20" },
+                                    { v: "rose_gold",     l: "Rose Gold", c1: "#3A1E2C", c2: "#170C12" },
+                                    { v: "matrix",        l: "Matrix",    c1: "#0A160A", c2: "#000000" },
+                                    { v: "oled",          l: "OLED",      c1: "#0A0A0A", c2: "#000000" },
+                                    { v: "light",         l: "Light",     c1: "#F6F8FA", c2: "#E4E9F0" },
+                                    { v: "high_contrast", l: "Contrast",  c1: "#1A1A1A", c2: "#000000" }
                                 ]
                                 delegate: Rectangle {
                                     required property var modelData
@@ -199,7 +207,8 @@ Rectangle {
                         Flow {
                             Layout.fillWidth: true; spacing: theme.spacingMd
                             Repeater {
-                                model: ["blue","purple","green","orange","pink","teal","red","gold"]
+                                model: ["blue","purple","green","orange","pink","teal","red","gold",
+                                        "cyan","indigo","mint","coral","amber","magenta"]
                                 delegate: Rectangle {
                                     required property var modelData
                                     width: 52; height: 52; radius: 26
