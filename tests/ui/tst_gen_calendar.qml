@@ -387,11 +387,18 @@ Item {
         function test_today_tomorrow_and_dated() {
             var w = h.item
             var now = new Date()
-            var todayEv = { start: new Date(now.getTime() + 3600000), allDay: false }
+            // Construct events by CALENDAR DATE at noon (not now+Nh): an hour-offset
+            // is time-of-day fragile — e.g. after ~22:00 wall-clock, now+26h rolls
+            // into the day AFTER tomorrow, and near midnight now+1h rolls into
+            // tomorrow. Noon on the target date is always that date, DST-safe.
+            function atNoon(dayOffset) {
+                return new Date(now.getFullYear(), now.getMonth(), now.getDate() + dayOffset, 12, 0, 0)
+            }
+            var todayEv = { start: atNoon(0), allDay: false }
             verify(w.fmtWhen(todayEv).indexOf("Today") === 0, "same-day → 'Today …'")
-            var tomEv = { start: new Date(now.getTime() + 26 * 3600000), allDay: false }
+            var tomEv = { start: atNoon(1), allDay: false }
             verify(w.fmtWhen(tomEv).indexOf("Tomorrow") === 0, "next-day → 'Tomorrow …'")
-            var farEv = { start: new Date(now.getTime() + 6 * 86400000), allDay: false }
+            var farEv = { start: atNoon(6), allDay: false }
             var lbl = w.fmtWhen(farEv)
             verify(lbl.indexOf("Today") !== 0 && lbl.indexOf("Tomorrow") !== 0, "far event → dated label")
         }

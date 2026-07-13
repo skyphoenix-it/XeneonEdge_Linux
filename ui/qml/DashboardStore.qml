@@ -81,13 +81,44 @@ Item {
 
     function _clone(o) { return JSON.parse(JSON.stringify(o)) }
 
-    // Normalise a loaded/pushed document in place: ensure the standard maps
-    // exist, guarantee every page carries a `tiles` array, and prune settings
-    // whose id is no longer owned by any tile (plus the stray empty-id entry).
+    // Validate + normalise a loaded/pushed document in place. `load`/applyExternal
+    // only gate on truthiness, so a corrupt or hostile doc (`"pages":5`,
+    // `"pages":{}`, string/number tiles, id-less tiles, a non-object `settings`)
+    // would otherwise reach the page/tile Repeater and `addTile` → TypeError →
+    // blank dashboard. This coerces every structural field into the exact shape the
+    // rest of the store and the QML assume, dropping anything that can't be healed.
+    function _isPlainObject(v) {
+        return v !== null && typeof v === "object" && !Array.isArray(v)
+    }
     function _normaliseDoc(doc) {
-        if (!doc.appearance) doc.appearance = {}
-        if (!doc.settings) doc.settings = {}
-        if (!doc.pages) doc.pages = []
+        if (!_isPlainObject(doc.appearance)) doc.appearance = {}
+        if (!_isPlainObject(doc.settings)) doc.settings = {}
+        // Pages MUST be an array; anything else (number/object/string/null) is junk.
+        if (!Array.isArray(doc.pages)) doc.pages = []
+
+        // Coerce each page into a well-formed { name:String, tiles:[objects with a
+        // non-empty string id] }. Non-object pages are dropped entirely; a page's
+        // tiles array is reset to [] when it isn't an array; each tile survives only
+        // if it's a plain object carrying a non-empty string id (a bare string,
+        // number, or id-less object is dropped rather than crashing addTile/binds).
+        var cleanPages = []
+        for (var i = 0; i < doc.pages.length; i++) {
+            var p = doc.pages[i]
+            if (!_isPlainObject(p)) continue
+            if (typeof p.name !== "string" || p.name === "")
+                p.name = "Page " + (cleanPages.length + 1)
+            var srcTiles = Array.isArray(p.tiles) ? p.tiles : []
+            var cleanTiles = []
+            for (var j = 0; j < srcTiles.length; j++) {
+                var t = srcTiles[j]
+                if (_isPlainObject(t) && typeof t.id === "string" && t.id !== "")
+                    cleanTiles.push(t)
+            }
+            p.tiles = cleanTiles
+            cleanPages.push(p)
+        }
+        doc.pages = cleanPages
+
         // De-duplicate page names on load. renamePage/addPage reject NEW collisions,
         // but a config that already carries two identical page names (the real "two
         // Page 5 tabs" bug) was never reconciled. Walk in order, keep the first
@@ -96,7 +127,6 @@ Item {
         var seenNames = {}
         for (var n = 0; n < doc.pages.length; n++) {
             var pg = doc.pages[n]
-            if (pg.name === undefined || pg.name === null) continue
             var nm = String(pg.name)
             if (seenNames[nm]) {
                 var suffix = 2
@@ -106,11 +136,12 @@ Item {
             }
             seenNames[nm] = true
         }
+        // Prune settings whose id is no longer owned by any surviving tile (plus the
+        // stray empty-id entry).
         var live = {}
-        for (var i = 0; i < doc.pages.length; i++) {
-            var p = doc.pages[i]
-            if (!p.tiles) p.tiles = []
-            for (var j = 0; j < p.tiles.length; j++) live[p.tiles[j].id] = true
+        for (var k = 0; k < doc.pages.length; k++) {
+            var tiles = doc.pages[k].tiles
+            for (var j2 = 0; j2 < tiles.length; j2++) live[tiles[j2].id] = true
         }
         for (var key in doc.settings)
             if (!live.hasOwnProperty(key)) delete doc.settings[key]

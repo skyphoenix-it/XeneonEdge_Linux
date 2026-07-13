@@ -134,6 +134,10 @@ public:
     // windows are testable with zero real waiting. Defaults to the wall clock.
     void setClockForTest(std::function<qint64()> nowMs) { m_nowMs = std::move(nowMs); }
 
+    // Test seam: expose the pending RX buffer size so a flood test can assert the
+    // cap holds without reaching into private state. Not used in production.
+    int rxBufferSizeForTest() const { return m_rxBuf.size(); }
+
     bool hubConnected() const { return m_hubConnected; }
 
     // Launch the hub if it isn't already running. Returns false only when the
@@ -222,7 +226,10 @@ public:
         }
         markSelfWrite();
         bool ok = xeneon_config_save(m_config) == 0;
-        if (!ok) qWarning() << "Manager: failed to persist UI state";
+        if (!ok) {
+            qWarning() << "Manager: failed to persist UI state";
+            emit saveError(QStringLiteral("Failed to save the layout"));
+        }
         pushLive(json);   // buffers the edit if a hub appears later
         return ok;
     }
@@ -291,7 +298,14 @@ public:
         xeneon_config_set_target_connector(m_config, connector.toUtf8().constData());
         xeneon_config_set_target_model(m_config, model.toUtf8().constData());
         markSelfWrite();
-        return xeneon_config_save(m_config) == 0;
+        // Callers previously ignored this bool; a failed save was silent. Log + signal
+        // so the failure is honest (and the return value stays truthful).
+        const bool ok = xeneon_config_save(m_config) == 0;
+        if (!ok) {
+            qWarning() << "Manager: failed to persist target display";
+            emit saveError(QStringLiteral("Failed to save the display target"));
+        }
+        return ok;
     }
     Q_INVOKABLE bool setAutostart(bool enabled) {
         if (!m_config) return false;
@@ -302,6 +316,9 @@ public:
         markSelfWrite();
         bool saveOk = xeneon_config_save(m_config) == 0;
         if (!fileOk) qWarning() << "Manager: autostart .desktop write failed";
+        if (!saveOk) qWarning() << "Manager: failed to persist autostart flag";
+        if (!(fileOk && saveOk))
+            emit saveError(QStringLiteral("Failed to update autostart"));
         return fileOk && saveOk;
     }
     // Effective autostart state = the XDG autostart entry actually exists.
@@ -328,6 +345,13 @@ public:
         if (src.startsWith("file:")) src = QUrl(src).toLocalFile();
         QFileInfo fi(src);
         if (!fi.exists() || !fi.isReadable()) { qWarning() << "importImage: unreadable" << src; return QString(); }
+        // Guard the synchronous copy below: stat the source and reject anything over
+        // the cap so a huge or slow network-mounted file can't freeze the GUI thread.
+        if (fi.size() > kMaxImportBytes) {
+            qWarning() << "importImage: rejecting oversized file" << src << fi.size()
+                       << "bytes (cap" << kMaxImportBytes << ")";
+            return QString();
+        }
         const QString dir = imagesDir();
         const QString base = fi.completeBaseName();
         const QString ext = fi.suffix();
@@ -366,6 +390,10 @@ signals:
     void imagesChanged();
     void screensChanged();
     void configChanged();   // config reloaded (from the hub or disk) → QML re-reads
+    // Emitted when a persist/apply the user asked for did NOT succeed, so the QML
+    // side can surface an honest error (a toast) instead of a silent no-op. The
+    // C++ return values are already truthful; this makes the failure observable.
+    void saveError(const QString& what);
 
 private slots:
     void onSocketReadyRead() {
@@ -374,7 +402,18 @@ private slots:
         while ((nl = m_rxBuf.indexOf('\n')) >= 0) {
             const QByteArray line = m_rxBuf.left(nl);
             m_rxBuf.remove(0, nl + 1);
-            const QJsonObject o = QJsonDocument::fromJson(line).object();
+            if (line.trimmed().isEmpty()) continue;   // keep-alive / blank framing
+            // Parse defensively: a malformed or non-object line is LOGGED and skipped
+            // (was silently swallowed). The newline framing already consumed the bad
+            // line, so a single garbage message can't desync the rest of the stream.
+            QJsonParseError perr{};
+            const QJsonDocument doc = QJsonDocument::fromJson(line, &perr);
+            if (doc.isNull() || !doc.isObject()) {
+                qWarning() << "Manager: ignoring malformed IPC line:"
+                           << perr.errorString() << "(" << line.left(120) << ")";
+                continue;
+            }
+            const QJsonObject o = doc.object();
             const QString type = o.value("type").toString();
             if (type == "uiState") {
                 const QString st = o.value("state").toString();
@@ -419,6 +458,16 @@ private slots:
             } else if (type == "error") {
                 qWarning() << "Manager: hub rejected update:" << o.value("message").toString();  // GCOVR_EXCL_LINE (hub-side reject log; no observable client effect)
             }
+        }
+        // Cap an unterminated flood: whatever remains is a partial line with no
+        // newline. A stuck or hostile peer that never sends '\n' would otherwise grow
+        // m_rxBuf without bound (OOM). Drop the partial buffer past the cap and resync
+        // on the next newline.
+        if (m_rxBuf.size() > kMaxRxBufBytes) {
+            qWarning() << "Manager: RX buffer exceeded" << kMaxRxBufBytes
+                       << "bytes without a newline — dropping" << m_rxBuf.size()
+                       << "buffered bytes and resyncing";
+            m_rxBuf.clear();
         }
     }
 
@@ -490,6 +539,12 @@ private:
            << "Exec=" << exec << "\nX-GNOME-Autostart-enabled=true\n";
         return true;
     }
+
+    // Drop an unterminated RX flood past ~1 MB (see onSocketReadyRead).
+    static constexpr int kMaxRxBufBytes = 1 << 20;              // 1 MiB
+    // Reject import sources larger than this so a huge/network file can't freeze
+    // the GUI thread inside the synchronous QFile::copy (see importImage).
+    static constexpr qint64 kMaxImportBytes = 25LL << 20;       // 25 MiB
 
     ConfigHandle* m_config = nullptr;
     QLocalSocket* m_sock = nullptr;
