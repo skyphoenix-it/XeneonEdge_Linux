@@ -1,21 +1,41 @@
 # Session handoff — continue from here
 
-_Last updated: 2026-07-13 (test-push session). Merged to `master` via PR #1
-(squash `552729c`); all 9 CI checks green. Pushed to `origin/master`._
+_Last updated: 2026-07-13 (Manager UI/UX + robustness session, autonomous). On
+`master`; PR #1 (`552729c`) plus follow-up direct-to-master commits, CI green._
 
 ## Current state: GREEN — 95%+ coverage across all layers
 
-Full plan + results: `docs/DEV_AND_TEST_PLAN.md`. Run everything: `./scripts/run_all_tests.sh`
-(→ `RESULT: SUCCESS`); measure coverage: `./scripts/coverage.sh`.
+Full plan + results: `docs/DEV_AND_TEST_PLAN.md`, `docs/MANAGER_UIUX_PLAN.md`. Run
+everything: `./scripts/run_all_tests.sh` (→ `RESULT: SUCCESS`); coverage: `./scripts/coverage.sh`.
 
 - **Build**: `./scripts/build.sh release` — clean (hub + manager).
-- **QML tests**: `./scripts/run_ui_tests.sh` — ALL UI TESTS PASSED (68 files). Behavior
-  matrix `python3 scripts/qml_coverage.py` — **99.4%** (163/164).
-- **Rust tests**: `cd core && cargo test` — **110 passed**, 0 failed; **96.44%** line
-  (`cargo llvm-cov --lib --summary-only`).
-- **C++ tests (NEW)**: `./scripts/run_cpp_tests.sh` — **13/13 ctest** (unit+integration+smoke);
-  **97%** filtered line coverage. Harness in `tests/cpp/`, built with
-  `-DXENEON_BUILD_TESTS=ON` (+`-DXENEON_COVERAGE=ON` for gcov).
+- **QML**: `./scripts/run_ui_tests.sh` — ALL UI TESTS PASSED. Behavior matrix
+  `python3 scripts/qml_coverage.py` — **100%** (165/165).
+- **Rust**: `cd core && cargo test` — **116 passed**; **97.4%** line (config.rs 98.3%).
+- **C++**: `./scripts/run_cpp_tests.sh` — **15/15 ctest**; ~97% filtered line.
+
+### Post-PR#1 work (this session, newest first)
+- **Manager UI/UX + themes + robustness** (`8df1ccc`/`fafb133` + follow-ups): dark
+  `QPalette` on both apps (config Switch/Slider/Button/ScrollBar/dialog buttons no
+  longer render as pale Fusion), restyled config controls, **config live-preview now
+  scales to fit** (no clipped action rows), hover/cursor affordances. **Themes 8→16**
+  (synthwave/cyberpunk/deep_forest/deep_ocean/ember/vaporwave/rose_gold/matrix),
+  **accents 8→14**. `_normaliseDoc` is now a **validator** (corrupt/hostile pages/tiles/
+  tasks can't blank the dashboard). IPC RX-cap, 25 MB image guard, saveError signal.
+- **Single-instance guard** (`53e9dfa`): `app/src/single_instance.h` (QLockFile) on
+  both apps — a 2nd hub/manager exits instead of racing config.toml (skipped when
+  `XENEON_GRAB` set so QA grabs still work). This is the fix for the multi-writer
+  config churn seen with several instances up at once.
+- **Config self-binding fix** (`a11e24b`): `WidgetConfigPanel` property renamed
+  `store`→`st` — `store: store` at the call sites self-bound to null, so the ENTIRE
+  config form (hub + Manager) showed defaults + dropped edits. Regression gate
+  `tst_config_panel_wiring.qml`.
+- **Version in UI** (`0fb8ceb`): git-describe → `XENEON_VERSION` → `appVersion()` →
+  Manager nav + hub Diagnostics. PKGBUILD passes `-DXENEON_VERSION_OVERRIDE`.
+- New tests: `tst_config_panel_wiring`, `tst_all_widget_configs` (all 23 types render),
+  `tst_store_validation`, `tst_single_instance` (C++), `tst_rx_cap` (C++).
+
+### Prior test-push (PR #1)
 - **On-device**: hub dashboard, Manager, and an expanded widget config all verified
   via `XENEON_GRAB` captures on the real Edge (DP-3). Wallpaper with spaces + `#`
   in the path loads correctly through `configBridge.imageUrl()`.
