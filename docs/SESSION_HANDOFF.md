@@ -1,6 +1,7 @@
 # Session handoff — continue from here
 
-_Last updated: 2026-07-13 (test-push session). Branch: `master` (working tree — NOT yet committed)._
+_Last updated: 2026-07-13 (test-push session). Merged to `master` via PR #1
+(squash `552729c`); all 9 CI checks green. Pushed to `origin/master`._
 
 ## Current state: GREEN — 95%+ coverage across all layers
 
@@ -54,9 +55,20 @@ The three former items are now **DONE** this session:
 3. ~~**Duplicate "Page 5" pages**~~ ✅ `_normaliseDoc` now de-dupes `pages[].name` on
    `load`/`applyExternal` (appends " 2", " 3", …). Gated by `tst_store_dedup`.
 
-Still open (documented, non-blocking): `config.rs` at 93% line (total gate passes; a
-corrupt-path IO test would close it); `mpris_bridge.cpp` D-Bus fan-out uncovered (needs a
-session bus). Nothing is committed yet — the working tree holds all 86 changed/added files.
+Still open (documented, non-blocking): `config.rs` ~93% line (merged gate passes at
+96.64%; a corrupt-path IO test would close it); `mpris_bridge.cpp` D-Bus fan-out uncovered
+(needs a session bus).
+
+### CI is now live (first real run this session)
+The trigger was fixed (`main`→`[main, master]`), so CI ran for the first time and surfaced
+five environment/latent issues, all fixed in PR #1: Qt ≥6.5 via `jurplel/install-qt-action`
+(apt Qt 6.4.2 lacks `MultiEffect`/`QtQml.WorkerScript`); a JS reserved-word (`float`) var
+Qt 6.7 rejects; a font-metric test made deterministic (assert bounded box, not glyph ink) +
+fonts installed; a **real widget bug** — `CountdownWidget` used `Layout.maximumWidth` which
+Qt 6.7 ignores for oversized text, so a 5-digit day count could overflow (fixed with
+`Layout.preferredWidth`); and `pipx gcovr` so CI honors the `GCOVR_EXCL` hardware-exclusion
+markers (apt gcovr didn't → understated C++ coverage → merged 94.10%). CI runs Qt 6.7.3 via
+aqt (older than the dev box's 6.11) on purpose — it catches exactly this class of bug.
 
 ## Key context for continuing
 
