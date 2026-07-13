@@ -1,6 +1,6 @@
 # Session handoff — continue from here
 
-_Last updated: 2026-07-13 (Manager UI/UX + robustness session, autonomous). On
+_Last updated: 2026-07-14 (Manager UI/UX + robustness + overnight autonomous session). On
 `master`; PR #1 (`552729c`) plus follow-up direct-to-master commits, CI green._
 
 ## Current state: GREEN — 95%+ coverage across all layers
@@ -15,10 +15,10 @@ everything: `./scripts/run_all_tests.sh` (→ `RESULT: SUCCESS`); coverage: `./s
 - **C++**: `./scripts/run_cpp_tests.sh` — **15/15 ctest**; ~97% filtered line.
 
 ### Install the latest build
-Package staged at **`~/xeneon-edge-hub-0.1.0.r57-1-x86_64.pkg.tar.zst`** (version
-`v0.1.0-28-g5b961b0`, shown in the Manager nav + hub Diagnostics). Install in your
+Package staged at **`~/xeneon-edge-hub-0.1.0.r59-1-x86_64.pkg.tar.zst`** (version
+`v0.1.0-30-gaa388a1`, shown in the Manager nav + hub Diagnostics). Install in your
 terminal (closes stray instances first): `pkill -f xeneon-edge; sudo pacman -U
-~/xeneon-edge-hub-0.1.0.r57-1-x86_64.pkg.tar.zst`.
+~/xeneon-edge-hub-0.1.0.r59-1-x86_64.pkg.tar.zst`.
 
 ### Overnight autonomous pass — real bugs fixed (adversarial reviews)
 - **habit streak cap** (`7064c57`): streak was capped at 28 (heatmap-window prune);
@@ -38,8 +38,8 @@ terminal (closes stray instances first): `pkill -f xeneon-edge; sudo pacman -U
 - **Manager UI/UX + themes + robustness** (`8df1ccc`/`fafb133` + follow-ups): dark
   `QPalette` on both apps (config Switch/Slider/Button/ScrollBar/dialog buttons no
   longer render as pale Fusion), restyled config controls, **config live-preview now
-  scales to fit** (no clipped action rows), hover/cursor affordances. **Themes 8→16**
-  (synthwave/cyberpunk/deep_forest/deep_ocean/ember/vaporwave/rose_gold/matrix),
+  scales to fit** (no clipped action rows), hover/cursor affordances. **Themes 8→22** (this batch 8→16;
+  synthwave/cyberpunk/deep_forest/deep_ocean/ember/vaporwave/rose_gold/matrix; then +6 nord/dracula/solarized/gruvbox/catppuccin/tokyonight → 22),
   **accents 8→14**. `_normaliseDoc` is now a **validator** (corrupt/hostile pages/tiles/
   tasks can't blank the dashboard). IPC RX-cap, 25 MB image guard, saveError signal.
 - **Single-instance guard** (`53e9dfa`): `app/src/single_instance.h` (QLockFile) on
