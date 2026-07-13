@@ -228,7 +228,14 @@ Rectangle {
                         Slider {
                             Layout.fillWidth: true
                             from: 0; to: 1; value: root.glassOpacity
-                            onMoved: root.glassOpacity = value
+                            // Dragging writes `value` internally, which would sever the
+                            // `value: root.glassOpacity` binding forever. Push to source,
+                            // then re-assert the binding so later external changes still
+                            // move the handle. (S2)
+                            onMoved: {
+                                root.glassOpacity = value
+                                value = Qt.binding(() => root.glassOpacity)
+                            }
                         }
                     }
 
@@ -238,17 +245,47 @@ Rectangle {
                         RowLayout {
                             Layout.fillWidth: true
                             Text { text: "Accent glow"; font.pixelSize: theme.fontLabel; color: theme.textPrimary; Layout.fillWidth: true }
-                            Switch { checked: root.showWidgetGlow; onToggled: root.showWidgetGlow = checked }
+                            // Toggling writes `checked` internally, severing the
+                            // `checked: root.showWidgetGlow` binding. Push to source,
+                            // then re-bind so external/store pushes still move it. (S2)
+                            Switch {
+                                checked: root.showWidgetGlow
+                                onToggled: {
+                                    root.showWidgetGlow = checked
+                                    checked = Qt.binding(() => root.showWidgetGlow)
+                                }
+                            }
                         }
                         RowLayout {
                             Layout.fillWidth: true
                             Text { text: "Animated background"; font.pixelSize: theme.fontLabel; color: theme.textPrimary; Layout.fillWidth: true }
-                            Switch { checked: root.animatedBackground; onToggled: root.animatedBackground = checked }
+                            Switch {
+                                checked: root.animatedBackground
+                                onToggled: {
+                                    root.animatedBackground = checked
+                                    checked = Qt.binding(() => root.animatedBackground)
+                                }
+                            }
                         }
                         RowLayout {
                             Layout.fillWidth: true
                             Text { text: "Reduce motion"; font.pixelSize: theme.fontLabel; color: theme.textPrimary; Layout.fillWidth: true }
-                            Switch { checked: root.reduceMotion; onToggled: root.reduceMotion = checked }
+                            Switch {
+                                checked: root.reduceMotion
+                                onToggled: {
+                                    root.reduceMotion = checked
+                                    checked = Qt.binding(() => root.reduceMotion)
+                                }
+                            }
+                        }
+                        // These two knobs are independent: "Animated background" decides
+                        // whether the living backdrop shows at all (off → plain gradient),
+                        // while "Reduce motion" keeps the backdrop but freezes its motion
+                        // (and shortens transitions everywhere).
+                        Text {
+                            Layout.fillWidth: true; wrapMode: Text.WordWrap
+                            text: "“Animated background” shows the drifting backdrop (off = plain gradient). “Reduce motion” keeps the backdrop but stops all animation."
+                            font.pixelSize: theme.fontCaption; color: theme.textTertiary
                         }
                     }
 

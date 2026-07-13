@@ -26,381 +26,431 @@ Item {
         color: theme.backgroundColor
     }
 
-    ColumnLayout {
-        anchors.centerIn: parent
-        width: Math.min(parent.width * 0.85, 800)
-        spacing: 24
+    // Wrap the whole wizard in a Flickable so it scrolls when the on-screen
+    // keyboard lifts content or the panel is rotated to landscape. Content is
+    // centred vertically when it fits, and scrolls when it does not.
+    Flickable {
+        id: flick
+        anchors.fill: parent
+        clip: true
+        contentWidth: width
+        contentHeight: Math.max(content.implicitHeight + 48, height)
+        flickableDirection: Flickable.VerticalFlick
+        boundsBehavior: Flickable.StopAtBounds
 
-        // Step 0: Welcome
-        Item {
-            Layout.fillWidth: true
-            Layout.preferredHeight: welcomeContent.height
-            visible: currentStep === 0
+        ColumnLayout {
+            id: content
+            width: Math.min(flick.width * 0.85, 800)
+            x: (flick.width - width) / 2
+            y: Math.max(24, (flick.contentHeight - implicitHeight) / 2)
+            spacing: 24
 
-            ColumnLayout {
-                id: welcomeContent
-                width: parent.width
-                spacing: 20
+            // Step 0: Welcome
+            Item {
+                Layout.fillWidth: true
+                Layout.preferredHeight: welcomeContent.implicitHeight
+                visible: currentStep === 0
 
-                Item { Layout.preferredHeight: 40 }
+                ColumnLayout {
+                    id: welcomeContent
+                    anchors.fill: parent
+                    spacing: 20
 
-                Text {
-                    Layout.alignment: Qt.AlignHCenter
-                    text: "🖥️"
-                    font.pixelSize: 64
-                }
+                    Item { Layout.preferredHeight: 40 }
 
-                Text {
-                    Layout.alignment: Qt.AlignHCenter
-                    text: "Welcome to Xeneon Edge Linux Hub"
-                    font.pixelSize: 28
-                    font.bold: true
-                    color: theme.textPrimary
-                    horizontalAlignment: Text.AlignHCenter
-                }
+                    Text {
+                        Layout.alignment: Qt.AlignHCenter
+                        text: "🖥️"
+                        font.pixelSize: 64
+                    }
 
-                Text {
-                    Layout.alignment: Qt.AlignHCenter
-                    Layout.preferredWidth: parent.width * 0.8
-                    text: "Set up your secondary touchscreen dashboard in just a few taps."
-                    font.pixelSize: 16
-                    color: theme.textSecondary
-                    horizontalAlignment: Text.AlignHCenter
-                    wrapMode: Text.WordWrap
-                }
-            }
-        }
+                    Text {
+                        Layout.alignment: Qt.AlignHCenter
+                        Layout.fillWidth: true
+                        text: "Welcome to Xeneon Edge Linux Hub"
+                        font.pixelSize: 28
+                        font.bold: true
+                        color: theme.textPrimary
+                        horizontalAlignment: Text.AlignHCenter
+                        wrapMode: Text.WordWrap
+                    }
 
-        // Step 1: Display Selection
-        Item {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            visible: currentStep === 1
-
-            ColumnLayout {
-                anchors.fill: parent
-                spacing: 12
-
-                Text {
-                    text: "Select Your Dashboard Display"
-                    font.pixelSize: 22
-                    font.bold: true
-                    color: theme.textPrimary
-                }
-
-                Text {
-                    text: "Choose the display where your dashboard will appear.\nDisplays matching the Xeneon Edge are highlighted."
-                    font.pixelSize: 14
-                    color: theme.textSecondary
-                    wrapMode: Text.WordWrap
-                    Layout.fillWidth: true
-                }
-
-                ListView {
-                    id: screenList
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    clip: true
-                    model: wizard.screensList
-                    spacing: 8
-
-                    delegate: Rectangle {
-                        width: screenList.width
-                        height: 80
-                        radius: 12
-                        color: modelData.likelyXeneonEdge ? "#1A3A2A" : theme.cardBackground
-                        border.width: selectedScreen && selectedScreen.name === modelData.name ? 2 : 1
-                        border.color: selectedScreen && selectedScreen.name === modelData.name ? theme.accent : theme.cardBorder
-
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.margins: 12
-                            spacing: 16
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 4
-
-                                RowLayout {
-                                    spacing: 8
-                                    Text {
-                                        text: modelData.model || "Unknown Display"
-                                        font.pixelSize: 16
-                                        font.bold: true
-                                        color: theme.textPrimary
-                                    }
-                                    Rectangle {
-                                        visible: modelData.likelyXeneonEdge
-                                        color: theme.success
-                                        radius: 4
-                                        width: detectedLabel.width + 8
-                                        height: detectedLabel.height + 4
-                                        Text {
-                                            id: detectedLabel
-                                            anchors.centerIn: parent
-                                            text: "⭐ Detected"
-                                            font.pixelSize: 11
-                                            color: "#000000"
-                                        }
-                                    }
-                                }
-
-                                Text {
-                                    text: (modelData.manufacturer || "") + " • " +
-                                          modelData.size.width + "×" + modelData.size.height + " • " +
-                                          modelData.name
-                                    font.pixelSize: 13
-                                    color: theme.textSecondary
-                                }
-                            }
-
-                            Button {
-                                text: selectedScreen && selectedScreen.name === modelData.name ? "✓ Selected" : "Select"
-                                flat: selectedScreen && selectedScreen.name === modelData.name
-                                onClicked: selectedScreen = modelData
-                            }
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            onClicked: selectedScreen = modelData
-                        }
+                    Text {
+                        Layout.alignment: Qt.AlignHCenter
+                        Layout.preferredWidth: welcomeContent.width * 0.8
+                        text: "Set up your secondary touchscreen dashboard in just a few taps."
+                        font.pixelSize: 16
+                        color: theme.textSecondary
+                        horizontalAlignment: Text.AlignHCenter
+                        wrapMode: Text.WordWrap
                     }
                 }
-
-                Text {
-                    visible: screenList.count === 0
-                    text: "No displays detected. You can continue and choose a display later from Settings."
-                    color: theme.warning
-                    font.pixelSize: 14
-                    wrapMode: Text.WordWrap
-                    Layout.fillWidth: true
-                }
             }
-        }
 
-        // Step 2: Choose Layout
-        Item {
-            Layout.fillWidth: true
-            visible: currentStep === 2
+            // Step 1: Display Selection
+            Item {
+                Layout.fillWidth: true
+                Layout.preferredHeight: step1Content.implicitHeight
+                visible: currentStep === 1
 
-            ColumnLayout {
-                width: parent.width
-                spacing: 16
+                ColumnLayout {
+                    id: step1Content
+                    anchors.fill: parent
+                    spacing: 12
 
-                Text {
-                    text: "Choose a Starter Layout"
-                    font.pixelSize: 22
-                    font.bold: true
-                    color: theme.textPrimary
-                }
+                    Text {
+                        Layout.fillWidth: true
+                        text: "Select Your Dashboard Display"
+                        font.pixelSize: 22
+                        font.bold: true
+                        color: theme.textPrimary
+                    }
 
-                Text {
-                    text: "You can customize everything later."
-                    font.pixelSize: 14
-                    color: theme.textSecondary
-                }
+                    Text {
+                        text: "Choose the display where your dashboard will appear.\nDisplays matching the Xeneon Edge are highlighted."
+                        font.pixelSize: 14
+                        color: theme.textSecondary
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                    }
 
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 16
+                    ListView {
+                        id: screenList
+                        Layout.fillWidth: true
+                        // Size to the rows and let the outer Flickable do the
+                        // scrolling — a fillHeight ListView inside an unsized
+                        // parent collapsed the whole step to 0px.
+                        Layout.preferredHeight: contentHeight
+                        interactive: false
+                        clip: true
+                        model: wizard.screensList
+                        spacing: 8
 
-                    Repeater {
-                        model: [
-                            { id: "productivity", name: "Productivity", desc: "Clock, CPU, RAM, focus timer, goals, media", icon: "📋" },
-                            { id: "gaming", name: "Gaming", desc: "CPU/GPU temps, FPS, RAM, media, system metrics", icon: "🎮" },
-                            { id: "minimal", name: "Minimal", desc: "Clock and media controls only", icon: "✨" },
-                        ]
-
-                        Rectangle {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 140
+                        delegate: Rectangle {
+                            width: screenList.width
+                            height: 80
                             radius: 12
-                            color: selectedLayout === modelData.id ? Qt.lighter(theme.cardBackground, 1.15) : theme.cardBackground
-                            border.width: selectedLayout === modelData.id ? 2 : 1
-                            border.color: selectedLayout === modelData.id ? theme.accent : theme.cardBorder
+                            color: modelData.likelyXeneonEdge ? "#1A3A2A" : theme.cardBackground
+                            border.width: selectedScreen && selectedScreen.name === modelData.name ? 2 : 1
+                            border.color: selectedScreen && selectedScreen.name === modelData.name ? theme.accent : theme.cardBorder
 
-                            ColumnLayout {
+                            RowLayout {
                                 anchors.fill: parent
-                                anchors.margins: 16
-                                spacing: 8
+                                anchors.margins: 12
+                                spacing: 16
 
-                                Text {
-                                    text: modelData.icon + "  " + modelData.name
-                                    font.pixelSize: 18
-                                    font.bold: true
-                                    color: theme.textPrimary
-                                }
-                                Text {
-                                    text: modelData.desc
-                                    font.pixelSize: 13
-                                    color: theme.textSecondary
-                                    wrapMode: Text.WordWrap
+                                ColumnLayout {
                                     Layout.fillWidth: true
+                                    spacing: 4
+
+                                    RowLayout {
+                                        spacing: 8
+                                        Text {
+                                            text: modelData.model || "Unknown Display"
+                                            font.pixelSize: 16
+                                            font.bold: true
+                                            color: theme.textPrimary
+                                        }
+                                        Rectangle {
+                                            visible: modelData.likelyXeneonEdge
+                                            color: theme.success
+                                            radius: 4
+                                            width: detectedLabel.width + 8
+                                            height: detectedLabel.height + 4
+                                            Text {
+                                                id: detectedLabel
+                                                anchors.centerIn: parent
+                                                text: "⭐ Detected"
+                                                font.pixelSize: 11
+                                                color: "#000000"
+                                            }
+                                        }
+                                    }
+
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: (modelData.manufacturer || "") + " • " +
+                                              modelData.size.width + "×" + modelData.size.height + " • " +
+                                              modelData.name
+                                        font.pixelSize: 13
+                                        color: theme.textSecondary
+                                        elide: Text.ElideRight
+                                    }
+                                }
+
+                                Button {
+                                    text: selectedScreen && selectedScreen.name === modelData.name ? "✓ Selected" : "Select"
+                                    flat: selectedScreen && selectedScreen.name === modelData.name
+                                    leftPadding: 18; rightPadding: 18; topPadding: 12; bottomPadding: 12
+                                    onClicked: selectedScreen = modelData
                                 }
                             }
 
                             MouseArea {
                                 anchors.fill: parent
-                                onClicked: selectedLayout = modelData.id
+                                // Sit behind the Select button so it keeps its own click.
+                                z: -1
+                                onClicked: selectedScreen = modelData
                             }
                         }
                     }
-                }
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 56
-                    radius: 12
-                    color: selectedLayout === "blank" ? Qt.lighter(theme.cardBackground, 1.15) : theme.cardBackground
-                    border.width: selectedLayout === "blank" ? 2 : 1
-                    border.color: selectedLayout === "blank" ? theme.accent : theme.cardBorder
 
                     Text {
-                        anchors.centerIn: parent
-                        text: "Or start with a blank dashboard"
-                        font.pixelSize: 16
+                        visible: screenList.count === 0
+                        text: "No displays detected. You can continue and choose a display later from Settings."
+                        color: theme.warning
+                        font.pixelSize: 14
+                        wrapMode: Text.WordWrap
+                        Layout.fillWidth: true
+                    }
+                }
+            }
+
+            // Step 2: Choose Layout
+            Item {
+                Layout.fillWidth: true
+                Layout.preferredHeight: step2Content.implicitHeight
+                visible: currentStep === 2
+
+                ColumnLayout {
+                    id: step2Content
+                    anchors.fill: parent
+                    spacing: 16
+
+                    Text {
+                        Layout.fillWidth: true
+                        text: "Choose a Starter Layout"
+                        font.pixelSize: 22
+                        font.bold: true
                         color: theme.textPrimary
                     }
 
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: selectedLayout = "blank"
+                    Text {
+                        text: "You can customize everything later."
+                        font.pixelSize: 14
+                        color: theme.textSecondary
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 16
+
+                        Repeater {
+                            model: [
+                                { id: "productivity", name: "Productivity", desc: "Clock, CPU, RAM, focus timer, goals, media", icon: "📋" },
+                                { id: "gaming", name: "Gaming", desc: "CPU/GPU temps, FPS, RAM, media, system metrics", icon: "🎮" },
+                                { id: "minimal", name: "Minimal", desc: "Clock and media controls only", icon: "✨" },
+                            ]
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 140
+                                radius: 12
+                                color: selectedLayout === modelData.id ? Qt.lighter(theme.cardBackground, 1.15) : theme.cardBackground
+                                border.width: selectedLayout === modelData.id ? 2 : 1
+                                border.color: selectedLayout === modelData.id ? theme.accent : theme.cardBorder
+
+                                ColumnLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: 16
+                                    spacing: 8
+
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: modelData.icon + "  " + modelData.name
+                                        font.pixelSize: 18
+                                        font.bold: true
+                                        color: theme.textPrimary
+                                        elide: Text.ElideRight
+                                    }
+                                    Text {
+                                        text: modelData.desc
+                                        font.pixelSize: 13
+                                        color: theme.textSecondary
+                                        wrapMode: Text.WordWrap
+                                        Layout.fillWidth: true
+                                    }
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: selectedLayout = modelData.id
+                                }
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 56
+                        radius: 12
+                        color: selectedLayout === "blank" ? Qt.lighter(theme.cardBackground, 1.15) : theme.cardBackground
+                        border.width: selectedLayout === "blank" ? 2 : 1
+                        border.color: selectedLayout === "blank" ? theme.accent : theme.cardBorder
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "Or start with a blank dashboard"
+                            font.pixelSize: 16
+                            color: theme.textPrimary
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: selectedLayout = "blank"
+                        }
                     }
                 }
             }
-        }
 
-        // Step 3: Options & Finish
-        Item {
-            Layout.fillWidth: true
-            visible: currentStep === 3
-
-            ColumnLayout {
-                width: parent.width
-                spacing: 20
-
-                Text {
-                    text: "Almost Done!"
-                    font.pixelSize: 22
-                    font.bold: true
-                    color: theme.textPrimary
-                }
+            // Step 3: Options & Finish
+            Item {
+                Layout.fillWidth: true
+                Layout.preferredHeight: step3Content.implicitHeight
+                visible: currentStep === 3
 
                 ColumnLayout {
-                    spacing: 12
+                    id: step3Content
+                    anchors.fill: parent
+                    spacing: 20
 
-                    RowLayout {
-                        CheckBox {
-                            id: autostartCheck
-                            checked: true
-                        }
-                        ColumnLayout {
-                            spacing: 2
-                            Text {
-                                text: "Start automatically when I log in"
-                                font.pixelSize: 16
-                                color: theme.textPrimary
-                            }
-                            Text {
-                                text: "Adds to system autostart"
-                                font.pixelSize: 13
-                                color: theme.textSecondary
-                            }
-                        }
+                    Text {
+                        Layout.fillWidth: true
+                        text: "Almost Done!"
+                        font.pixelSize: 22
+                        font.bold: true
+                        color: theme.textPrimary
                     }
 
-                    RowLayout {
-                        CheckBox {
-                            id: reconnectCheck
-                            checked: true
-                        }
-                        ColumnLayout {
-                            spacing: 2
-                            Text {
-                                text: "Reopen dashboard when display is reconnected"
-                                font.pixelSize: 16
-                                color: theme.textPrimary
-                            }
-                            Text {
-                                text: "Recommended"
-                                font.pixelSize: 13
-                                color: theme.textSecondary
-                            }
-                        }
-                    }
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 12
 
-                    RowLayout {
-                        CheckBox {
-                            id: notifyCheck
-                            checked: true
-                        }
-                        ColumnLayout {
-                            spacing: 2
-                            Text {
-                                text: "Show notification when display is disconnected"
-                                font.pixelSize: 16
-                                color: theme.textPrimary
+                        RowLayout {
+                            Layout.fillWidth: true
+                            CheckBox {
+                                id: autostartCheck
+                                checked: true
+                            }
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 2
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: "Start automatically when I log in"
+                                    font.pixelSize: 16
+                                    color: theme.textPrimary
+                                    wrapMode: Text.WordWrap
+                                }
+                                Text {
+                                    text: "Adds to system autostart"
+                                    font.pixelSize: 13
+                                    color: theme.textSecondary
+                                }
                             }
                         }
-                    }
-                }
-            }
-        }
 
-        // Navigation buttons
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.topMargin: 8
+                        RowLayout {
+                            Layout.fillWidth: true
+                            CheckBox {
+                                id: reconnectCheck
+                                checked: true
+                            }
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 2
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: "Reopen dashboard when display is reconnected"
+                                    font.pixelSize: 16
+                                    color: theme.textPrimary
+                                    wrapMode: Text.WordWrap
+                                }
+                                Text {
+                                    text: "Recommended"
+                                    font.pixelSize: 13
+                                    color: theme.textSecondary
+                                }
+                            }
+                        }
 
-            Button {
-                text: "← Back"
-                visible: currentStep > 0
-                flat: true
-                onClicked: currentStep--
-            }
-
-            Item { Layout.fillWidth: true }
-
-            // Step indicators
-            Row {
-                Layout.alignment: Qt.AlignCenter
-                spacing: 8
-                Repeater {
-                    model: 4
-                    Rectangle {
-                        width: 10
-                        height: 10
-                        radius: 5
-                        color: wizard.currentStep === index ? theme.accent : theme.cardBorder
+                        RowLayout {
+                            Layout.fillWidth: true
+                            CheckBox {
+                                id: notifyCheck
+                                checked: true
+                            }
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 2
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: "Show notification when display is disconnected"
+                                    font.pixelSize: 16
+                                    color: theme.textPrimary
+                                    wrapMode: Text.WordWrap
+                                }
+                            }
+                        }
                     }
                 }
             }
 
-            Item { Layout.fillWidth: true }
+            // Navigation buttons
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.topMargin: 8
 
-            Button {
-                text: currentStep === 0 ? "Get Started →" :
-                      currentStep === 3 ? "Finish Setup" : "Next →"
-                enabled: wizard.canAdvance
-                leftPadding: 22; rightPadding: 22; topPadding: 14; bottomPadding: 14
-                onClicked: {
-                    if (currentStep === 3)
-                        wizardCompleted(selectedScreen, selectedLayout, autostartCheck.checked);
-                    else
-                        currentStep++;
+                Button {
+                    text: "← Back"
+                    visible: currentStep > 0
+                    flat: true
+                    leftPadding: 22; rightPadding: 22; topPadding: 14; bottomPadding: 14
+                    onClicked: currentStep--
+                }
+
+                Item { Layout.fillWidth: true }
+
+                // Step indicators
+                Row {
+                    Layout.alignment: Qt.AlignCenter
+                    spacing: 8
+                    Repeater {
+                        model: 4
+                        Rectangle {
+                            width: 10
+                            height: 10
+                            radius: 5
+                            color: wizard.currentStep === index ? theme.accent : theme.cardBorder
+                        }
+                    }
+                }
+
+                Item { Layout.fillWidth: true }
+
+                Button {
+                    text: currentStep === 0 ? "Get Started →" :
+                          currentStep === 3 ? "Finish Setup" : "Next →"
+                    enabled: wizard.canAdvance
+                    leftPadding: 22; rightPadding: 22; topPadding: 14; bottomPadding: 14
+                    onClicked: {
+                        if (currentStep === 3)
+                            wizardCompleted(selectedScreen, selectedLayout, autostartCheck.checked);
+                        else
+                            currentStep++;
+                    }
                 }
             }
-        }
 
-        // Surfaced failure (previously only a console.error → the user was stuck on
-        // "Finish Setup" with no feedback).
-        Text {
-            Layout.fillWidth: true
-            visible: wizard.finishError.length > 0
-            text: wizard.finishError
-            color: theme.error; font.pixelSize: 14
-            horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap
+            // Surfaced failure (previously only a console.error → the user was stuck on
+            // "Finish Setup" with no feedback).
+            Text {
+                Layout.fillWidth: true
+                visible: wizard.finishError.length > 0
+                text: wizard.finishError
+                color: theme.error; font.pixelSize: 14
+                horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap
+            }
         }
     }
 

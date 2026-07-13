@@ -104,7 +104,7 @@ Item {
                                 { label: "CPU Cores", key: "cpu_core_count", unit: "", color: theme.catProductivity }
                             ]
                             Rectangle {
-                                Layout.fillWidth: true; height: 80; radius: 8
+                                Layout.fillWidth: true; Layout.preferredHeight: 80; radius: 8
                                 color: theme.cardBackground; border.color: theme.cardBorder
                                 ColumnLayout {
                                     anchors.centerIn: parent; spacing: 4
@@ -125,13 +125,13 @@ Item {
                         }
                     }
                     Rectangle {
-                        Layout.fillWidth: true; height: 100; radius: 8
+                        Layout.fillWidth: true; Layout.preferredHeight: 100; radius: 8
                         color: theme.backgroundColor; border.color: theme.cardBorder
                         ColumnLayout {
                             anchors.fill: parent; anchors.margins: 12; spacing: 4
-                            Text { text: "Xeneon Edge Linux Hub v0.1.0"; color: theme.textPrimary; font.pixelSize: 14; font.bold: true }
-                            Text { text: "Qt: "+Qt.platform.os+" | Rust core: 0.1.0"; color: theme.textSecondary; font.pixelSize: 12 }
-                            Text { text: "Build: Debug | "+new Date().toISOString().slice(0,10); color: theme.textSecondary; font.pixelSize: 12 }
+                            Text { text: Qt.application.name + " v" + Qt.application.version; color: theme.textPrimary; font.pixelSize: 14; font.bold: true }
+                            Text { text: "Platform: " + Qt.platform.os + " | Core " + Qt.application.version; color: theme.textSecondary; font.pixelSize: 12 }
+                            Text { text: "Build: " + (typeof _buildType !== "undefined" && _buildType ? _buildType : "unknown"); color: theme.textSecondary; font.pixelSize: 12 }
                         }
                     }
                     }

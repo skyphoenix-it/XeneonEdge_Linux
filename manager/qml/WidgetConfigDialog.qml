@@ -13,7 +13,11 @@ Dialog {
     property var schema: schemaReg.schemaFor(wType)
     property string geoStatus: ""
 
-    function openFor(id, type) { wId = id; wType = type; geoStatus = ""; open() }
+    function openFor(id, type) {
+        wId = id; wType = type; geoStatus = ""
+        store.ensureSettings(id, catalog.defaults(type))   // seed defaults before the form/preview bind
+        open()
+    }
 
     anchors.centerIn: parent
     // Responsive: use most of the window (capped) so the form isn't cramped/clipped.
@@ -136,7 +140,14 @@ Dialog {
                         GradientStop { position: 1.0; color: theme.backgroundColor3 }
                     }
                     Loader {
+                        id: previewLoader
                         anchors.fill: parent; anchors.margins: 10
+                        // Recreate the tile body on every open so reopening for a DIFFERENT
+                        // instance of the same type reloads and re-seeds against the new
+                        // instanceId — otherwise the source is unchanged, the Loader never
+                        // reloads, onLoaded never fires, and the previous instance's body
+                        // (with its stale instanceId) lingers (split-brain preview).
+                        active: dlg.visible
                         source: dlg.wsrc(dlg.wType)
                         onLoaded: dlg.inject(item)
                     }

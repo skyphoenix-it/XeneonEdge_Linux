@@ -75,6 +75,25 @@ ApplicationWindow {
 
     property alias theme: _theme
 
+    // Inject live bindings for the shell-provided data (metrics/screens/config)
+    // into a stack page that declares those properties (e.g. Diagnostics, which
+    // shadows them with its own "" defaults). Dashboard has no such own-property
+    // and reads root.metricsJson via context scope, so it's simply skipped.
+    // Using Qt.binding (not a one-shot copy) keeps the initial --diagnostics page
+    // and Ctrl+D pushes updating live instead of freezing at the first sample.
+    function bindStackItem(item) {
+        if (!item) return
+        if (item.hasOwnProperty("metricsJson"))
+            item.metricsJson = Qt.binding(function () { return root.metricsJson })
+        if (item.hasOwnProperty("screensData"))
+            item.screensData = Qt.binding(function () { return root.screensData })
+        if (item.hasOwnProperty("configJson"))
+            item.configJson = Qt.binding(function () {
+                return (typeof configBridge !== "undefined" && configBridge)
+                    ? configBridge.configJson() : ""
+            })
+    }
+
     // ── Orientation ──────────────────────────────────────────────────────────
     // `orientationMode` (persisted appearance) is "auto" or a fixed value.
     //
@@ -164,6 +183,11 @@ ApplicationWindow {
                          startInDiagnostics ? "qrc:/qml/Diagnostics.qml" :
                          "qrc:/qml/Dashboard.qml"
 
+            // The initial page is instantiated from a URL, so no properties get
+            // passed in — inject the live bindings once it exists. Without this,
+            // starting with --diagnostics shows an empty Diagnostics page.
+            Component.onCompleted: root.bindStackItem(currentItem)
+
             // Keep the focused input above the on-screen keyboard: lift the whole
             // stack by exactly the overlap between the text cursor and the keyboard
             // top (0 when the cursor is already clear). Without this, inputs in the
@@ -171,9 +195,16 @@ ApplicationWindow {
             transform: Translate {
                 y: {
                     if (!inputPanel.active) return 0
+                    // The keyboard top and the StackView we translate both live
+                    // inside the rotated contentRoot, but Qt.inputMethod.cursorRectangle
+                    // is in scene/window coordinates. Map the cursor rect into
+                    // contentRoot's (rotated) frame first, otherwise in landscape
+                    // (90°/270°) the overlap is measured on the wrong axis and the
+                    // lift is wildly wrong.
                     var kbTop = contentRoot.height - inputPanel.height
                     var cur = Qt.inputMethod.cursorRectangle
-                    var need = (cur.y + cur.height + theme.spacingLg) - kbTop
+                    var local = contentRoot.mapFromItem(null, cur.x, cur.y, cur.width, cur.height)
+                    var need = (local.y + local.height + theme.spacingLg) - kbTop
                     return need > 0 ? -need : 0
                 }
                 Behavior on y { NumberAnimation { duration: theme.motionEdit; easing.type: Easing.OutCubic } }
@@ -205,13 +236,11 @@ ApplicationWindow {
             if (stackView.depth > 1) {
                 stackView.pop();
             } else {
-                stackView.push("qrc:/qml/Diagnostics.qml", {
-                    // Bind live so the Diagnostics overview keeps updating, rather
-                    // than freezing at the first sample taken when Ctrl+D was pressed.
-                    "metricsJson": Qt.binding(function () { return root.metricsJson }),
-                    "screensData": root.screensData,
-                    "configJson": (typeof configBridge !== "undefined" && configBridge) ? configBridge.configJson() : ""
-                });
+                // Bind live (metrics/screens/config) so the Diagnostics overview
+                // keeps updating, rather than freezing at the snapshot taken when
+                // Ctrl+D was pressed.
+                var diag = stackView.push("qrc:/qml/Diagnostics.qml");
+                root.bindStackItem(diag);
             }
         }
     }

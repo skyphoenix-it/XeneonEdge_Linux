@@ -22,13 +22,23 @@ Item {
     property var metrics: {
         try { return JSON.parse(metricsJson || "{}") } catch (e) { return {} }
     }
-    property bool isLandscape: width > height
     property bool editMode: false
 
     // Expanded overlay state (empty type = nothing expanded).
     property string expandedType: ""
     property string expandedId: ""
-    property color  expandedColor: theme.accent
+    // Per-widget accent of the expanded tile (S7): resolve the instance's own
+    // accent name to a colour, reactive to store.revision so an accent edit in
+    // the config panel recolours the overlay live. Falls back to the theme
+    // accent when the tile has no per-widget accent.
+    property color  expandedColor: {
+        store.revision
+        if (dashboard.expandedId === "") return theme.accent
+        var s = store.settingsFor(dashboard.expandedId)
+        var name = (s && s.accent) ? s.accent : ""
+        return (name !== "" && theme.accentPresets[name])
+               ? theme.accentPresets[name].a : theme.accent
+    }
     property bool hasExpanded: expandedType !== ""
 
     property var host: StackView.view
@@ -53,26 +63,23 @@ Item {
         // No per-page override → inherit the global choice.
         return { wallpaper: a.wallpaper || "", style: a.bgStyle || "orbs" }
     }
-    // Wallpaper image path (absolute paths get a file:// scheme; URLs pass through).
+    // Wallpaper image path. Remote/scheme URLs pass through untouched; a local
+    // file (absolute path or bare name in the images dir) is resolved through the
+    // C++ configBridge.imageUrl() helper so paths containing spaces or '#' are
+    // percent-encoded — naive "file://"+path concatenation produces a malformed
+    // URL that fails to load for those characters. (The hub exposes configBridge,
+    // not the Manager's `backend`.) Falls back to concatenation if absent.
     property string wallpaperSource: {
         var wp = dashboard.pageBg.wallpaper
         if (!wp || !wp.length) return ""
-        return String(wp).charAt(0) === "/" ? "file://" + wp : wp
+        wp = String(wp)
+        if (wp.indexOf("://") >= 0) return wp
+        if (typeof configBridge !== "undefined" && configBridge && configBridge.imageUrl)
+            return configBridge.imageUrl(wp)
+        return wp.charAt(0) === "/" ? "file://" + wp : wp
     }
     // Master "animate the backdrop" toggle (persisted via appearance).
     property bool animatedBg: root.animatedBackground
-
-    function fmtBytes(b) {
-        if (b >= 1073741824) return (b / 1073741824).toFixed(1) + " GB"
-        if (b >= 1048576) return (b / 1048576).toFixed(0) + " MB"
-        if (b >= 1024) return (b / 1024).toFixed(0) + " KB"
-        return b + " B"
-    }
-    function fmtRate(bps) {
-        if (bps >= 1048576) return (bps / 1048576).toFixed(1) + " MB/s"
-        if (bps >= 1024) return (bps / 1024).toFixed(0) + " KB/s"
-        return Math.round(bps) + " B/s"
-    }
 
     // ── Background ─────────────────────────────────────────────────────────
     // Rich 3-stop gradient (theme-driven — vivid for the "fancy" themes).
@@ -97,6 +104,7 @@ Item {
         // wallpaper is set, in High-Contrast, or with the animation switched off.
         visible: dashboard.wallpaperSource === "" && theme.decorative && dashboard.animatedBg
         style: dashboard.pageBg.style
+        accent: theme.accent
         running: !root.reduceMotion
     }
     // Optional wallpaper image (uploaded + assigned via the Manager). Sits over
@@ -179,7 +187,6 @@ Item {
                 for (var t = 0; t < (pages[p].tiles || []).length; t++)
                     if (pages[p].tiles[t].type === _expandType) {
                         dashboard.expandedId = pages[p].tiles[t].id
-                        dashboard.expandedColor = theme.accent
                         dashboard.expandedType = _expandType
                         return
                     }
@@ -190,8 +197,27 @@ Item {
     // Apply a UI-state document pushed live from the companion Manager app.
     // Called by main.qml when the C++ ControlServer receives a new layout.
     function applyExternalState(json) {
-        if (store.applyExternal(json))
+        if (store.applyExternal(json)) {
             applyAppearance()
+            // A live push may have removed (or replaced) the tile we're currently
+            // expanded on. Leaving the overlay open would let its config panel keep
+            // writing to an instanceId that no longer exists on any page — an orphan
+            // settings entry. Close the overlay when its tile is gone.
+            if (dashboard.hasExpanded && !_tileExists(dashboard.expandedId))
+                closeExpanded()
+        }
+    }
+
+    // True if a tile with this instance id still exists on some page.
+    function _tileExists(id) {
+        if (!id) return false
+        var pages = store.pages()
+        for (var p = 0; p < pages.length; p++) {
+            var tiles = pages[p].tiles || []
+            for (var t = 0; t < tiles.length; t++)
+                if (tiles[t].id === id) return true
+        }
+        return false
     }
 
     // Apply persisted appearance to the shared theme (main.qml root).
@@ -294,13 +320,15 @@ Item {
                     property int cols: {
                         store.revision
                         var fit = Math.max(1, Math.floor(width / 300))
-                        // Landscape (after orientation reflow) is wide → fill it with
-                        // more, shorter columns. Portrait uses the user's 1/2 setting.
-                        if (width > height)
-                            return Math.max(1, Math.min(fit, 4))
+                        // Honour the per-page override → global gridCols → 1 in BOTH
+                        // orientations. Landscape (after orientation reflow) is wide so
+                        // it allows more, shorter columns (cap 4) than portrait (cap 6),
+                        // but still respects the user's chosen column count rather than
+                        // ignoring it.
                         var want = (modelData.cols && modelData.cols > 0)
                                    ? modelData.cols : (store.appearance().gridCols || 1)
-                        return Math.max(1, Math.min(want, fit, 6))
+                        var cap = (width > height) ? 4 : 6
+                        return Math.max(1, Math.min(want, fit, cap))
                     }
 
                     // Scrollable page body: when the tiles' combined minimum height
@@ -356,11 +384,11 @@ Item {
                                     anchors.fill: parent
                                     enabled: !dashboard.editMode
                                     onClicked: {
-                                        // Set id/color BEFORE type: assigning expandedType triggers the
+                                        // Set id BEFORE type: assigning expandedType triggers the
                                         // (synchronous) overlay load + injectWidget, which reads expandedId.
+                                        // expandedColor is a binding on the tile's own accent — no manual set.
                                         dashboard.cfgStatus = ""   // don't carry a stale geocode status over
                                         dashboard.expandedId = cell.modelData.id
-                                        dashboard.expandedColor = theme.accent
                                         dashboard.expandedType = cell.modelData.type
                                     }
                                 }
@@ -387,15 +415,34 @@ Item {
                                     sourceComponent: dashboard.fallbackTile
                                 }
 
-                                // Expand affordance — a subtle glanceable hint, kept
-                                // small + low-opacity so it doesn't fight a widget's own
-                                // top-right status. Hidden in edit mode.
-                                AppIcon {
+                                // Expand affordance + explicit hit-target. Full-bleed
+                                // interactive widgets (Media transport, Tasks, Notes…)
+                                // cover the underlying tapMA with their own MouseAreas,
+                                // so tapping their body can't reach the expand handler.
+                                // This touch-sized corner target sits ON TOP (z:20) and
+                                // always opens the expanded view. The small low-opacity
+                                // icon is a glanceable hint kept from fighting a widget's
+                                // own top-right status. Hidden in edit mode.
+                                Item {
                                     anchors.right: parent.right; anchors.top: parent.top
-                                    anchors.margins: theme.spacingSm
-                                    name: "ui-expand"; size: theme.iconSm
-                                    color: theme.textTertiary; opacity: 0.5; z: 20
+                                    width: theme.touchSecondary; height: theme.touchSecondary
+                                    z: 20
                                     visible: !dashboard.editMode
+                                    AppIcon {
+                                        anchors.right: parent.right; anchors.top: parent.top
+                                        anchors.margins: theme.spacingSm
+                                        name: "ui-expand"; size: theme.iconSm
+                                        color: theme.textTertiary; opacity: 0.5
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        enabled: !dashboard.editMode
+                                        onClicked: {
+                                            dashboard.cfgStatus = ""
+                                            dashboard.expandedId = cell.modelData.id
+                                            dashboard.expandedType = cell.modelData.type
+                                        }
+                                    }
                                 }
 
                                 // ── Edit-mode overlay: reorder + remove ──
@@ -515,8 +562,15 @@ Item {
             Text {
                 Layout.preferredWidth: theme.touchSecondary * 1.8
                 // structureRevision dep so a page rename refreshes the label.
-                text: (store.structureRevision, store.pageCount() > 0 && swipeView.currentIndex < store.pageCount()
-                      ? store.pages()[swipeView.currentIndex].name : "")
+                // Guard the index against a mid-rebuild transient (currentIndex can
+                // momentarily be -1 or point past a shrunken pages() array) so we
+                // never dereference an undefined page.
+                text: {
+                    store.structureRevision
+                    var i = swipeView.currentIndex
+                    var ps = store.pages()
+                    return (i >= 0 && i < ps.length && ps[i]) ? (ps[i].name || "") : ""
+                }
                 font.pixelSize: theme.fontLabel; font.weight: Font.DemiBold
                 font.family: theme.fontDisplay; color: theme.textSecondary
                 elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter

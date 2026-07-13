@@ -15,8 +15,10 @@ Item {
     property int pageIndex: 0
     signal configRequested(string tileId, string tileType)
 
+    // Structural list → key on structureRevision, NOT revision, so a settings
+    // keystroke (title/accent/…) doesn't rebuild every tile Loader (flicker/reload).
     property var tiles: {
-        store.revision
+        store.structureRevision
         var p = store.pages()[pageIndex]
         return p ? (p.tiles || []) : []
     }
@@ -40,10 +42,15 @@ Item {
         if (pbg.style)     return { wallpaper: "", style: pbg.style }
         return { wallpaper: a.wallpaper || "", style: a.bgStyle || "orbs" }
     }
+    // Wallpapers are stored as file:// URLs into the Manager's images dir. Re-derive
+    // a properly percent-encoded URL from the basename via backend.imageUrl(name) so
+    // names with spaces / non-ASCII characters load (mirrors the hub, fixes raw paths).
     property string wallpaperSource: {
         var wp = clone.pageBg.wallpaper
         if (!wp || !wp.length) return ""
-        return String(wp).charAt(0) === "/" ? "file://" + wp : wp
+        var s = String(wp)
+        var name = s.substring(s.lastIndexOf("/") + 1)
+        return name.length ? backend.imageUrl(name) : ""
     }
     property bool animatedBg: {
         store.revision
@@ -142,6 +149,7 @@ Item {
                 anchors.fill: parent
                 visible: clone.wallpaperSource === "" && theme.decorative
                 style: clone.pageBg.style
+                accent: theme.accent
                 running: clone.animatedBg && !clone.reduceMotion
             }
             Image {

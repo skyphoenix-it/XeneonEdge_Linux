@@ -72,6 +72,7 @@ Item {
             anchors.margins: parent.radius
             visible: chrome.cardBackdrop !== "none" && chrome.cardBackdrop !== "" && theme.decorative
             style: chrome.cardBackdrop
+            accent: chrome.effAccent
             running: !theme.reduceMotion
         }
 

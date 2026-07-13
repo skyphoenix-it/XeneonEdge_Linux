@@ -14,6 +14,7 @@
 #include <QObject>
 #include <QFile>
 #include <QDir>
+#include <QUrl>
 #include <QTextStream>
 #include <csignal>
 #include <unistd.h>
@@ -401,6 +402,18 @@ public:
         return s.qstring();
     }
 
+    // Resolve a wallpaper/image path to a loadable URL. Scheme URLs (qrc:, http:,
+    // file:) pass through untouched; a local path is percent-encoded via QUrl so
+    // spaces / '#' / other reserved characters don't produce a malformed URL that
+    // silently fails to load. Mirrors the Manager's backend.imageUrl() so the same
+    // stored appearance.wallpaper resolves identically in the hub and the Manager.
+    Q_INVOKABLE QString imageUrl(const QString& path) const {
+        if (path.isEmpty()) return QString();
+        if (path.contains("://")) return path;
+        if (path.startsWith('/')) return QUrl::fromLocalFile(path).toString();
+        return path;
+    }
+
     // Full pretty-printed config JSON (for the Diagnostics → Config tab).
     Q_INVOKABLE QString configJson() const {
         if (!m_config) return QString();
@@ -484,12 +497,15 @@ int main(int argc, char *argv[]) {
         isFirstRun = 1;
     }
 
-    // Collect display information
-    QJsonArray screensArray;
-    auto screens = QGuiApplication::screens();
-    for (auto* screen : screens) {
-        screensArray.append(screenToJson(screen));
-    }
+    // Collect display information. A single builder so the initial snapshot and
+    // every hotplug refresh serialize screens identically (S9: the list was frozen
+    // at boot — the Display/Diagnostics tabs never saw a plugged/unplugged screen).
+    auto buildScreensJson = []() -> QByteArray {
+        QJsonArray arr;
+        for (auto* screen : QGuiApplication::screens())
+            arr.append(screenToJson(screen));
+        return QJsonDocument(arr).toJson(QJsonDocument::Compact);
+    };
 
     // Find target display for fullscreen placement
     QScreen* targetScreen = findTargetScreen(config);
@@ -502,7 +518,7 @@ int main(int argc, char *argv[]) {
 
     // Expose data to QML
     engine.rootContext()->setContextProperty("_isFirstRun", isFirstRun);
-    engine.rootContext()->setContextProperty("_screens", QJsonDocument(screensArray).toJson(QJsonDocument::Compact));
+    engine.rootContext()->setContextProperty("_screens", buildScreensJson());
     engine.rootContext()->setContextProperty("_metricsJson", QJsonDocument(metricsJson).toJson(QJsonDocument::Compact));
     engine.rootContext()->setContextProperty("_safeMode", parser.isSet(safeModeOpt));
     engine.rootContext()->setContextProperty("_startInDiagnostics", parser.isSet(diagOpt));
@@ -651,18 +667,34 @@ int main(int argc, char *argv[]) {
     // connections are severed when the engine is destroyed — otherwise the
     // QGuiApplication (which outlives the engine) emits screenRemoved during its
     // own teardown and the lambda dereferences a freed engine.
-    QObject::connect(&app, &QGuiApplication::screenAdded, &engine, [&engine](QScreen* screen) {
+    // On any hotplug, rebuild the FULL screen list and push it as `screensData`
+    // (a proper notifiable string property) so the Display/Diagnostics tabs reflect
+    // the live topology instead of the boot snapshot. The old code only set a
+    // screen-name marker and never refreshed the list itself (S9). The distinct
+    // added/removed name markers are kept for logging/toast affordances in QML.
+    auto pushScreens = [&engine, buildScreensJson]() {
+        const QByteArray json = buildScreensJson();
+        for (auto* obj : engine.rootObjects())
+            obj->setProperty("screensData", json);
+    };
+    QObject::connect(&app, &QGuiApplication::screenAdded, &engine,
+                     [&engine, pushScreens](QScreen* screen) {
         qInfo() << "Screen added:" << screen->name();
-        for (auto* obj : engine.rootObjects()) {
+        for (auto* obj : engine.rootObjects())
             obj->setProperty("screenAddedChanged", screen->name());
-        }
+        pushScreens();
     });
-    QObject::connect(&app, &QGuiApplication::screenRemoved, &engine, [&engine](QScreen* screen) {
+    QObject::connect(&app, &QGuiApplication::screenRemoved, &engine,
+                     [&engine, pushScreens](QScreen* screen) {
         qInfo() << "Screen removed:" << screen->name();
-        for (auto* obj : engine.rootObjects()) {
+        for (auto* obj : engine.rootObjects())
             obj->setProperty("screenRemovedChanged", screen->name());
-        }
+        pushScreens();
     });
+    // A primary-screen swap (e.g. the Edge becomes/stops being primary) changes the
+    // isPrimary flags without an add/remove, so refresh on that too.
+    QObject::connect(&app, &QGuiApplication::primaryScreenChanged, &engine,
+                     [pushScreens](QScreen*) { pushScreens(); });
 
     // QA capture: XENEON_GRAB=<path> renders the window to a PNG and quits (mirrors
     // the Manager). Optional XENEON_GRAB_W / XENEON_GRAB_H resize the window first so

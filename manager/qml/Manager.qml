@@ -117,7 +117,7 @@ ApplicationWindow {
         var out = []
         for (var i = 0; i < imagesModel.count; i++) {
             var nm = imagesModel.get(i).modelData
-            out.push({ label: nm, source: "file://" + backend.imagesDir() + "/" + nm })
+            out.push({ label: nm, source: backend.imageUrl(nm) })
         }
         return out
     }
@@ -142,8 +142,15 @@ ApplicationWindow {
     // (a binding breaks the moment the user types, which caused wrong-page renames).
     onCurrentPageIndexChanged: pageName.text = currentPageName()
 
+    // Guard against re-applying the whole theme on every store bump: the store
+    // fires `changed()` on every keystroke/tile edit, but only appearance changes
+    // need a re-theme. Skip when the appearance payload is byte-identical.
+    property string _appearanceSig: ""
     function syncTheme() {
         var a = store.appearance() || ({})
+        var sig = JSON.stringify(a)
+        if (sig === _appearanceSig) return
+        _appearanceSig = sig
         theme.applyTheme(a.themeMode || "dark")
         if (a.accent) theme.applyAccent(a.accent)
         theme.glassOpacity = a.glass !== undefined ? a.glass : 0.55
@@ -279,7 +286,9 @@ ApplicationWindow {
                     Flow {
                         Layout.fillWidth: true; spacing: 8
                         Repeater {
-                            model: (store.revision, store.pages())
+                            // Structural list — rebuild only when pages are added/
+                            // removed/renamed, not on every settings keystroke [S11].
+                            model: (store.structureRevision, store.pages())
                             delegate: Rectangle {
                                 required property int index
                                 required property var modelData
@@ -506,7 +515,13 @@ ApplicationWindow {
                             // whole theme + save on every frame.
                             onMoved: { theme.glassOpacity = value; glassCommit.restart() }
                             Timer { id: glassCommit; interval: 180; repeat: false
-                                onTriggered: store.setAppearance("glass", glassSlider.value) }
+                                onTriggered: {
+                                    store.setAppearance("glass", glassSlider.value)
+                                    // Restore the `value:` binding that dragging severed, so a
+                                    // later store/hub push still moves the slider [S2]. Store
+                                    // now equals the slider, so this re-bind causes no jump.
+                                    glassSlider.value = Qt.binding(function() { store.revision; var g = store.appearance().glass; return g === undefined ? 0.55 : g })
+                                } }
                         }
                         Text { text: Math.round(glassSlider.value * 100) + "%"
                             color: m.textPrimary; font.pixelSize: 13; font.bold: true
@@ -515,20 +530,32 @@ ApplicationWindow {
 
                     RowLayout {
                         spacing: 20
+                        // A Switch severs its `checked:` binding on first toggle, so
+                        // without re-asserting it here a later store/hub push could
+                        // never move the control again [S2]. Re-bind after each write.
                         MSwitch {
                             text: "Widget glow"
                             checked: { store.revision; var g = store.appearance().glow; return g === undefined ? true : g }
-                            onToggled: store.setAppearance("glow", checked)
+                            onToggled: {
+                                store.setAppearance("glow", checked)
+                                checked = Qt.binding(function() { store.revision; var g = store.appearance().glow; return g === undefined ? true : g })
+                            }
                         }
                         MSwitch {
                             text: "Animated background"
                             checked: { store.revision; var g = store.appearance().animatedBg; return g === undefined ? true : g }
-                            onToggled: store.setAppearance("animatedBg", checked)
+                            onToggled: {
+                                store.setAppearance("animatedBg", checked)
+                                checked = Qt.binding(function() { store.revision; var g = store.appearance().animatedBg; return g === undefined ? true : g })
+                            }
                         }
                         MSwitch {
                             text: "Reduce motion"
                             checked: (store.revision, store.appearance().reduceMotion || false)
-                            onToggled: store.setAppearance("reduceMotion", checked)
+                            onToggled: {
+                                store.setAppearance("reduceMotion", checked)
+                                checked = Qt.binding(function() { store.revision; return store.appearance().reduceMotion || false })
+                            }
                         }
                     }
                     Item { Layout.preferredHeight: 12 }   // bottom padding
@@ -572,7 +599,7 @@ ApplicationWindow {
                                 width: 180; height: 180; radius: m.radius
                                 // Wallpapers are stored as file:// URLs (matching the
                                 // BackgroundPicker), so compare against that form.
-                                property string fullPath: "file://" + backend.imagesDir() + "/" + modelData
+                                property string fullPath: backend.imageUrl(modelData)
                                 property bool isWall: (store.revision, store.appearance().wallpaper) === fullPath
                                 color: cardMA.containsMouse ? m.panelAlt : m.panel
                                 border.width: isWall ? 3 : 1; border.color: isWall ? m.accent : m.border
@@ -677,7 +704,13 @@ ApplicationWindow {
                     MSwitch {
                         id: autostartSwitch; text: "Start the hub automatically on login"
                         checked: backend.isAutostart()
-                        onToggled: backend.setAutostart(checked)
+                        // Toggling severs the `checked:` binding; re-read the backend's
+                        // real state (the write can fail) so the control never diverges
+                        // and onActiveChanged can keep refreshing it [S2].
+                        onToggled: {
+                            backend.setAutostart(checked)
+                            checked = backend.isAutostart()
+                        }
                     }
                     Item { Layout.preferredHeight: 12 }   // bottom padding
                 }
