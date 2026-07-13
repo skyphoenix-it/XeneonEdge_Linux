@@ -38,19 +38,38 @@ WidgetChrome {
     // Longest overnight (end < start) window we treat as a real night shift; a
     // longer wrap is almost certainly swapped hours, so it stays invalid.
     readonly property int maxOvernightSpan: 12
-    // Window endpoints for `ref`, stepping the end onto the next calendar date
-    // (via setDate, DST-safe — no fixed 86400000ms delta) for a plausible
-    // overnight shift so cross-midnight windows aren't silently rejected.
+    // Test seam: force a deterministic "now" (a Date) so the time math can be
+    // exercised without the wall clock. null → live system clock.
+    property var nowOverride: null
+    function nowDate() { return nowOverride !== null ? nowOverride : new Date() }
+    // Window endpoints containing (or, failing that, next after) `ref`.
+    //   • Same-day windows (start < end) anchor both ends on ref's date.
+    //   • Overnight windows (end ≤ start, within maxOvernightSpan) span midnight,
+    //     so a single date-anchoring is wrong after midnight. We consider TWO
+    //     candidate anchorings — one that started YESTERDAY and ends today, and
+    //     one that starts today and ends tomorrow — and return whichever
+    //     currently CONTAINS ref. So at 03:00 a 22→06 shift resolves to
+    //     [yesterday 22:00, today 06:00] (in-window, ~62%, 3h left), while at
+    //     23:00 it resolves to [today 22:00, tomorrow 06:00] (7h left).
+    //     If neither contains ref, the today-anchored window is the next
+    //     upcoming one and drives the "Starts in …" label.
+    // Calendar construction (new Date(y,m,d,h,…)) keeps this DST-safe.
     function windowBounds(ref) {
-        var s = new Date(ref); s.setHours(startHour, 0, 0, 0)
-        var e = new Date(ref); e.setHours(endHour, 0, 0, 0)
-        if (endHour < startHour && (24 - startHour + endHour) <= maxOvernightSpan)
-            e.setDate(e.getDate() + 1)                    // overnight: end is tomorrow
-        return [s, e]
+        var y = ref.getFullYear(), mo = ref.getMonth(), d = ref.getDate()
+        if (endHour > startHour)                              // same-day window
+            return [new Date(y, mo, d, startHour, 0, 0, 0),
+                    new Date(y, mo, d, endHour,   0, 0, 0)]
+        if ((24 - startHour + endHour) > maxOvernightSpan)    // implausible wrap → invalid
+            return [ref, ref]
+        var sPrev = new Date(y, mo, d - 1, startHour, 0, 0, 0)   // started yesterday
+        var ePrev = new Date(y, mo, d,     endHour,   0, 0, 0)   // ends today
+        if (ref >= sPrev && ref < ePrev) return [sPrev, ePrev]
+        return [new Date(y, mo, d,     startHour, 0, 0, 0),      // starts today
+                new Date(y, mo, d + 1, endHour,   0, 0, 0)]      // ends tomorrow
     }
     property real frac: {
         w.tick
-        var n = new Date()
+        var n = nowDate()
         var wb = windowBounds(n)
         var s = wb[0], e = wb[1]
         if (e <= s) return 0
@@ -62,7 +81,7 @@ WidgetChrome {
     function fmtHour(h) { return (h < 10 ? "0" + h : "" + h) + ":00" }   // zero-padded, editor-style
     property string remaining: {
         w.tick
-        var n = new Date()
+        var n = nowDate()
         var wb = windowBounds(n)
         var s = wb[0], e = wb[1]
         if (e <= s) return "Set hours"                    // invalid (end ≤ start, not overnight)

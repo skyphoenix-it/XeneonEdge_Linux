@@ -510,6 +510,73 @@ Item {
         }
     }
 
+    // ── Overnight window selection, driven by a deterministic injected "now" ─
+    // A 22:00→06:00 night shift must resolve to the candidate window that
+    // actually CONTAINS "now": [yesterday 22:00, today 06:00] after midnight and
+    // [today 22:00, tomorrow 06:00] before. `nowOverride` is a test seam feeding
+    // frac/remaining a fixed Date so this is checked without the wall clock.
+    TestCase {
+        name: "EodOvernightDeterministic"
+        when: windowShown
+        function init() {
+            tryVerify(function () { return hEod.ready }, 3000)
+            clear(hEod)
+            hEod.item.nowOverride = null
+        }
+        function cleanup() { hEod.item.nowOverride = null }   // never leak the seam
+        function patch(o) { hEod.storeCtl.patchSettings("test-instance", o) }
+        function at(y, mo, d, h) { return new Date(y, mo, d, h, 0, 0, 0) }
+
+        // Sanity: the seam actually drives the derived properties.
+        function test_now_override_drives_frac() {
+            var w = hEod.item
+            patch({ startHour: 9, endHour: 17 })
+            w.nowOverride = at(2026, 0, 15, 13)             // 13:00, 4h into a 9→17 day
+            fuzzyCompare(w.frac, 0.5, 0.001)               // (13-9)/(17-9)
+            compare(w.remaining, "4h 0m", "daytime window shows live remaining")
+        }
+
+        // Pre-midnight half of the overnight shift: in-window, ~7h left.
+        function test_overnight_23h_is_in_window_seven_hours_left() {
+            var w = hEod.item
+            patch({ startHour: 22, endHour: 6 })
+            w.nowOverride = at(2026, 0, 15, 23)            // 23:00 → [today22, tmrw06]
+            fuzzyCompare(w.frac, 1 / 8, 0.001)             // 1h of an 8h window
+            compare(w.remaining, "7h 0m", "23:00 → 7h until 06:00")
+            verify(w.remaining.indexOf("Starts") !== 0, "must not be a 'Starts in' countdown")
+        }
+
+        // THE BUG: after midnight, mid-shift. Old code anchored start on today
+        // (03:00 < today-22:00) → "Starts in 19h" + 0%. Correct: [yest22, today06].
+        function test_overnight_03h_after_midnight_is_in_window() {
+            var w = hEod.item
+            patch({ startHour: 22, endHour: 6 })
+            w.nowOverride = at(2026, 0, 15, 3)             // 03:00 → [yest22, today06]
+            fuzzyCompare(w.frac, 5 / 8, 0.001)             // 5h of an 8h window ≈ 62%
+            compare(w.remaining, "3h 0m", "03:00 → 3h until 06:00")
+            verify(w.remaining.indexOf("Starts") !== 0,
+                   "after-midnight mid-shift must NOT show 'Starts in' (got '" + w.remaining + "')")
+        }
+
+        // After the shift ends: next window is [today22, tmrw06] → "Starts in".
+        function test_overnight_07h_after_shift_counts_down_to_next() {
+            var w = hEod.item
+            patch({ startHour: 22, endHour: 6 })
+            w.nowOverride = at(2026, 0, 15, 7)             // 07:00, shift ended at 06:00
+            compare(w.frac, 0, "outside the window frac is 0")
+            compare(w.remaining, "Starts in 15h 0m", "07:00 → 15h until the next 22:00 start")
+        }
+
+        // Just before the shift: "Starts in ~1h".
+        function test_overnight_21h_before_shift_counts_down() {
+            var w = hEod.item
+            patch({ startHour: 22, endHour: 6 })
+            w.nowOverride = at(2026, 0, 15, 21)            // 21:00, 1h before start
+            compare(w.frac, 0, "before the window frac is 0")
+            compare(w.remaining, "Starts in 1h 0m", "21:00 → 1h until 22:00")
+        }
+    }
+
     // ── DST: documented, not machine-testable without TZ control ─────────────
     TestCase {
         name: "EodDST"
