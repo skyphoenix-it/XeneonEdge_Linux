@@ -18,6 +18,10 @@
 #include <QTextStream>
 #include <QQuickStyle>
 #include <QPalette>
+
+#include <cstdio>
+
+#include "single_instance.h"
 #include <QColor>
 #include <csignal>
 #include <unistd.h>
@@ -242,6 +246,19 @@ int main(int argc, char *argv[]) {
     // ScrollBar/Dialog button-boxes) render dark instead of the default light gray.
     QQuickStyle::setStyle(QStringLiteral("Fusion"));
     QGuiApplication::setPalette(darkPalette());
+
+    // Single-instance guard — two hubs racing the shared config.toml corrupt it.
+    // Skipped in grab mode so headless QA captures run alongside a real instance.
+    auto instanceLock = xeneon::acquireSingleInstance(
+        QStringLiteral("hub"), qEnvironmentVariableIsSet("XENEON_GRAB"));
+    if (!instanceLock) {
+        // fprintf (not qWarning): Qt's default handler routes to journald when
+        // stderr isn't a TTY, so a plain write guarantees the user sees why the
+        // second instance didn't open.
+        std::fprintf(stderr, "Another Xeneon Edge Hub is already running - exiting.\n");
+        std::fflush(stderr);
+        return 0;
+    }
 
     // Self-pipe for signal handling: forward POSIX signals to Qt event loop safely
     if (::pipe(sigFd) == 0) {

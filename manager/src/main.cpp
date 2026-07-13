@@ -20,6 +20,8 @@
 
 #include "xeneon_core.h"
 #include "manager_backend.h"
+#include <cstdio>
+#include "../../app/src/single_instance.h"
 
 // Build a dark QPalette from the app's dark design tokens. Fusion (set below)
 // draws every Qt Quick control that ISN'T hand-restyled (Switch/Slider/Button/
@@ -69,6 +71,18 @@ int main(int argc, char* argv[]) {
     // dark palette so those unstyled controls match the dark UI (not light gray).
     QQuickStyle::setStyle(QStringLiteral("Fusion"));
     QGuiApplication::setPalette(darkPalette());
+
+    // Single-instance guard — multiple managers writing config.toml race the hub
+    // and each other. Skipped in grab mode for headless QA captures.
+    auto instanceLock = xeneon::acquireSingleInstance(
+        QStringLiteral("manager"), qEnvironmentVariableIsSet("XENEON_GRAB"));
+    if (!instanceLock) {
+        // fprintf (not qWarning): Qt's default handler routes to journald when
+        // stderr isn't a TTY, so a plain write guarantees the message is visible.
+        std::fprintf(stderr, "Another Xeneon Edge Manager is already running - exiting.\n");
+        std::fflush(stderr);
+        return 0;
+    }
 
     // Declare the backend BEFORE the engine so it outlives it (locals destroy in
     // reverse order; the engine holds context-property references to the backend).

@@ -56,6 +56,7 @@ add_qt_test(metrics_worker  SOURCES "${APP_SRC}/metrics_worker.h" "${APP_SRC}/di
 add_qt_test(control_server  SOURCES "${APP_SRC}/control_server.cpp" LINK Qt6::Network)
 add_qt_test(manager_backend_sync SOURCES "${MGR_SRC}/manager_backend.h" "${MGR_SRC}/reconcile.cpp" LINK Qt6::Gui Qt6::Network)
 add_qt_test(rx_cap          SOURCES "${MGR_SRC}/manager_backend.h" "${MGR_SRC}/reconcile.cpp" LINK Qt6::Gui Qt6::Network)
+add_qt_test(single_instance)
 
 # ── Headless negative (crafted FIFO / closed fd, no hardware) ──
 add_qt_test(orientation_reopen SOURCES "${APP_SRC}/orientation_sensor.cpp")
