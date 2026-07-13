@@ -36,9 +36,9 @@ WidgetChrome {
         function tc(t) { return t > 85 ? theme.error : t > 70 ? theme.warning : (accentSet ? w.effAccent : theme.catSystem) }
         var ct = num(metrics.cpu_temp_celsius), gt = num(metrics.gpu_temp_celsius)
         var r = [
-            { lbl: "CPU", val: metrics.cpu_usage_percent || 0, max: 100, unit: "%", col: lc(theme.catSystem), show: w.showCpu },
+            { lbl: "CPU", val: num(metrics.cpu_usage_percent), max: 100, unit: "%", col: lc(theme.catSystem), show: w.showCpu && num(metrics.cpu_usage_percent) >= 0 },
             { lbl: "GPU", val: num(metrics.gpu_usage_percent), max: 100, unit: "%", col: lc(theme.catGaming), show: w.showGpu && num(metrics.gpu_usage_percent) >= 0 },
-            { lbl: "RAM", val: metrics.ram_usage_percent || 0, max: 100, unit: "%", col: lc(theme.catProductivity), show: w.showRam },
+            { lbl: "RAM", val: num(metrics.ram_usage_percent), max: 100, unit: "%", col: lc(theme.catProductivity), show: w.showRam && num(metrics.ram_usage_percent) >= 0 },
             { lbl: "DISK", val: metrics.disk_usage_percent || 0, max: 100, unit: "%", col: lc(theme.catInfo), show: w.showDisk && (metrics.disk_total_bytes || 0) > 0 },
             { lbl: "CPU °", val: ct, max: 100, unit: "°C", col: tc(ct), show: w.showTemps && ct >= 0 },
             { lbl: "GPU °", val: gt, max: 100, unit: "°C", col: tc(gt), show: w.showTemps && gt >= 0 }

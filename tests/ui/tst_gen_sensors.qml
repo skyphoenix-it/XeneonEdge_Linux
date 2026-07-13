@@ -151,6 +151,19 @@ Item {
             verify(rowFor(w, "DISK") !== null, "non-zero total shows DISK")
         }
 
+        // ---- CPU/RAM hidden when their metric is absent (no fabricated 0%, S4) ----
+        function test_cpu_ram_hidden_when_metric_absent() {
+            var w = h.item
+            feed({ gpu_usage_percent: 40, disk_usage_percent: 30, disk_total_bytes: 5 })  // no cpu/ram keys
+            compare(rowFor(w, "CPU"), null, "absent cpu_usage → CPU hidden, not a fabricated 0%")
+            compare(rowFor(w, "RAM"), null, "absent ram_usage → RAM hidden, not a fabricated 0%")
+            // a real 0 (idle machine) still shows the row, at value 0.
+            feed({ cpu_usage_percent: 0, ram_usage_percent: 0 })
+            var cpu = rowFor(w, "CPU"), ram = rowFor(w, "RAM")
+            verify(cpu !== null && cpu.val === 0, "real cpu 0% shows the CPU row at 0")
+            verify(ram !== null && ram.val === 0, "real ram 0% shows the RAM row at 0")
+        }
+
         // ---- temperature colour thresholds at the 70 / 85 boundaries ----
         function test_temp_colour_thresholds() {
             var w = h.item
@@ -275,13 +288,14 @@ Item {
         }
 
         // ---- empty metrics still shows CPU/RAM as a solid 0% (documents bug #7) ----
-        function test_empty_metrics_shows_zero_reading() {
+        // Empty metrics no longer fabricate a confident 0% for CPU/RAM (S4). The
+        // rows are hidden until real data arrives — matching CpuWidget/RamWidget and
+        // this widget's own GPU/disk/temp rows (was previously a documented bug).
+        function test_empty_metrics_hides_cpu_ram() {
             var w = h.item
             h.metricsJson = "{}"
-            var cpu = rowFor(w, "CPU")
-            verify(cpu !== null, "CPU row shown before any metrics tick")
-            compare(cpu.val, 0, "no data coalesces to a confident 0% (known issue)")
-            compare(rowFor(w, "RAM").val, 0)
+            compare(rowFor(w, "CPU"), null, "no metrics → CPU hidden, not a fabricated 0%")
+            compare(rowFor(w, "RAM"), null, "no metrics → RAM hidden, not a fabricated 0%")
         }
 
         // ---- 'active' contract is ignored: rows keep computing when inactive ----
