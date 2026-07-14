@@ -242,9 +242,16 @@ Item {
                                 onReleased: {
                                     if (ma.dragging) {
                                         var to = clone.targetIndex
-                                        if (to >= 0 && to !== tile.index)
-                                            store.moveTile(clone.pageIndex, tile.index, to)
+                                        var from = tile.index
+                                        // Clear the drag state (which hides the floating
+                                        // name-tag) BEFORE moveTile: moveTile reorders the
+                                        // model and can destroy THIS delegate — and its
+                                        // running handler — so a reset placed after it may
+                                        // never execute, leaving the name-tag stuck in air.
+                                        ma.dragging = false
                                         clone.dragIndex = -1; clone.targetIndex = -1
+                                        if (to >= 0 && to !== from)
+                                            store.moveTile(clone.pageIndex, from, to)
                                     } else {
                                         clone.configRequested(tile.modelData.id, tile.modelData.type)
                                     }
