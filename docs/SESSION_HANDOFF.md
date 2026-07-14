@@ -13,12 +13,19 @@ everything: `./scripts/run_all_tests.sh` (→ `RESULT: SUCCESS`); coverage: `./s
   `python3 scripts/qml_coverage.py` — **100%** (165/165).
 - **Rust**: `cd core && cargo test` — **116 passed**; **97.4%** line (config.rs 98.3%).
 - **C++**: `./scripts/run_cpp_tests.sh` — **15/15 ctest**; ~97% filtered line.
+- **Runtime E2E**: `tests/runtime/run_focus_goal_bonus.sh` — drives the real hub
+  binary headless (offscreen) and asserts on the state it persists to `config.toml`;
+  proves the Focus daily-goal bonus fires exactly once. Wired into
+  `run_all_tests.sh` as suite #5 (SKIPs if no hub binary is built/installed; pin
+  one with `XENEON_HUB=…`). See `tests/runtime/README.md` for the config-schema /
+  SIGKILL / `pkill` gotchas.
 
 ### Install the latest build
-Package staged at **`~/xeneon-edge-hub-0.1.0.r59-1-x86_64.pkg.tar.zst`** (version
-`v0.1.0-30-gaa388a1`, shown in the Manager nav + hub Diagnostics). Install in your
-terminal (closes stray instances first): `pkill -f xeneon-edge; sudo pacman -U
-~/xeneon-edge-hub-0.1.0.r59-1-x86_64.pkg.tar.zst`.
+Package staged at **`~/xeneon-edge-hub-0.1.0.r61-1-x86_64.pkg.tar.zst`** (version
+`v0.1.0-32-gaf048c7`, shown in the Manager nav + hub Diagnostics) — **installed**
+this session (was r39). Rebuild/reinstall in your terminal (closes stray instances
+first): `pkill -f xeneon-edge; sudo pacman -U
+~/xeneon-edge-hub-0.1.0.r61-1-x86_64.pkg.tar.zst`.
 
 ### Overnight autonomous pass — real bugs fixed (adversarial reviews)
 - **habit streak cap** (`7064c57`): streak was capped at 28 (heatmap-window prune);
