@@ -243,7 +243,10 @@ QtObject {
                 { key: "jsonPath", label: "JSON path", type: "text", placeholder: "data.value  ·  items[0].name",
                   help: "Dot/bracket path to the value inside the response. Blank = the whole body." },
                 { key: "authToken", label: "Bearer token", type: "text", placeholder: "(optional)", dflt: "",
-                  help: "Sent as “Authorization: Bearer …”. Leave blank if the endpoint is public." } ] },
+                  help: "Sent as “Authorization: Bearer …”. Leave blank if the endpoint is public. " +
+                        "A token typed here is stored in plain text in config.toml — prefer a reference: " +
+                        "${env:MY_TOKEN} reads an environment variable, file:/path/to/token reads a file. " +
+                        "Either is resolved only when the request is made and never written to disk." } ] },
             { title: "Display", cols: 1, fields: [
                 { key: "mode", label: "Show as", type: "segmented", dflt: "value", options: [
                     { value: "value", label: "Value" },
@@ -273,7 +276,10 @@ QtObject {
                   help: "Used when the source is “Local file”. JSON or a bare number; works fully offline." },
                 { key: "jsonPath", label: "JSON path", type: "text", placeholder: "stats.count", dflt: "",
                   help: "Path to the number inside a JSON response. Blank if the body is already just a number." },
-                { key: "authToken", label: "Bearer token", type: "text", placeholder: "(optional)", dflt: "" } ] },
+                { key: "authToken", label: "Bearer token", type: "text", placeholder: "(optional)", dflt: "",
+                  help: "Used with the “URL” source. A token typed here is stored in plain text in " +
+                        "config.toml — prefer ${env:MY_TOKEN} or file:/path/to/token, which are read " +
+                        "only when the request is made and never written to disk." } ] },
             { title: "Presentation", cols: 1, fields: [
                 { key: "label", label: "Label", type: "text", placeholder: "Queue depth", dflt: "" },
                 { key: "unit", label: "Unit", type: "text", placeholder: "ms · $ · %", dflt: "" } ] },

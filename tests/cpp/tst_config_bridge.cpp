@@ -3,6 +3,8 @@
 #include <QtTest>
 #include <QFile>
 #include <QDir>
+#include <QTemporaryDir>
+#include <QVariantMap>
 
 #include "config_bridge.h"
 #include "xeneon_core.h"
@@ -52,6 +54,76 @@ private slots:
     void configJsonNonEmpty() {
         ConfigBridge b(cfg_);
         QVERIFY(!b.configJson().isEmpty());
+    }
+
+    // --- E7 Phase A: credential-reference resolution -------------------------
+    // The bridge is what QML calls, so it owns the FFI's two-allocation contract
+    // (value AND error must be freed). These run under the same ctest as the rest,
+    // so a leak here shows up under the sanitizers/coverage build.
+
+    void resolveSecret_envRef() {
+        qputenv("XENEON_BRIDGE_TEST_TOKEN", "bridge-token");
+        ConfigBridge b(cfg_);
+        const QVariantMap r = b.resolveSecret("${env:XENEON_BRIDGE_TEST_TOKEN}");
+        QCOMPARE(r["ok"].toBool(), true);
+        QCOMPARE(r["value"].toString(), QStringLiteral("bridge-token"));
+        QVERIFY(r["error"].toString().isEmpty());
+        QCOMPARE(r["plaintext"].toBool(), false);
+        qunsetenv("XENEON_BRIDGE_TEST_TOKEN");
+    }
+
+    void resolveSecret_fileRef() {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const QString p = dir.filePath("tok");
+        QFile f(p);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write("file-token\n");   // trailing newline is the realistic case
+        f.close();
+
+        ConfigBridge b(cfg_);
+        const QVariantMap r = b.resolveSecret("file:" + p);
+        QCOMPARE(r["ok"].toBool(), true);
+        QCOMPARE(r["value"].toString(), QStringLiteral("file-token"));
+    }
+
+    // A missing ref must fail with a reason — not silently resolve to empty, which
+    // would send an unauthenticated request that looks like a server-side 401.
+    void resolveSecret_missingRefReportsWhy() {
+        qunsetenv("XENEON_BRIDGE_ABSENT");
+        ConfigBridge b(cfg_);
+        const QVariantMap r = b.resolveSecret("${env:XENEON_BRIDGE_ABSENT}");
+        QCOMPARE(r["ok"].toBool(), false);
+        QVERIFY(r["value"].toString().isEmpty());
+        QVERIFY2(r["error"].toString().contains("XENEON_BRIDGE_ABSENT"),
+                 qPrintable("error should name the var: " + r["error"].toString()));
+    }
+
+    // Legacy plaintext keeps working (E1 shipped the field) but is flagged so the
+    // UI can tell the user it is sitting in config.toml.
+    void resolveSecret_plaintextWorksButIsFlagged() {
+        ConfigBridge b(cfg_);
+        const QVariantMap r = b.resolveSecret("ghp_legacy_literal");
+        QCOMPARE(r["ok"].toBool(), true);
+        QCOMPARE(r["value"].toString(), QStringLiteral("ghp_legacy_literal"));
+        QCOMPARE(r["plaintext"].toBool(), true);
+    }
+
+    // An unconfigured token is a success with no value — not an error, and not a
+    // plaintext warning about a secret that does not exist.
+    void resolveSecret_emptyIsANoOpSuccess() {
+        ConfigBridge b(cfg_);
+        const QVariantMap r = b.resolveSecret(QString());
+        QCOMPARE(r["ok"].toBool(), true);
+        QVERIFY(r["value"].toString().isEmpty());
+        QCOMPARE(r["plaintext"].toBool(), false);
+    }
+
+    void resolveSecret_keyringIsNotYetSupported() {
+        ConfigBridge b(cfg_);
+        const QVariantMap r = b.resolveSecret("secret://edge/ci");
+        QCOMPARE(r["ok"].toBool(), false);
+        QVERIFY(!r["error"].toString().isEmpty());
     }
 
     // S10: the formerly write-only display keys are now readable through the bridge

@@ -100,6 +100,19 @@ uint64_t xeneon_metrics_get_disk_total(const MetricsHandle* handle);
 uint64_t xeneon_metrics_get_disk_used(const MetricsHandle* handle);
 char* xeneon_metrics_to_json(const MetricsHandle* handle);
 
+// === Secrets (E7 Phase A) ===
+// Resolve a stored credential reference to the value to send:
+//   "${env:VAR}"   -> the environment variable VAR
+//   "file:/path"   -> the file's contents, trimmed
+//   "secret://s/k" -> OS keyring (Phase B; currently an error)
+//   anything else  -> a legacy plaintext literal, returned as-is
+// Returns NULL on failure; when err_out is non-NULL it then receives an owned
+// message (free it too). Messages name the variable/path, never the secret.
+// Both the return value and *err_out must be freed with xeneon_string_free.
+char* xeneon_secret_resolve(const char* raw, char** err_out);
+// 1 when the value is a bare plaintext secret (so the UI can warn), else 0.
+int xeneon_secret_is_plaintext(const char* raw);
+
 // === String Utilities ===
 void xeneon_string_free(char* s);
 

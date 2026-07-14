@@ -93,11 +93,13 @@ WidgetChrome {
     function refresh() {
         if (!w.configured) { _put({ httpErr: "", httpText: "", httpVal: undefined }); return }
         if (w._xhr) w._xhr.abort()
-        var headers = (w.source === "http" && w.authToken.length) ? ({ "Authorization": "Bearer " + w.authToken }) : undefined
         var self = this
         w._xhr = w._hub().request({
             url: w.endpoint,
-            headers: headers,
+            // Stored value (may be a ${env:}/file: ref); NetHub resolves it. Only
+            // the http source authenticates — the local-file source reads a path
+            // and must never send a credential anywhere.
+            authToken: w.source === "http" ? w.authToken : "",
             timeout: 8000,
             xhrFactory: w.xhrFactory,
             onDone: function (status, body) {

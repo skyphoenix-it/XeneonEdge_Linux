@@ -47,13 +47,32 @@ Item {
         }
 
         // ── host parsing ─────────────────────────────────────────────────────
+        // COVERS: fn:NetHub.hostOf, fn:NetHub._isLocal
         function test_hostOf_extracts_authority() {
             compare(hub.hostOf("https://api.example.com/v1/x?y=1"), "api.example.com")
             compare(hub.hostOf("http://10.0.0.5:9090/metrics"), "10.0.0.5:9090")
             compare(hub.hostOf("/local/path"), "", "a local path has no host")
+            // _isLocal decides whether the offline switch and allowlist apply at
+            // all, so it is the gate's first branch: assert it directly.
+            compare(hub._isLocal("/run/metrics/x"), true, "a path is local (not egress)")
+            compare(hub._isLocal("file:/run/x"), true, "a file: URL is local")
+            compare(hub._isLocal("https://api.example.com"), false, "https is egress")
+            compare(hub._isLocal("http://api.example.com"), false, "http is egress")
+        }
+
+        // COVERS: fn:NetHub._bump
+        // The per-host counters are the attestation surface ("what did this box
+        // actually talk to"), so the tally itself is asserted, not just its use.
+        function test_bump_tallies_per_host() {
+            compare(hub._bump("a.example"), 1, "first visit to a host tallies 1")
+            compare(hub._bump("a.example"), 2, "repeat host accumulates")
+            compare(hub._bump("b.example"), 1, "distinct host counted separately")
+            compare(hub.byHost["a.example"], 2, "the tally is exposed on byHost")
+            compare(hub.byHost["never.example"], undefined, "unvisited host absent")
         }
 
         // ── success path ─────────────────────────────────────────────────────
+        // COVERS: fn:NetHub.request
         function test_request_success_calls_onDone_and_counts() {
             var got = null
             hub.request({ url: "https://api.example.com/s",
@@ -124,6 +143,153 @@ Item {
             compare(lastFake.headers["X-Test"], "1", "extra header set")
         }
 
+        // ── secrets (E7 Phase A) ─────────────────────────────────────────────
+        // COVERS: fn:NetHub._resolveToken, fn:NetHub._looksLikeRef
+        // The gate resolves the STORED credential; widgets hand it the raw ref so
+        // the plaintext value never lands in a widget property or the store.
+
+        // A fake ConfigBridge.resolveSecret (the real one is Rust-backed).
+        function _resolver(map) {
+            return { resolveSecret: function (raw) {
+                if (map.hasOwnProperty(raw)) return { ok: true, value: map[raw], error: "", plaintext: false }
+                return { ok: false, value: "", error: "no such ref " + raw, plaintext: false }
+            } }
+        }
+
+        function test_authToken_ref_is_resolved_into_the_header() {
+            hub.secretResolver = _resolver({ "${env:CI_TOKEN}": "resolved-abc" })
+            hub.request({ url: "https://api.example.com/s",
+                          authToken: "${env:CI_TOKEN}", onDone: function () {} })
+            compare(lastFake.headers["Authorization"], "Bearer resolved-abc",
+                    "the REF is resolved to its value before the header is built")
+            hub.secretResolver = null
+        }
+
+        // COVERS: fn:NetHub._looksLikeRef
+        // The ref/literal split decides whether a value may be sent verbatim, so
+        // pin it directly: a literal that merely resembles a scheme must stay a
+        // literal, or a real token could be misread as a path.
+        function test_looksLikeRef_distinguishes_refs_from_literals() {
+            compare(hub._looksLikeRef("${env:TOK}"), true)
+            compare(hub._looksLikeRef("file:/run/tok"), true)
+            compare(hub._looksLikeRef("secret://a/b"), true)
+            compare(hub._looksLikeRef("  ${env:TOK}  "), true, "whitespace tolerated")
+            compare(hub._looksLikeRef("ghp_abc123"), false)
+            compare(hub._looksLikeRef("filesystem-token"), false, "not the file: scheme")
+            compare(hub._looksLikeRef(""), false)
+        }
+
+        // COVERS: fn:NetHub._resolveToken
+        function test_resolveToken_returns_value_or_reason() {
+            hub.secretResolver = _resolver({ "${env:T}": "v" })
+            var ok = hub._resolveToken("${env:T}")
+            compare(ok.ok, true); compare(ok.value, "v")
+
+            var bad = hub._resolveToken("${env:NOPE}")
+            compare(bad.ok, false); compare(bad.value, "")
+            verify(bad.error.length > 0, "a failure must explain itself")
+
+            hub.secretResolver = null
+            compare(hub._resolveToken("").ok, true, "empty is a no-op success")
+            compare(hub._resolveToken("").value, "")
+            compare(hub._resolveToken("ghp_x").value, "ghp_x", "a literal needs no resolver")
+            compare(hub._resolveToken("file:/x").ok, false, "a ref without a resolver fails closed")
+        }
+
+        // A plaintext token still works, but the user is told — once. The warning
+        // is about a STORED value, so repeating it every poll would be log spam.
+        function test_plaintext_token_warns_once_not_every_poll() {
+            hub.secretResolver = { resolveSecret: function (raw) {
+                return { ok: true, value: raw, error: "", plaintext: true } } }
+            hub._plaintextWarned = ({})
+
+            ignoreWarning(/stored in plain text/)
+            hub.request({ url: "https://api.example.com/s", authToken: "ghp_x", onDone: function () {} })
+            compare(lastFake.headers["Authorization"], "Bearer ghp_x", "it still authenticates")
+            verify(hub._plaintextWarned["ghp_x"] === true, "warned once")
+
+            // No second ignoreWarning is queued: a repeat warning would be an
+            // unexpected message here.
+            hub.request({ url: "https://api.example.com/s", authToken: "ghp_x", onDone: function () {} })
+            compare(lastFake.headers["Authorization"], "Bearer ghp_x", "still works on the next poll")
+            hub.secretResolver = null
+        }
+
+        // The warning must never carry the secret itself into the log.
+        function test_plaintext_warning_never_logs_the_token() {
+            hub.secretResolver = { resolveSecret: function (raw) {
+                return { ok: true, value: raw, error: "", plaintext: true } } }
+            hub._plaintextWarned = ({})
+            // Matching on a pattern that EXCLUDES the token: if the message
+            // contained "ghp_supersecret" this regex still matches, so assert the
+            // absence separately via the ignore pattern being the whole message.
+            ignoreWarning(/^NetHub: this widget's Bearer token is stored in plain text in config\.toml\. Use \$\{env:VAR\} or file:\/path instead — it is then read only when the request is made and never written to disk\.$/)
+            hub.request({ url: "https://api.example.com/s", authToken: "ghp_supersecret", onDone: function () {} })
+            hub.secretResolver = null
+        }
+
+        // The reference itself must never travel to the far end.
+        function test_the_reference_string_is_never_sent() {
+            hub.secretResolver = _resolver({ "${env:CI_TOKEN}": "resolved-abc" })
+            hub.request({ url: "https://api.example.com/s",
+                          authToken: "${env:CI_TOKEN}", onDone: function () {} })
+            verify(lastFake.headers["Authorization"].indexOf("${env:") < 0,
+                   "the raw ref must not appear in any header")
+            hub.secretResolver = null
+        }
+
+        function test_unresolvable_secret_blocks_the_request_entirely() {
+            hub.secretResolver = _resolver({})   // resolves nothing
+            var before = hub.requests
+            var err = null
+            var xhr = hub.request({ url: "https://api.example.com/s",
+                                    authToken: "${env:MISSING}", onError: function (r) { err = r } })
+            compare(xhr, null, "no XHR is created")
+            verify(("" + err).indexOf("secret:") === 0, "error names the cause: " + err)
+            compare(hub.requests, before, "an unresolved secret must NOT count as a sent request")
+            hub.secretResolver = null
+        }
+
+        // Fail closed: without a resolver a ref must not be sent verbatim as a
+        // Bearer token (that both leaks the ref and fails confusingly).
+        function test_ref_without_a_resolver_fails_closed() {
+            hub.secretResolver = null
+            var err = null
+            var xhr = hub.request({ url: "https://api.example.com/s",
+                                    authToken: "file:/run/tok", onError: function (r) { err = r } })
+            compare(xhr, null, "no request without a way to read the ref")
+            verify(("" + err).indexOf("secret:") === 0, "got: " + err)
+        }
+
+        // A legacy plaintext token still works with no resolver — E1 shipped the
+        // field, so breaking it would break real users' widgets.
+        function test_legacy_plaintext_token_still_authenticates() {
+            hub.secretResolver = null
+            hub.request({ url: "https://api.example.com/s",
+                          authToken: "ghp_legacy", onDone: function () {} })
+            compare(lastFake.headers["Authorization"], "Bearer ghp_legacy")
+        }
+
+        function test_empty_token_sends_no_auth_header() {
+            hub.secretResolver = null
+            hub.request({ url: "https://api.example.com/s", authToken: "", onDone: function () {} })
+            verify(lastFake.headers["Authorization"] === undefined,
+                   "an unconfigured token must not produce an empty Bearer header")
+        }
+
+        // request() must not write the secret back into the caller's object: a
+        // widget's `headers` property would carry it into the QML tree.
+        function test_caller_headers_object_is_not_mutated() {
+            hub.secretResolver = _resolver({ "${env:T}": "v" })
+            var mine = { "X-Test": "1" }
+            hub.request({ url: "https://api.example.com/s", headers: mine,
+                          authToken: "${env:T}", onDone: function () {} })
+            compare(lastFake.headers["Authorization"], "Bearer v", "header still applied")
+            verify(mine["Authorization"] === undefined,
+                   "the caller's headers object must not gain the secret")
+            hub.secretResolver = null
+        }
+
         function test_timeout_surfaces() {
             var err = null
             hub.request({ url: "https://api.example.com/s", onError: function (r) { err = r } })
@@ -142,6 +308,7 @@ Item {
         }
 
         // ── isAllowed (non-sending predicate) ────────────────────────────────
+        // COVERS: fn:NetHub.isAllowed
         function test_isAllowed_predicate() {
             hub.offline = false; hub.allowHosts = ["ok.example.com"]
             verify(hub.isAllowed("https://ok.example.com/x"), "listed host allowed")

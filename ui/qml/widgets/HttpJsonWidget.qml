@@ -99,11 +99,13 @@ WidgetChrome {
     function refresh() {
         if (!w.url.length) { _put({ httpErr: "", httpText: "", httpVal: undefined, httpList: [] }); return }
         if (w._xhr) w._xhr.abort()
-        var headers = w.authToken.length ? ({ "Authorization": "Bearer " + w.authToken }) : undefined
         var self = this
         w._xhr = w._hub().request({
             url: w.url,
-            headers: headers,
+            // The STORED value (may be a ${env:}/file: ref). NetHub resolves it
+            // and builds the header — the widget must never hold the plaintext
+            // secret, or it would ride cfgKey/settings into config.toml.
+            authToken: w.authToken,
             timeout: 8000,
             xhrFactory: w.xhrFactory,
             onDone: function (status, body) {

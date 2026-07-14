@@ -41,6 +41,11 @@ FUNCTION_SOURCES = [
     "ui/qml/main.qml",
     "ui/qml/DashboardStore.qml",
     "ui/qml/PresetCatalog.qml",
+    # The egress gate: the one place a QML XMLHttpRequest may be built, and now
+    # the one place credential refs are resolved. It is the choke point the
+    # "no telemetry / local-only" claim rests on, so every function in it should
+    # have to earn an explicit COVERS claim.
+    "ui/qml/widgets/NetHub.qml",
     "manager/qml/Manager.qml",
     "manager/qml/EdgeClone.qml",
 ]

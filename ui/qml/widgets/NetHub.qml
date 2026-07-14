@@ -34,6 +34,13 @@ QtObject {
     // already own the seam, e.g. Weather), which takes precedence.
     property var xhrFactory: null
 
+    // Resolves credential references (E7). Anything with a
+    // resolveSecret(raw) -> { ok, value, error, plaintext } method; in the hub
+    // that is ConfigBridge (Dashboard injects it). Null in tests/standalone,
+    // where _resolveToken falls back — see there for why a ref then FAILS rather
+    // than being sent verbatim.
+    property var secretResolver: null
+
     // ── Attestation counters (read-only surface for Diagnostics / enterprise) ──
     property int requests: 0     // requests actually sent
     property int blocked: 0      // requests refused by the gate
@@ -54,22 +61,69 @@ QtObject {
         return true
     }
 
+    // Returns the host's new tally (so callers/tests can assert the count without
+    // reaching into byHost).
     function _bump(host) {
         var m = hub.byHost
         m[host] = (m[host] || 0) + 1
         hub.byHost = m   // reassign so bindings on byHost update
+        return m[host]
+    }
+
+    // ── Secrets (E7 Phase A) ────────────────────────────────────────────────
+    // A stored token is a REFERENCE, not a value. Widgets hand the raw stored
+    // string to request({authToken}) and NEVER resolve it themselves: the
+    // resolved secret then exists only inside one request() call, so it cannot
+    // reach a widget property, the store, or config.toml.
+    function _looksLikeRef(s) {
+        var t = (s || "").trim()
+        return t.indexOf("${env:") === 0 || t.indexOf("file:") === 0 || t.indexOf("secret://") === 0
+    }
+
+    // Hosts already warned about a plaintext credential — the warning is about a
+    // stored value, not an event, so it must not repeat on every poll.
+    property var _plaintextWarned: ({})
+
+    // → { ok, value, error }
+    function _resolveToken(raw) {
+        if (!raw || !("" + raw).length) return { ok: true, value: "" }
+        var r = hub.secretResolver
+        if (r && r.resolveSecret) {
+            var res = r.resolveSecret("" + raw)
+            // Keep working, but say so once: E1 shipped this field, so a user may
+            // already have a real token sitting in config.toml.
+            if (res.plaintext === true && !hub._plaintextWarned[raw]) {
+                hub._plaintextWarned[raw] = true
+                console.warn("NetHub: this widget's Bearer token is stored in plain text in " +
+                             "config.toml. Use ${env:VAR} or file:/path instead — it is then read " +
+                             "only when the request is made and never written to disk.")
+            }
+            return { ok: !!res.ok, value: res.value || "", error: res.error || "" }
+        }
+        // No resolver (standalone widget / test harness). A plaintext literal is
+        // still usable, but a REF must NOT be sent verbatim: shipping
+        // "${env:CI_TOKEN}" to a remote host as a Bearer token both fails
+        // confusingly AND discloses the reference. Fail closed instead.
+        if (_looksLikeRef(raw))
+            return { ok: false, value: "", error: "no secret resolver available to read " + ("" + raw).trim() }
+        return { ok: true, value: "" + raw }
     }
 
     // request(opts): the single egress entry point.
     //   opts.url        (required) http(s):// for remote, anything else = local file
     //   opts.method     default "GET"
     //   opts.headers    { name: value } (applied when the XHR supports it)
+    //   opts.authToken  the STORED credential (a "${env:}"/"file:" ref or a legacy
+    //                   literal) — resolved here and sent as "Authorization:
+    //                   Bearer <value>". Pass the stored string, never a resolved
+    //                   secret: that is what keeps it out of ui_state.
     //   opts.body       request body (string)
     //   opts.timeout    ms, default 8000
     //   opts.allow      per-request host allowlist (augments the global one)
     //   opts.xhrFactory per-request XHR factory (test seam; wins over hub.xhrFactory)
     //   opts.onDone(status, responseText)
-    //   opts.onError(reason)  reason ∈ offline | blocked | timeout | "http <n>" | open-failed
+    //   opts.onError(reason)  reason ∈ offline | blocked | timeout | "http <n>" |
+    //                         open-failed | "secret: <why>"
     // Returns the XHR object (so the caller can track / abort it), or null if
     // the gate refused the request before any socket was opened.
     function request(opts) {
@@ -87,6 +141,27 @@ QtObject {
             hub.blocked++
             if (opts.onError) opts.onError("blocked")
             return null
+        }
+
+        // Resolve the credential BEFORE any socket is opened: an unresolvable
+        // secret must never become a request (a missing env var would otherwise
+        // send an unauthenticated call, which reads as an auth failure from the
+        // far end and hides the real cause).
+        var headers = opts.headers
+        if (opts.authToken !== undefined && opts.authToken !== null) {
+            var sec = _resolveToken(opts.authToken)
+            if (!sec.ok) {
+                hub.blocked++
+                if (opts.onError) opts.onError("secret: " + sec.error)
+                return null
+            }
+            if (sec.value.length) {
+                // Copy: never mutate the caller's object — headers may be a
+                // widget property, which would park the secret in the QML tree.
+                headers = {}
+                for (var hk in opts.headers) headers[hk] = opts.headers[hk]
+                headers["Authorization"] = "Bearer " + sec.value
+            }
         }
 
         hub.requests++
@@ -107,8 +182,8 @@ QtObject {
         }
         try {
             xhr.open(opts.method || "GET", url)
-            if (opts.headers && xhr.setRequestHeader)
-                for (var k in opts.headers) xhr.setRequestHeader(k, opts.headers[k])
+            if (headers && xhr.setRequestHeader)
+                for (var k in headers) xhr.setRequestHeader(k, headers[k])
             xhr.send(opts.body !== undefined ? opts.body : undefined)
         } catch (e) {
             if (opts.onError) opts.onError("open-failed")

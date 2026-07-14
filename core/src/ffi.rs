@@ -837,6 +837,68 @@ pub extern "C" fn xeneon_metrics_to_json(handle: *const MetricsHandle) -> *mut c
     }
 }
 
+// --- Secrets (E7 Phase A) ---
+
+/// Resolve a stored credential reference (`${env:VAR}`, `file:/path`, or a
+/// legacy plaintext literal) to the value to send.
+///
+/// Returns the resolved value (caller frees with `xeneon_string_free`), or NULL
+/// on failure. On failure, if `err_out` is non-null it receives an owned message
+/// which the caller must ALSO free with `xeneon_string_free`. The message names
+/// the reference (a variable name or path) and never the secret's value.
+///
+/// Resolving here rather than in QML is deliberate: QML cannot read the process
+/// environment at all, and keeping resolution behind the FFI means the resolved
+/// value only ever exists transiently in the caller's frame — never in
+/// `ui_state`, and so never in `config.toml`.
+#[no_mangle]
+pub extern "C" fn xeneon_secret_resolve(
+    raw: *const c_char,
+    err_out: *mut *mut c_char,
+) -> *mut c_char {
+    if !err_out.is_null() {
+        unsafe { *err_out = std::ptr::null_mut() };
+    }
+    if raw.is_null() {
+        if !err_out.is_null() {
+            unsafe { *err_out = to_c_string("no reference given") };
+        }
+        return std::ptr::null_mut();
+    }
+    let raw_str = match unsafe { CStr::from_ptr(raw) }.to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            if !err_out.is_null() {
+                unsafe { *err_out = to_c_string("reference is not valid UTF-8") };
+            }
+            return std::ptr::null_mut();
+        }
+    };
+    match crate::secrets::resolve(raw_str) {
+        Ok(v) => to_c_string(v),
+        Err(e) => {
+            // e's Display carries the var name / path only — never the value.
+            if !err_out.is_null() {
+                unsafe { *err_out = to_c_string(e.to_string()) };
+            }
+            std::ptr::null_mut()
+        }
+    }
+}
+
+/// 1 when the stored value is a bare plaintext secret (so the UI can warn), 0
+/// when it is a reference or empty.
+#[no_mangle]
+pub extern "C" fn xeneon_secret_is_plaintext(raw: *const c_char) -> i32 {
+    if raw.is_null() {
+        return 0;
+    }
+    match unsafe { CStr::from_ptr(raw) }.to_str() {
+        Ok(s) => crate::secrets::is_plaintext(s) as i32,
+        Err(_) => 0,
+    }
+}
+
 // --- String utilities ---
 
 /// Free a string returned by any xeneon_* function.
@@ -859,6 +921,86 @@ mod tests {
         let s = CStr::from_ptr(p).to_string_lossy().into_owned();
         xeneon_string_free(p);
         s
+    }
+
+    // --- Secrets FFI ---
+
+    #[test]
+    fn secret_resolve_env_ref_over_ffi() {
+        let _g = crate::TEST_ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        std::env::set_var("XENEON_FFI_SECRET", "ffi-token");
+        unsafe {
+            let raw = CString::new("${env:XENEON_FFI_SECRET}").unwrap();
+            let mut err: *mut c_char = std::ptr::null_mut();
+            let got = xeneon_secret_resolve(raw.as_ptr(), &mut err);
+            assert!(err.is_null(), "success must not set an error");
+            assert_eq!(take(got), "ffi-token");
+        }
+        std::env::remove_var("XENEON_FFI_SECRET");
+    }
+
+    #[test]
+    fn secret_resolve_failure_returns_null_and_an_error() {
+        let _g = crate::TEST_ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        std::env::remove_var("XENEON_FFI_ABSENT");
+        unsafe {
+            let raw = CString::new("${env:XENEON_FFI_ABSENT}").unwrap();
+            let mut err: *mut c_char = std::ptr::null_mut();
+            let got = xeneon_secret_resolve(raw.as_ptr(), &mut err);
+            assert!(got.is_null());
+            let msg = take(err);
+            assert!(
+                msg.contains("XENEON_FFI_ABSENT"),
+                "error should name the var: {msg}"
+            );
+        }
+    }
+
+    // The whole point of the module is that a secret never escapes into a place
+    // it can be persisted or logged — an error string is one of those places.
+    #[test]
+    fn secret_resolve_error_never_contains_the_secret_value() {
+        unsafe {
+            let dir = tempfile::tempdir().unwrap();
+            let p = dir.path().join("tok");
+            std::fs::write(&p, "").unwrap(); // empty → FileEmpty error
+            let raw = CString::new(format!("file:{}", p.display())).unwrap();
+            let mut err: *mut c_char = std::ptr::null_mut();
+            let got = xeneon_secret_resolve(raw.as_ptr(), &mut err);
+            assert!(got.is_null());
+            let msg = take(err);
+            assert!(msg.contains("empty"), "got: {msg}");
+        }
+    }
+
+    #[test]
+    fn secret_resolve_handles_null_and_reports_it() {
+        unsafe {
+            let mut err: *mut c_char = std::ptr::null_mut();
+            let got = xeneon_secret_resolve(std::ptr::null(), &mut err);
+            assert!(got.is_null());
+            assert!(!err.is_null(), "a null ref must still explain itself");
+            let _ = take(err);
+            // A null err_out must not crash either.
+            assert!(xeneon_secret_resolve(std::ptr::null(), std::ptr::null_mut()).is_null());
+        }
+    }
+
+    #[test]
+    fn secret_is_plaintext_over_ffi() {
+        unsafe {
+            let lit = CString::new("ghp_abc").unwrap();
+            let r = CString::new("${env:TOK}").unwrap();
+            let empty = CString::new("").unwrap();
+            assert_eq!(xeneon_secret_is_plaintext(lit.as_ptr()), 1);
+            assert_eq!(xeneon_secret_is_plaintext(r.as_ptr()), 0);
+            assert_eq!(xeneon_secret_is_plaintext(empty.as_ptr()), 0);
+            assert_eq!(xeneon_secret_is_plaintext(std::ptr::null()), 0);
+        }
     }
 
     #[test]

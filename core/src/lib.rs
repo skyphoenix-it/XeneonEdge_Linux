@@ -3,6 +3,7 @@ pub mod display;
 pub mod ffi;
 pub mod logging;
 pub mod metrics;
+pub mod secrets;
 
 // Single crate-wide lock serializing every test that mutates the process-global
 // `XDG_CONFIG_HOME` env var. Tests live in multiple modules (config.rs, ffi.rs);

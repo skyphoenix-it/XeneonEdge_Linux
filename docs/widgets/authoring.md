@@ -193,6 +193,19 @@ For a widget of type `hello` (file `HelloWidget.qml`):
    (`DashboardStore._ephemeralKeys`) or every poll rewrites `config.toml` (flash
    wear + a save race with the Manager). See `HttpJsonWidget.qml` for the full shape.
 
+   **Credentials — pass the stored value, never a resolved secret.** Anything a
+   widget holds can ride its settings into `ui_state` → `config.toml`, so a widget
+   must NOT build its own `Authorization` header. Hand the raw stored string to the
+   gate and let it resolve:
+   ```qml
+   _hub().request({ url: w.url, authToken: w.authToken, … })   // NOT headers:{Authorization}
+   ```
+   The stored value may be `${env:VAR}`, `file:/path` (both resolved per-request in
+   the Rust core via `configBridge.resolveSecret`, never persisted) or a legacy
+   plaintext literal (still honoured, warned about once). An unresolvable reference
+   fails the request with `secret: <why>` rather than silently sending it
+   unauthenticated. See `core/src/secrets.rs`.
+
 > ⚠️ **The #1 gotcha:** forgetting steps 4/5. The QML test suite loads widgets from
 > the source tree and will pass, but the real app loads from the compiled `qrc`
 > and fails at runtime with `HelloWidget is not a type`. Always rebuild and launch

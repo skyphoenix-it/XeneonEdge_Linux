@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QString>
 #include <QUrl>
+#include <QVariantMap>
 
 #include "autostart.h"
 #include "xeneon_core.h"
@@ -195,6 +196,42 @@ public:
         if (!m_config) return QString();
         XeneonString s(xeneon_config_to_json(m_config));
         return s.qstring();
+    }
+
+    // --- Secrets (E7 Phase A) -------------------------------------------------
+    // Resolve a stored credential ("${env:VAR}", "file:/path", or a legacy
+    // plaintext literal) to the value to send. QML cannot read the process
+    // environment, so this must come from the core; keeping it here also means the
+    // resolved value exists only for the life of one request and never reaches
+    // DashboardStore → ui_state → config.toml.
+    //
+    // Returns { ok, value, error, plaintext }. `plaintext` is true when the stored
+    // value is a bare secret, so the UI can warn without the caller re-parsing it.
+    // An empty input is a success with an empty value (an unconfigured widget just
+    // sends no Authorization header) — NOT an error.
+    Q_INVOKABLE QVariantMap resolveSecret(const QString& raw) const {
+        QVariantMap r;
+        r["ok"] = false;
+        r["value"] = QString();
+        r["error"] = QString();
+        r["plaintext"] = false;
+        if (raw.isEmpty()) {
+            r["ok"] = true;
+            return r;
+        }
+        const QByteArray rawUtf8 = raw.toUtf8();
+        r["plaintext"] = xeneon_secret_is_plaintext(rawUtf8.constData()) == 1;
+
+        char* errRaw = nullptr;
+        XeneonString value(xeneon_secret_resolve(rawUtf8.constData(), &errRaw));
+        XeneonString err(errRaw);   // owned even on success (then null) — RAII frees both.
+        if (value) {
+            r["ok"] = true;
+            r["value"] = value.qstring();
+        } else {
+            r["error"] = err.qstring();
+        }
+        return r;
     }
 
     // Detach from the Rust config handle before it is freed at shutdown, so any

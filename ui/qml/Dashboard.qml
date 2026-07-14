@@ -151,6 +151,11 @@ Item {
     NetHub {
         id: netHub
         offline: { var _ = store.revision; return store.appearance().netOffline === true }
+        // E7: the hub's ConfigBridge resolves ${env:}/file: credential refs. The
+        // Manager has no configBridge (and does no egress), and the QML test
+        // harness has none either — NetHub fails a ref closed when it is absent
+        // rather than sending the reference as a token.
+        secretResolver: (typeof configBridge !== "undefined") ? configBridge : null
     }
     WidgetConfigSchema { id: cfgSchema }
 
