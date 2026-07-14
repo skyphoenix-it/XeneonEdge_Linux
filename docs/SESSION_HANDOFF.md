@@ -1,7 +1,7 @@
 # Session handoff — continue from here
 
-_Last updated: 2026-07-14 (Manager UI/UX + robustness + overnight autonomous session). On
-`master`; PR #1 (`552729c`) plus follow-up direct-to-master commits, CI green._
+_Last updated: 2026-07-14 (E1 follow-up + branch cleanup after a mid-session crash). The
+alpha track is merged into `master`; `v1.0-alpha` stays alive for E4–E9._
 
 ## v1.0 ALPHA — in progress (branch `v1.0-alpha`)
 
@@ -29,7 +29,8 @@ epics in sequence; Sequence-0 (licensing/docs/QA-hook guard) already landed.
     bypasses the single-instance lock). Force qml console output with
     `QT_ASSUME_STDERR_HAS_CONSOLE=1`.
   - Presets marked "⟶ enrich" (developer, homelab, trading-desk, analyst, enterprise)
-    currently use system/time primitives; they gain HTTP/JSON + KPI tiles once **E1** lands.
+    used system/time primitives only; they gained HTTP/JSON + KPI tiles once **E1**
+    landed — done in `7025bd2`, see the E1-follow-up entry below.
   - Follow-up noted: first-run wizard welcome still reads "Xeneon Edge Linux Hub" (nominative
     line kept per rebrand decision — revisit if a cleaner descriptor is wanted).
 - **E1 — generic primitive widgets + egress gate — DONE** (`eb552c1`, verified on real Edge).
@@ -54,10 +55,32 @@ epics in sequence; Sequence-0 (licensing/docs/QA-hook guard) already landed.
   - Tests: `tst_nethub` (13), `tst_httpjson_net` (16+schema), `tst_kpi_net` (11+schema);
     behavior matrix back at 100%. Full suite green. Real-Edge grab showed live GitHub
     stars/forks + a local-file KPI colouring amber past its threshold.
-- **NEXT** (alpha, plan §5): optionally enrich the "⟶ enrich" presets (developer, homelab,
-  trading-desk, analyst, enterprise) with unconfigured HTTP/KPI tiles now that E1 exists;
-  then E5 wellness widgets, E4 a11y foundation, E6 DST/world clocks, E7 secrets, E8 egress
-  UI + Weather/Calendar migration, E9 enterprise pack.
+- **E1 follow-up — data-connected presets + icon lint — DONE** (`7025bd2`). Closes the
+  E1/E2 loop: the primitives existed but nothing used them, and both new types shipped
+  with **no icon** (the picker rendered blank tiles — visible only as a
+  `Cannot open: qrc:/icons/<type>.svg` warning in a real-device grab).
+  - Presets developer / homelab / trading-desk / analyst / enterprise now carry
+    httpjson/kpi tiles with a purposeful `title` but a **blank url/filePath**: the
+    endpoint is the one thing only the user can supply, so a tile ships as a labelled,
+    self-explaining slot rather than a wrong guess — and nothing polls until connected.
+    (A preset must never guess a URL: first run would poll a stranger's host.)
+  - `assets/icons/httpjson.svg` + `kpi.svg`, both registered in `assets/icons.qrc`.
+  - **`scripts/check_widget_icons.sh`** (new suite in `run_all_tests.sh`): every
+    `WidgetCatalog` type must have an SVG on disk AND a qrc line. The QML suite is
+    structurally blind to this — it runs source-tree with no qrc — so nothing else
+    catches a missing icon short of a grab.
+  - `MetricGauge`: value capped to the ring's inner diameter (`HorizontalFit` + elide).
+    System tiles only pass short readings ("42%"); an HTTP/JSON gauge shows arbitrary
+    values ("128ms") that used to spill over the ring.
+  - Tests: preset settings keys must be real (universal or in that type's schema — a
+    typo like `listmax` would silently ship a no-op tile); data presets must ship
+    labelled-but-unconnected. `PresetCatalog.qml` added to the coverage matrix.
+- **NEXT** (alpha, plan §5): **E5** wellness widgets, **E4** a11y foundation, **E6**
+  DST/world clocks, **E7** secrets, **E8** egress UI + Weather/Calendar migration
+  (removes the last raw-XHR grandfathering), **E9** enterprise pack.
+  - Note for E6: `trading-desk` ships a second clock as a **fixed UTC offset** (New York,
+    -5) because that is all the world-clock model supports today — it does not follow US
+    daylight-saving. E6 (DST/world clocks) should re-point that tile at a real zone.
 
 ## Current state: GREEN — 95%+ coverage across all layers
 
@@ -66,7 +89,7 @@ everything: `./scripts/run_all_tests.sh` (→ `RESULT: SUCCESS`); coverage: `./s
 
 - **Build**: `./scripts/build.sh release` — clean (hub + manager).
 - **QML**: `./scripts/run_ui_tests.sh` — ALL UI TESTS PASSED. Behavior matrix
-  `python3 scripts/qml_coverage.py` — **100%** (165/165).
+  `python3 scripts/qml_coverage.py` — **100%** (183/183).
 - **Rust**: `cd core && cargo test` — **116 passed**; **97.4%** line (config.rs 98.3%).
 - **C++**: `./scripts/run_cpp_tests.sh` — **15/15 ctest**; ~97% filtered line.
 - **Runtime E2E**: `tests/runtime/run_focus_goal_bonus.sh` — drives the real hub
