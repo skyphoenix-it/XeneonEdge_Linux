@@ -54,7 +54,12 @@ Item {
     // every sample (~2s), which is constant flash wear on the device and races the
     // Manager's own save (transient ENOENT). They're also stripped from the on-disk
     // document, so a genuine save never carries stale history across restarts (S4).
-    readonly property var _ephemeralKeys: ({ "hist": true, "peakRx": true, "peakTx": true })
+    // Volatile per-session keys that must NEVER reach config.toml. `hist`/`peakRx`/
+    // `peakTx` back the metric sparklines; `http*` back the HTTP/JSON + KPI polling
+    // primitives (value/text/error/list) — a poll every N seconds must not rewrite
+    // the config (flash wear + a save race with the Manager).
+    readonly property var _ephemeralKeys: ({ "hist": true, "peakRx": true, "peakTx": true,
+        "httpVal": true, "httpText": true, "httpErr": true, "httpList": true, "httpAt": true })
     function _isEphemeralKey(k) { return store._ephemeralKeys[k] === true }
 
     // Deep copy of the document with all ephemeral runtime keys removed — the exact

@@ -56,6 +56,9 @@ fi
 # 4. QML behavior-matrix coverage gate.
 run_suite "QML behavior matrix (qml_coverage.py)" python3 "$PROJECT_DIR/scripts/qml_coverage.py"
 
+# 4b. Egress lint — raw XMLHttpRequest may only live in the NetHub gate.
+run_suite "Egress lint (no raw XHR)" bash "$PROJECT_DIR/scripts/check_no_raw_xhr.sh"
+
 # 5. Runtime E2E — drives the real hub binary. Exit 77 = SKIP (no binary built
 #    or installed); anything else is PASS/FAIL as usual.
 echo ""

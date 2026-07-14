@@ -48,6 +48,9 @@
         <file alias="MediaWidget.qml">../ui/qml/widgets/MediaWidget.qml</file>
         <file alias="CalendarWidget.qml">../ui/qml/widgets/CalendarWidget.qml</file>
         <file alias="WeatherWidget.qml">../ui/qml/widgets/WeatherWidget.qml</file>
+        <file alias="HttpJsonWidget.qml">../ui/qml/widgets/HttpJsonWidget.qml</file>
+        <file alias="KpiWidget.qml">../ui/qml/widgets/KpiWidget.qml</file>
+        <file alias="NetHub.qml">../ui/qml/widgets/NetHub.qml</file>
         <file alias="QuoteWidget.qml">../ui/qml/widgets/QuoteWidget.qml</file>
         <file alias="HabitWidget.qml">../ui/qml/widgets/HabitWidget.qml</file>
         <file alias="HydrationWidget.qml">../ui/qml/widgets/HydrationWidget.qml</file>

@@ -61,6 +61,10 @@ static QPalette darkPalette() {
 }
 
 int main(int argc, char* argv[]) {
+    // KPI "local file" source reads a file:// path via QML XMLHttpRequest; Qt
+    // gates that behind this flag. Local read only — no network path is opened.
+    qputenv("QML_XHR_ALLOW_FILE_READ", "1");
+
     xeneon_logging_init("info");
     QGuiApplication app(argc, argv);
     app.setApplicationName("Xeneon Edge Manager");

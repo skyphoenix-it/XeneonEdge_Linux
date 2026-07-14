@@ -245,6 +245,12 @@ static QScreen* findTargetScreen(ConfigHandle* config) {
 }
 
 int main(int argc, char *argv[]) {
+    // Allow QML XMLHttpRequest to read local file:// paths — the KPI widget's
+    // "local file" source (a bare number or JSON on disk) relies on it. This is
+    // a LOCAL read only; it opens no network path (remote egress is separately
+    // gated by NetHub), so it does not weaken the no-telemetry guarantee.
+    qputenv("QML_XHR_ALLOW_FILE_READ", "1");
+
     // Initialize Rust core logging FIRST
     xeneon_logging_init("info");
 
