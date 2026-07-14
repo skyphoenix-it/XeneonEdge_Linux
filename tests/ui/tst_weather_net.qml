@@ -1,18 +1,21 @@
 import QtQuick
 import QtTest
 import "fixtures.js" as Fx
+import "../../ui/qml/widgets" as W
 
 // ─────────────────────────────────────────────────────────────────────────
 // tst_weather_net — network path of ui/qml/widgets/WeatherWidget.qml, driven
-// entirely offline through the `xhrFactory` seam. A FakeXHR (fixtures.js)
-// captures the request URL and resolves ONLY on an explicit test call
-// (resolveWith / fireTimeout) — no wall-clock waits, no real sockets.
+// entirely offline through the `xhrFactory` seam (handed to NetHub, which the
+// widget routes both of its requests through). A FakeXHR (fixtures.js) captures
+// the request URL and resolves ONLY on an explicit test call (resolveWith /
+// fireTimeout) — no wall-clock waits, no real sockets.
 //
 // Covers: forecast URL construction (lat/lon/units/forecast_days), geocode URL
-// (encodeURIComponent of the city), and every fixture → widget state mapping:
-//   valid forecast → loaded/rendered, non-200 → Offline, missing daily → No
-//   data, malformed → Parse error, timeout → Timed out; geocode valid →
-//   settings patched, empty → City not found.
+// (encodeURIComponent of the city), every fixture → widget state mapping (valid
+// forecast → loaded/rendered, non-200 → Offline, missing daily → No data,
+// malformed → Parse error, timeout → Timed out; geocode valid → settings
+// patched, empty → City not found), and — since E8 — that the egress gate's
+// kill switch and host allowlist actually govern both requests.
 // ─────────────────────────────────────────────────────────────────────────
 Item {
     id: root
@@ -22,6 +25,10 @@ Item {
         id: h; anchors.fill: parent
         widgetFile: "WeatherWidget.qml"; expanded: true
     }
+
+    // Stands in for the app-global gate Dashboard injects, so the tests can drive
+    // `offline` / `allowHosts` the way managed config does.
+    W.NetHub { id: gate }
 
     function clearSettings(harness) {
         var s = harness.storeCtl.settingsFor("test-instance")
@@ -188,6 +195,85 @@ Item {
             w.geocode("Tokyo")
             lastFake.resolveWith(200, Fx.MALFORMED_JSON)
             compare(w.errorText, "Lookup failed", "un-parseable geocode body → Lookup failed")
+        }
+    }
+
+    // ── egress gate (E8) ─────────────────────────────────────────────────
+    // Weather used to build its own XHR, which put it outside the offline switch
+    // and the allowlist entirely. Now that it routes through NetHub, both of its
+    // requests must be refusable centrally — that is the whole point of the
+    // migration, so assert it rather than trusting the call site.
+    TestCase {
+        name: "WeatherNetGate"
+        when: windowShown
+        property var lastFake: null
+        function init() {
+            tryVerify(function () { return h.ready }, 3000)
+            clearSettings(h); h.active = false; lastFake = null
+            h.item.loaded = false; h.item.errorText = ""
+            gate.offline = false; gate.allowHosts = []
+            gate.requests = 0; gate.blocked = 0
+            h.item.netHub = gate
+            var tc = this
+            h.item.xhrFactory = function () { tc.lastFake = Fx.makeFakeXHR(); return tc.lastFake }
+        }
+        function cleanup() { gate.offline = false; gate.allowHosts = [] }
+
+        function test_offline_refuses_the_forecast() {
+            var w = h.item
+            gate.offline = true
+            w.refresh()
+            compare(lastFake, null, "the kill switch refuses before any socket is opened")
+            compare(gate.requests, 0, "nothing counted as sent")
+            compare(gate.blocked, 1, "the gate counted the refusal (attestation)")
+            compare(w.loaded, false, "no stale reading is presented as live")
+            compare(w.errorText, "Offline", "the tile says why it has no data")
+        }
+
+        // The city lookup is egress too — it was the second raw XHR in this file.
+        function test_offline_refuses_the_geocode() {
+            var w = h.item
+            gate.offline = true
+            w.geocode("Tokyo")
+            compare(lastFake, null, "the geocode lookup is gated as well")
+            compare(gate.blocked, 1, "counted as blocked")
+            compare(w.geocoding, false, "the lookup settles instead of spinning forever")
+            compare(w.errorText, "Offline")
+        }
+
+        function test_allowlist_excluding_open_meteo_blocks_the_forecast() {
+            var w = h.item
+            gate.allowHosts = ["intranet.example.com"]
+            w.refresh()
+            compare(lastFake, null, "an unlisted host never gets a socket")
+            compare(gate.requests, 0, "not counted as sent")
+            compare(gate.blocked, 1, "counted as blocked")
+            compare(w.errorText, "Blocked", "the tile distinguishes policy from failure")
+        }
+
+        // The allowlist is per-host: the forecast and the geocode live on
+        // different Open-Meteo hosts, so listing one must not admit the other.
+        function test_allowlist_is_per_host_not_per_domain() {
+            var w = h.item
+            gate.allowHosts = ["api.open-meteo.com"]
+            w.refresh()
+            verify(lastFake !== null && lastFake.sent, "the listed forecast host is admitted")
+            lastFake = null
+            w.geocode("Tokyo")
+            compare(lastFake, null, "the unlisted geocoding host is still refused")
+            compare(w.errorText, "Blocked")
+        }
+
+        function test_allowlisted_host_still_fetches_normally() {
+            var w = h.item
+            gate.allowHosts = ["api.open-meteo.com"]
+            w.refresh()
+            verify(lastFake !== null && lastFake.sent, "listing the host lets the forecast through")
+            compare(gate.requests, 1, "counted as sent, by host")
+            compare(gate.blocked, 0, "nothing refused")
+            lastFake.resolveWith(200, Fx.FORECAST_VALID)
+            compare(w.loaded, true, "and the reading lands exactly as before the gate")
+            compare(w.errorText, "")
         }
     }
 }

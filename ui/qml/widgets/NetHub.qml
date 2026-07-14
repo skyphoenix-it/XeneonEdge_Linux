@@ -46,8 +46,27 @@ QtObject {
     property int blocked: 0      // requests refused by the gate
     property var byHost: ({})    // { host: count } of sent requests
 
+    // Is this a LOCAL read (not egress)? This must be an allowlist of local forms,
+    // never "anything that isn't http(s)": the old shape treated EVERY unknown
+    // scheme as local, so `webcal://…` — a real Apple/iCloud calendar URL — skipped
+    // both the offline kill switch and the host allowlist and went straight out.
+    // Any scheme we do not positively recognise is therefore NOT local; it is
+    // refused by request() rather than waved through as a file read.
     function _isLocal(url) {
-        return url.indexOf("http://") !== 0 && url.indexOf("https://") !== 0
+        var u = ("" + (url || "")).trim()
+        if (!u.length) return false
+        if (/^file:/i.test(u)) return true          // explicit local file
+        if (/^qrc:/i.test(u)) return true           // bundled resource
+        return !_hasScheme(u)                       // a bare/relative path
+    }
+    // "scheme:" per RFC 3986, plus protocol-relative "//host" (which inherits
+    // http(s) and is therefore egress, not a path).
+    function _hasScheme(url) {
+        return /^[a-z][a-z0-9+.-]*:/i.test(url) || url.indexOf("//") === 0
+    }
+    // Egress we recognise and are willing to send.
+    function _isRemote(url) {
+        return /^https?:\/\//i.test(("" + (url || "")).trim())
     }
     function hostOf(url) {
         var m = /^https?:\/\/([^\/?#]+)/i.exec(url || "")
@@ -131,6 +150,17 @@ QtObject {
         var url = opts.url || ""
         var local = _isLocal(url)
 
+        // Neither a local read nor http(s): a scheme the gate cannot reason about
+        // (webcal:, ftp:, //host, …). Refuse it. Treating it as "local" would skip
+        // the kill switch and the allowlist, and guessing it is remote would mean
+        // enforcing an allowlist against a host we did not parse. A caller that
+        // wants webcal: must map it to https: itself (CalendarWidget does).
+        if (!local && !_isRemote(url)) {
+            hub.blocked++
+            if (opts.onError) opts.onError("unsupported-scheme")
+            return null
+        }
+
         if (!local && hub.offline) {
             hub.blocked++
             if (opts.onError) opts.onError("offline")
@@ -174,9 +204,14 @@ QtObject {
         xhr.onreadystatechange = function () {
             if (xhr.readyState !== XMLHttpRequest.DONE) return
             var st = xhr.status
-            // A local file read succeeds with status 0 (no HTTP layer); a remote
-            // request must be a real 200.
-            var ok = (st === 200) || (local && (st === 0 || st === 200) && !!xhr.responseText)
+            // A local file read succeeds with status 0 (no HTTP layer). A remote
+            // request succeeds on ANY 2xx, not just 200: a transforming proxy
+            // legitimately answers 203, and CalendarWidget accepted 203/206 before
+            // it moved onto the gate — narrowing that here would have silently
+            // broken an ICS feed behind a corporate proxy. A 2xx with an empty body
+            // (204) still fails the caller's own parse, which is the right layer
+            // for that.
+            var ok = (st >= 200 && st < 300) || (local && (st === 0 || st === 200) && !!xhr.responseText)
             if (ok) { if (opts.onDone) opts.onDone(st, xhr.responseText) }
             else { if (opts.onError) opts.onError("http " + st) }
         }

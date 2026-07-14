@@ -12,8 +12,16 @@ Dialog {
     property string wType: ""
     property var schema: schemaReg.schemaFor(wType)
     property string geoStatus: ""
-    // Test seam: when set, called instead of `new XMLHttpRequest()` so a FakeXHR
-    // can be injected. null in production → real XHR (behaviour unchanged).
+    // The egress gate. The city lookup below is the only request the Manager makes,
+    // and it must be counted and gateable like any widget's, so it routes through
+    // NetHub rather than building an XHR here. The Manager has no app-global gate
+    // to inject (it does no polling), so the dialog owns one; `netHub` stays
+    // injectable so a Manager-global gate can take over without touching this file.
+    property var netHub: null
+    NetHub { id: _fallbackHub }
+    function _hub() { return netHub ? netHub : _fallbackHub }
+    // Test seam: a per-request XHR factory handed to the gate, so a FakeXHR can be
+    // injected. null in production → the gate builds the real XHR.
     property var xhrFactory: null
 
     function openFor(id, type) {
@@ -83,8 +91,15 @@ Dialog {
 
     // In-flight geocode request, so a new lookup aborts the previous one
     // (re-entrancy guard) and closing the dialog cancels a pending request.
+    // Bumping the sequence is what actually cancels: abort() still delivers one
+    // late callback, and the gate answers a refused request synchronously (no XHR
+    // to compare against), so the token — not the object — decides who is current.
     property var _geoXhr: null
-    function _cancelGeo() { if (_geoXhr) { try { _geoXhr.abort() } catch (e) {} _geoXhr = null } }
+    property int _geoSeq: 0
+    function _cancelGeo() {
+        dlg._geoSeq++
+        if (_geoXhr) { try { _geoXhr.abort() } catch (e) {} _geoXhr = null }
+    }
 
     function doAction(action) {
         if (action === "geocode") {
@@ -92,30 +107,34 @@ Dialog {
             if (!place.trim().length) { geoStatus = "Type a place name first"; return }
             dlg._cancelGeo()                       // supersede any in-flight lookup
             geoStatus = "Searching…"
-            var xhr = (dlg.xhrFactory ? dlg.xhrFactory() : new XMLHttpRequest())
-            dlg._geoXhr = xhr
-            xhr.timeout = 8000
-            xhr.ontimeout = function () {
-                if (dlg._geoXhr !== xhr) return
-                dlg._geoXhr = null; dlg.geoStatus = "Lookup timed out — try again"
-            }
-            xhr.onreadystatechange = function () {
-                if (xhr.readyState !== XMLHttpRequest.DONE) return
-                if (dlg._geoXhr !== xhr) return     // superseded or aborted
-                dlg._geoXhr = null
-                if (xhr.status === 0) return         // aborted / network down
-                try {
-                    var d = JSON.parse(xhr.responseText)
-                    if (d && d.results && d.results.length) {
-                        var r = d.results[0]
-                        var label = r.name + (r.country_code ? ", " + r.country_code : "")
-                        store.patchSettings(wId, { lat: r.latitude, lon: r.longitude, place: label })
-                        dlg.geoStatus = "✓ Set to " + label
-                    } else dlg.geoStatus = "City not found"
-                } catch (e) { dlg.geoStatus = "Lookup failed" }
-            }
-            xhr.open("GET", "https://geocoding-api.open-meteo.com/v1/search?count=1&name=" + encodeURIComponent(place.trim()))
-            xhr.send()
+            var seq = ++dlg._geoSeq
+            var xhr = dlg._hub().request({
+                url: "https://geocoding-api.open-meteo.com/v1/search?count=1&name="
+                     + encodeURIComponent(place.trim()),
+                timeout: 8000,
+                xhrFactory: dlg.xhrFactory,
+                onDone: function (status, body) {
+                    if (seq !== dlg._geoSeq) return
+                    dlg._geoXhr = null
+                    try {
+                        var d = JSON.parse(body)
+                        if (d && d.results && d.results.length) {
+                            var r = d.results[0]
+                            var label = r.name + (r.country_code ? ", " + r.country_code : "")
+                            store.patchSettings(wId, { lat: r.latitude, lon: r.longitude, place: label })
+                            dlg.geoStatus = "✓ Set to " + label
+                        } else dlg.geoStatus = "City not found"
+                    } catch (e) { dlg.geoStatus = "Lookup failed" }
+                },
+                onError: function (reason) {
+                    if (seq !== dlg._geoSeq) return
+                    dlg._geoXhr = null
+                    dlg.geoStatus = reason === "offline" ? "Offline — lookup unavailable"
+                        : reason === "blocked" ? "Lookup host not allowed"
+                        : reason === "timeout" ? "Lookup timed out — try again" : "Lookup failed"
+                }
+            })
+            if (seq === dlg._geoSeq) dlg._geoXhr = xhr
         }
     }
 

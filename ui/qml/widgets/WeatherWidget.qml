@@ -4,6 +4,11 @@ import QtQuick.Layouts
 
 // Weather — real forecast from Open-Meteo (free, no API key). Location comes
 // from the instance settings (lat/lon/place). Degrades gracefully offline.
+//
+// Both requests (forecast + city geocode) go through NetHub, never a raw XHR, so
+// the global offline switch, the host allowlist and the attestation counters
+// cover them. Readings stay in widget properties: they are never written to the
+// store, so a poll cannot churn config.toml.
 WidgetChrome {
     id: w
     property var metrics: ({})
@@ -11,8 +16,13 @@ WidgetChrome {
     property bool active: true
     property var store: null
     property string instanceId: ""
-    // Test seam: when set, called instead of `new XMLHttpRequest()` so a FakeXHR
-    // can be injected. null in production → real XHR (behaviour unchanged).
+    // The egress gate. Injected by Dashboard (one app-global instance); a local
+    // fallback keeps the widget self-contained in tests / standalone use.
+    property var netHub: null
+    NetHub { id: _fallbackHub }
+    function _hub() { return netHub ? netHub : _fallbackHub }
+    // Test seam: a per-request XHR factory handed to the gate, so a FakeXHR can be
+    // injected. null in production → the gate builds the real XHR.
     property var xhrFactory: null
 
     title: "Weather"; iconName: "weather"; accentColor: theme.catInfo
@@ -57,9 +67,39 @@ WidgetChrome {
 
     // In-flight requests, tracked so a newer fetch aborts an older one (last-write
     // wins cleanly) and a hung socket resolves via a timeout instead of spinning.
+    // The sequence tokens — not the XHR object — are the supersede guard: the gate
+    // refuses offline/blocked requests synchronously and returns null, so there is
+    // no XHR to compare a callback against in exactly the cases that must still report.
     property var _fxhr: null
+    property int _fseq: 0
     property var _gxhr: null
+    property int _gseq: 0
     Component.onDestruction: { if (_fxhr) _fxhr.abort(); if (_gxhr) _gxhr.abort() }
+
+    // Map a forecast payload → the rendered reading.
+    function _applyForecast(body) {
+        try {
+            var d = JSON.parse(body)
+            if (!d || !d.current || !d.daily || !d.daily.time) { w.loaded = false; w.errorText = "No data"; return }
+            w.curTemp = d.current.temperature_2m
+            w.feels = d.current.apparent_temperature
+            w.curCode = d.current.weather_code
+            var out = []
+            var names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+            for (var i = 0; i < d.daily.time.length; i++) {
+                // "YYYY-MM-DD" — parse as LOCAL midnight so getDay() names the
+                // right weekday (new Date(str) would parse it as UTC and, west
+                // of UTC, shift the label a day earlier).
+                var p = ("" + d.daily.time[i]).split("-")
+                var dt = new Date(+p[0], +p[1] - 1, +p[2])
+                out.push({ day: i === 0 ? "Today" : names[dt.getDay()],
+                           code: d.daily.weather_code[i],
+                           max: Math.round(d.daily.temperature_2m_max[i]),
+                           min: Math.round(d.daily.temperature_2m_min[i]) })
+            }
+            w.days = out; w.loaded = true; w.errorText = ""
+        } catch (e) { w.loaded = false; w.errorText = "Parse error" }
+    }
 
     function refresh() {
         var fdays = Math.max(1, Math.min(16, w.forecastDays + 1))
@@ -69,71 +109,73 @@ WidgetChrome {
                 + (w.units === "fahrenheit" ? "&temperature_unit=fahrenheit" : "")
                 + "&timezone=auto&forecast_days=" + fdays
         if (w._fxhr) w._fxhr.abort()
-        var xhr = (w.xhrFactory ? w.xhrFactory() : new XMLHttpRequest())
-        w._fxhr = xhr
-        xhr.timeout = 8000
-        xhr.ontimeout = function () { if (w._fxhr === xhr) { w._fxhr = null; if (!w.loaded) w.errorText = "Timed out" } }
-        xhr.onreadystatechange = function () {
-            if (xhr.readyState !== XMLHttpRequest.DONE) return
-            if (w._fxhr !== xhr) return   // superseded by a newer request
-            w._fxhr = null
-            // On any failure, stop presenting the last reading as if it were live
-            // (curTemp/days still hold the previous city's numbers — clear `loaded`).
-            if (xhr.status !== 200) { w.loaded = false; w.errorText = "Offline"; return }
-            try {
-                var d = JSON.parse(xhr.responseText)
-                if (!d || !d.current || !d.daily || !d.daily.time) { w.loaded = false; w.errorText = "No data"; return }
-                w.curTemp = d.current.temperature_2m
-                w.feels = d.current.apparent_temperature
-                w.curCode = d.current.weather_code
-                var out = []
-                var names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-                for (var i = 0; i < d.daily.time.length; i++) {
-                    // "YYYY-MM-DD" — parse as LOCAL midnight so getDay() names the
-                    // right weekday (new Date(str) would parse it as UTC and, west
-                    // of UTC, shift the label a day earlier).
-                    var p = ("" + d.daily.time[i]).split("-")
-                    var dt = new Date(+p[0], +p[1] - 1, +p[2])
-                    out.push({ day: i === 0 ? "Today" : names[dt.getDay()],
-                               code: d.daily.weather_code[i],
-                               max: Math.round(d.daily.temperature_2m_max[i]),
-                               min: Math.round(d.daily.temperature_2m_min[i]) })
-                }
-                w.days = out; w.loaded = true; w.errorText = ""
-            } catch (e) { w.loaded = false; w.errorText = "Parse error" }
-        }
-        try { xhr.open("GET", url); xhr.send() } catch (e) { w._fxhr = null; w.errorText = "Offline" }
+        w._fxhr = null
+        var seq = ++w._fseq
+        var xhr = w._hub().request({
+            url: url,
+            timeout: 8000,
+            xhrFactory: w.xhrFactory,
+            onDone: function (status, body) {
+                if (seq !== w._fseq) return   // superseded by a newer request
+                w._fxhr = null
+                w._applyForecast(body)
+            },
+            onError: function (reason) {
+                if (seq !== w._fseq) return
+                w._fxhr = null
+                // A timeout may still resolve into the same reading, so the last
+                // one stays on screen; every other failure means what's displayed
+                // is no longer live (curTemp/days still hold the previous city's
+                // numbers — clear `loaded` so they aren't shown as current).
+                if (reason === "timeout") { if (!w.loaded) w.errorText = "Timed out"; return }
+                w.loaded = false
+                w.errorText = reason === "blocked" ? "Blocked" : "Offline"
+            }
+        })
+        if (seq === w._fseq) w._fxhr = xhr
     }
 
     // Look up a city name → lat/lon via Open-Meteo's geocoding API, then persist.
+    // The result IS persisted (lat/lon/place): it is a deliberate user choice, not
+    // a poll reading, so it belongs in config.toml.
     property bool geocoding: false
     function geocode(name) {
         if (!name || !name.trim().length) return
         geocoding = true
         var url = "https://geocoding-api.open-meteo.com/v1/search?count=1&name=" + encodeURIComponent(name.trim())
         if (w._gxhr) w._gxhr.abort()
-        var xhr = (w.xhrFactory ? w.xhrFactory() : new XMLHttpRequest())
-        w._gxhr = xhr
-        xhr.timeout = 8000
-        xhr.ontimeout = function () { if (w._gxhr === xhr) { w._gxhr = null; w.geocoding = false; w.errorText = "Lookup timed out" } }
-        xhr.onreadystatechange = function () {
-            if (xhr.readyState !== XMLHttpRequest.DONE) return
-            if (w._gxhr !== xhr) return
-            w._gxhr = null
-            w.geocoding = false
-            try {
-                var d = JSON.parse(xhr.responseText)
-                if (d && d.results && d.results.length) {
-                    var r = d.results[0]
-                    var region = r.admin1 ? ", " + r.admin1 : ""
-                    var label = r.name + region + (r.country_code ? ", " + r.country_code : "")
-                    if (w.store) w.store.patchSettings(w.instanceId, { "lat": r.latitude, "lon": r.longitude, "place": label })
-                } else {
-                    w.errorText = "City not found"
-                }
-            } catch (e) { w.errorText = "Lookup failed" }
-        }
-        try { xhr.open("GET", url); xhr.send() } catch (e) { w._gxhr = null; geocoding = false }
+        w._gxhr = null
+        var seq = ++w._gseq
+        var xhr = w._hub().request({
+            url: url,
+            timeout: 8000,
+            xhrFactory: w.xhrFactory,
+            onDone: function (status, body) {
+                if (seq !== w._gseq) return
+                w._gxhr = null
+                w.geocoding = false
+                try {
+                    var d = JSON.parse(body)
+                    if (d && d.results && d.results.length) {
+                        var r = d.results[0]
+                        var region = r.admin1 ? ", " + r.admin1 : ""
+                        var label = r.name + region + (r.country_code ? ", " + r.country_code : "")
+                        if (w.store) w.store.patchSettings(w.instanceId, { "lat": r.latitude, "lon": r.longitude, "place": label })
+                    } else {
+                        w.errorText = "City not found"
+                    }
+                } catch (e) { w.errorText = "Lookup failed" }
+            },
+            onError: function (reason) {
+                if (seq !== w._gseq) return
+                w._gxhr = null
+                w.geocoding = false
+                w.errorText = reason === "offline" ? "Offline"
+                    : reason === "blocked" ? "Blocked"
+                    : reason === "timeout" ? "Lookup timed out" : "Lookup failed"
+            }
+        })
+        if (seq === w._gseq) w._gxhr = xhr
     }
 
     // Debounce: lat and lon both "change" as settings load — coalesce to one fetch.

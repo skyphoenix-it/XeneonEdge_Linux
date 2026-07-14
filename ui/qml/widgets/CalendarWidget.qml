@@ -6,6 +6,16 @@ import QtQuick.Layouts
 // all provide one). Fetched + parsed in QML (no extra deps). Handles VEVENT +
 // simple DAILY/WEEKLY recurrence; MONTHLY/YEARLY fall back to a single instance.
 // Genuine empty state prompts for a URL rather than showing fake events.
+//
+// The fetch goes through NetHub, never a raw XHR, so the global offline switch,
+// the host allowlist and the attestation counters cover it. Parsed events stay in
+// widget properties: they are never written to the store, so a poll cannot churn
+// config.toml.
+//
+// NOTE: `url` is a SECRET — an ICS subscription URL is a bearer capability (anyone
+// holding it can read the private calendar), yet it is stored as a plain setting
+// and shown in the expanded field. Migrating it to a credential ref is E7's
+// surface, not this widget's; until then treat it as sensitive when logging.
 WidgetChrome {
     id: w
     property var metrics: ({})
@@ -14,8 +24,13 @@ WidgetChrome {
     property var store: null
     property string instanceId: ""
     property int tick: 0
-    // Test seam: when set, called instead of `new XMLHttpRequest()` so a FakeXHR
-    // can be injected. null in production → real XHR (behaviour unchanged).
+    // The egress gate. Injected by Dashboard (one app-global instance); a local
+    // fallback keeps the widget self-contained in tests / standalone use.
+    property var netHub: null
+    NetHub { id: _fallbackHub }
+    function _hub() { return netHub ? netHub : _fallbackHub }
+    // Test seam: a per-request XHR factory handed to the gate, so a FakeXHR can be
+    // injected. null in production → the gate builds the real XHR.
     property var xhrFactory: null
 
     title: "Calendar"; iconName: "calendar"; accentColor: theme.catServices
@@ -262,32 +277,46 @@ WidgetChrome {
         return all.slice(0, 60)
     }
 
+    // The sequence token — not the XHR object — is the supersede guard: the gate
+    // refuses offline/blocked requests synchronously and returns null, so there is
+    // no XHR to compare a callback against in exactly the cases that must still report.
     property var _xhr: null
+    property int _seq: 0
     Component.onDestruction: { if (_xhr) _xhr.abort() }
     function refresh() {
-        if (!url.length) { events = []; errorText = ""; return }
+        if (!url.length) { events = []; errorText = ""; loading = false; return }
         loading = true
         if (_xhr) _xhr.abort()
-        var xhr = (w.xhrFactory ? w.xhrFactory() : new XMLHttpRequest())
-        _xhr = xhr
-        xhr.timeout = 12000
-        xhr.ontimeout = function () { if (w._xhr === xhr) { w._xhr = null; w.loading = false; w.errorText = "Calendar timed out" } }
-        xhr.onreadystatechange = function () {
-            if (xhr.readyState !== XMLHttpRequest.DONE) return
-            if (w._xhr !== xhr) return   // superseded by a newer fetch
-            w._xhr = null
-            w.loading = false
-            if ([200, 203, 206, 304].indexOf(xhr.status) < 0) { w.errorText = "Couldn't fetch calendar"; return }
-            try {
-                w.events = w.parseICS(xhr.responseText)
-                w.errorText = w.events.length ? "" : "No upcoming events"
-            } catch (e) { w.errorText = "Couldn't read calendar" }
-        }
+        w._xhr = null
         // webcal:// (iCloud/Apple) is just ICS over HTTP(S) — rewrite the scheme
-        // rather than handing XMLHttpRequest a scheme it rejects as invalid.
+        // rather than handing the gate a scheme it would read as a local path
+        // (and which XMLHttpRequest rejects as invalid anyway).
         var reqUrl = /^webcal:/i.test(url) ? url.replace(/^webcal:/i, "https:") : url
-        try { xhr.open("GET", reqUrl); xhr.send() }
-        catch (e) { _xhr = null; loading = false; errorText = "Invalid URL" }
+        var seq = ++w._seq
+        var xhr = w._hub().request({
+            url: reqUrl,
+            timeout: 12000,
+            xhrFactory: w.xhrFactory,
+            onDone: function (status, body) {
+                if (seq !== w._seq) return   // superseded by a newer fetch
+                w._xhr = null
+                w.loading = false
+                try {
+                    w.events = w.parseICS(body)
+                    w.errorText = w.events.length ? "" : "No upcoming events"
+                } catch (e) { w.errorText = "Couldn't read calendar" }
+            },
+            onError: function (reason) {
+                if (seq !== w._seq) return
+                w._xhr = null
+                w.loading = false
+                w.errorText = reason === "offline" ? "Calendar is offline"
+                    : reason === "blocked" ? "Calendar host not allowed"
+                    : reason === "timeout" ? "Calendar timed out"
+                    : reason === "open-failed" ? "Invalid URL" : "Couldn't fetch calendar"
+            }
+        })
+        if (seq === w._seq) w._xhr = xhr
     }
 
     property string _urlKey: url

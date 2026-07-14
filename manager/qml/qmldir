@@ -36,6 +36,7 @@ MediaWidget 1.0 ../../ui/qml/widgets/MediaWidget.qml
 MeshGradientBackground 1.0 ../../ui/qml/widgets/MeshGradientBackground.qml
 MetricGauge 1.0 ../../ui/qml/widgets/MetricGauge.qml
 MoonWidget 1.0 ../../ui/qml/widgets/MoonWidget.qml
+NetHub 1.0 ../../ui/qml/widgets/NetHub.qml
 NetWidget 1.0 ../../ui/qml/widgets/NetWidget.qml
 NotesWidget 1.0 ../../ui/qml/widgets/NotesWidget.qml
 PillButton 1.0 ../../ui/qml/widgets/PillButton.qml

@@ -71,6 +71,71 @@ Item {
             compare(hub.byHost["never.example"], undefined, "unvisited host absent")
         }
 
+        // COVERS: fn:NetHub._hasScheme, fn:NetHub._isRemote
+        // REGRESSION: _isLocal used to be "not http and not https", so EVERY
+        // unknown scheme counted as a local file read and skipped both the offline
+        // kill switch and the allowlist. webcal:// is not hypothetical — it is what
+        // Apple/iCloud hands you for a private calendar, so the kill switch had a
+        // hole exactly where a secret URL goes.
+        function test_unknown_schemes_are_not_local() {
+            compare(hub._isLocal("/run/metrics/x"), true, "a bare path is local")
+            compare(hub._isLocal("relative/path"), true, "a relative path is local")
+            compare(hub._isLocal("file:/run/x"), true, "file: is local")
+            compare(hub._isLocal("qrc:/x"), true, "qrc: is local")
+            compare(hub._isLocal("webcal://p.icloud.com/x.ics"), false, "webcal is NOT a local file")
+            compare(hub._isLocal("ftp://h/x"), false, "ftp is NOT a local file")
+            compare(hub._isLocal("//evil.example/x"), false, "protocol-relative is NOT a local file")
+            compare(hub._isLocal("https://api.example.com"), false)
+            compare(hub._hasScheme("webcal://x"), true)
+            compare(hub._hasScheme("/plain/path"), false)
+            compare(hub._isRemote("https://a/b"), true)
+            compare(hub._isRemote("webcal://a/b"), false, "only http(s) is sendable egress")
+        }
+
+        // The gate must refuse a scheme it cannot reason about rather than guess.
+        function test_unsupported_scheme_is_refused_even_when_online() {
+            hub.offline = false
+            var err = null
+            var xhr = hub.request({ url: "webcal://p.icloud.com/private.ics",
+                                    onError: function (r) { err = r } })
+            compare(xhr, null, "no socket for a scheme the gate can't classify")
+            compare(err, "unsupported-scheme")
+            compare(hub.requests, 0, "not counted as sent")
+            compare(hub.blocked, 1, "counted as refused")
+        }
+
+        // The actual hole: offline ON, a webcal URL still went out because it was
+        // read as a local file.
+        function test_webcal_does_not_bypass_the_offline_kill_switch() {
+            hub.offline = true
+            var err = null
+            var xhr = hub.request({ url: "webcal://p.icloud.com/private.ics",
+                                    onError: function (r) { err = r } })
+            compare(xhr, null, "offline must not be bypassable via an odd scheme")
+            compare(hub.requests, 0, "NOTHING was sent")
+            verify(err === "unsupported-scheme" || err === "offline", "refused, got: " + err)
+        }
+
+        // 203 is what a transforming proxy returns; Calendar accepted it before the
+        // NetHub migration, so the gate must not narrow it away.
+        function test_any_2xx_is_success_not_just_200() {
+            var got = null
+            hub.request({ url: "https://api.example.com/s",
+                          onDone: function (st, b) { got = st },
+                          onError: function (r) { fail("2xx must not error: " + r) } })
+            lastFake.resolveWith(203, "body")
+            compare(got, 203, "203 (proxy-transformed) is a success")
+        }
+
+        function test_3xx_and_4xx_are_still_errors() {
+            var err = null
+            hub.request({ url: "https://api.example.com/s",
+                          onDone: function () { fail("must not succeed") },
+                          onError: function (r) { err = r } })
+            lastFake.resolveWith(304, "")
+            compare(err, "http 304", "304 is not a 2xx — still an error")
+        }
+
         // ── success path ─────────────────────────────────────────────────────
         // COVERS: fn:NetHub.request
         function test_request_success_calls_onDone_and_counts() {
