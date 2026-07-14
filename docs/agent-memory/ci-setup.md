@@ -69,6 +69,13 @@ GOTCHAS (each cost a red CI run the first time CI ever executed — the dev box 
    first (`grep XENEON build/CMakeCache.txt` vs the workflow's configure line) — a
    long-lived local build dir does not represent a fresh clone.
 
+5b. **Run the CI COMMAND, not your own shorthand.** CI runs `cargo clippy --all-targets
+   -- -D warnings`; `cargo clippy --lib` never compiles the test target, so a lint in a
+   `#[cfg(test)]` block (e.g. `unused_unsafe` on a safe `extern "C"` fn) passes locally
+   and fails CI. Same root cause as #5 — local invocation ≠ CI invocation. Before
+   pushing Rust: `cd core && cargo clippy --all-targets -- -D warnings && cargo fmt
+   --check`.
+
 6. **CI only triggers on `[main, master]`, so branch work is UNVERIFIED until it merges.**
    The whole `v1.0-alpha` epic track (Sequence-0/E1/E2) never ran CI once; gotcha #5 rode
    the branch invisibly for 8 commits and went red the instant alpha merged to master. If a

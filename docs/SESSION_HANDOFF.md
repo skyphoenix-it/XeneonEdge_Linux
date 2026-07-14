@@ -75,9 +75,41 @@ epics in sequence; Sequence-0 (licensing/docs/QA-hook guard) already landed.
   - Tests: preset settings keys must be real (universal or in that type's schema — a
     typo like `listmax` would silently ship a no-op tile); data presets must ship
     labelled-but-unconnected. `PresetCatalog.qml` added to the coverage matrix.
-- **NEXT** (alpha, plan §5): **E5** wellness widgets, **E4** a11y foundation, **E6**
-  DST/world clocks, **E7** secrets, **E8** egress UI + Weather/Calendar migration
-  (removes the last raw-XHR grandfathering), **E9** enterprise pack.
+- **SECURITY — config.toml was world-readable — FIXED** (`9f68706`). `save_config()` used
+  `fs::File::create()` → 0666 & ~umask → **0644**, and `ui_state` carries secrets (the E1
+  Bearer token, the calendar's secret ICS URL) — every local account could read them. The
+  temp file is now created 0600 (not chmod'd after, which leaves an exposure window) and
+  the mode re-asserted on the handle (`.mode()` only applies at creation, so a stale
+  `config.tmp` from a SIGKILL would leak 0644 through the rename). Both gates fail against
+  the old code with "was 644". **A running OLD binary re-saves at 0644** — the fix only
+  takes effect once a build containing it is installed.
+- **E7 Phase A — credential refs — DONE** (`98cb081`). A stored token is now a REFERENCE,
+  resolved per-request and never persisted: `${env:VAR}`, `file:/path` (trimmed — a
+  trailing newline silently breaks auth), `secret://` (Phase B, errors today), or a legacy
+  plaintext literal (still honoured + warned once; breaking a configured widget is worse
+  than the exposure they already have).
+  - `core/src/secrets.rs` (classify/resolve/is_plaintext) → FFI `xeneon_secret_resolve`
+    (two allocations: value AND error, both caller-freed) → `ConfigBridge.resolveSecret()`
+    → `{ ok, value, error, plaintext }`. QML **cannot read the environment**, which is why
+    this lives in the core; resolving behind the FFI also means the value exists only
+    inside one `request()` call.
+  - **NetHub owns resolution** (the plan assigns it "secret resolution"). Widgets pass the
+    stored ref via `request({authToken})` and must NEVER build an Authorization header —
+    a resolved secret in a widget property would ride `cfgKey`/settings onto disk.
+    Resolution happens BEFORE any socket opens (an unresolvable secret is refused with
+    `secret: <why>` rather than sent unauthenticated, which reads as a far-end 401), and a
+    ref with no resolver **fails closed** (sending `${env:CI_TOKEN}` verbatim would leak
+    the ref and fail confusingly).
+  - Errors carry the var name/path, **never the value** — an error string is a place a
+    secret must not reach, so that has its own test.
+  - NetHub is now in the behavior matrix (**183 → 190 ids, all covered**): it is the choke
+    point the "no telemetry" claim rests on, so every function must earn a COVERS claim.
+- **NEXT** (alpha, plan §5): **E7 Phase B** (keyring: `core/src/secrets.rs` already has the
+  `secret://` seam + `SecretError::KeyringUnsupported`; needs the `secret-service` dep,
+  feature-gated, and a fallback for an appliance Edge with no D-Bus keyring daemon), then
+  **E8** egress UI + Weather/Calendar migration (removes the last raw-XHR grandfathering),
+  **E6** DST/world clocks, **E4** a11y foundation, **E5** wellness widgets, **E9**
+  enterprise pack.
   - Note for E6: `trading-desk` ships a second clock as a **fixed UTC offset** (New York,
     -5) because that is all the world-clock model supports today — it does not follow US
     daylight-saving. E6 (DST/world clocks) should re-point that tile at a real zone.
@@ -102,7 +134,12 @@ everything: `./scripts/run_all_tests.sh` (→ `RESULT: SUCCESS`); coverage: `./s
 
 - **Build**: `./scripts/build.sh release` — clean (hub + manager).
 - **QML**: `./scripts/run_ui_tests.sh` — ALL UI TESTS PASSED. Behavior matrix
-  `python3 scripts/qml_coverage.py` — **100%** (183/183).
+  `python3 scripts/qml_coverage.py` — **100%** (190/190).
+- **Real hardware**: `python3 tests/hardware/edge_e2e.py` — **212/212 in 22.2 min** on the
+  real Edge (all 24 widget types, every theme/background, synthetic touch, IPC p50 0.02ms,
+  a 1200s soak of 2156 mixed cycles, Manager chrome ×3). The type list is now gated against
+  `WidgetCatalog.qml` (`test_catalog_drift`) — it had silently omitted httpjson/kpi while
+  still reporting ~199 green checks.
 - **Rust**: `cd core && cargo test` — **116 passed**; **97.4%** line (config.rs 98.3%).
 - **C++**: `./scripts/run_cpp_tests.sh` — **15/15 ctest**; ~97% filtered line.
 - **Runtime E2E**: `tests/runtime/run_focus_goal_bonus.sh` — drives the real hub
