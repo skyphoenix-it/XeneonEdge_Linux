@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
+import QtCore
 
 // Xeneon Edge Manager — companion desktop UI. Reuses the hub's DashboardStore
 // (persistence + mutations) and WidgetCatalog (available widgets). Every edit
@@ -17,24 +18,38 @@ ApplicationWindow {
     minimumWidth: Math.min(1120, Screen.desktopAvailableWidth - 40)
     minimumHeight: Math.min(760, Screen.desktopAvailableHeight - 40)
     visible: true
-    title: "Xeneon Edge Manager"
+    title: "EdgeHub Manager"
     color: m.bg
 
-    // --- Local design tokens (kept consistent with the hub) ---
+    // Manager chrome theme — this app's OWN look, separate from the Edge dashboard
+    // theme it edits. Persisted locally (QSettings). Dark / Light / Default, where
+    // Default is the warm SKYPhoenix palette (corporate orange/red) that suits the
+    // colour logo. The dashboard preview keeps using `theme`, not `m`.
+    Settings { id: appSettings; category: "ManagerChrome"; property string chromeTheme: "dark" }
+
+    // --- Local design tokens (the Manager's own chrome; three switchable themes) ---
     QtObject {
         id: m
-        readonly property color bg: "#0D1117"
-        readonly property color panel: "#161B22"
-        readonly property color panelAlt: "#1C222B"
-        readonly property color border: "#30363D"
-        readonly property color textPrimary: "#E6EDF3"
-        readonly property color textSecondary: "#8B949E"
-        // Chrome stays dark, but the ACCENT follows the user's chosen Edge accent
-        // so selection highlights match what they picked (falls back to blue).
-        readonly property color accent: theme.accent
-        readonly property color textOnAccent: "#0D1117"    // legible text on the accent
-        readonly property color success: "#3FB950"
-        readonly property color danger: "#F85149"
+        readonly property var _pal: ({
+            "dark":    { bg: "#0D1117", panel: "#161B22", panelAlt: "#1C222B", border: "#30363D",
+                         textPrimary: "#E6EDF3", textSecondary: "#8B949E", success: "#3FB950", danger: "#F85149" },
+            "light":   { bg: "#F6F8FA", panel: "#FFFFFF", panelAlt: "#EFF2F5", border: "#D0D7DE",
+                         textPrimary: "#1F2328", textSecondary: "#59636E", success: "#1A7F37", danger: "#CF222E" },
+            "default": { bg: "#FAF4EC", panel: "#FFFDFA", panelAlt: "#F3E9DC", border: "#E6D5C3",
+                         textPrimary: "#2A1D16", textSecondary: "#8A7361", success: "#2E7D32", danger: "#B92D26" }
+        })
+        readonly property var _p: _pal[appSettings.chromeTheme] || _pal["dark"]
+        readonly property color bg: _p.bg
+        readonly property color panel: _p.panel
+        readonly property color panelAlt: _p.panelAlt
+        readonly property color border: _p.border
+        readonly property color textPrimary: _p.textPrimary
+        readonly property color textSecondary: _p.textSecondary
+        // Default uses the corporate orange; Dark/Light follow the chosen Edge accent.
+        readonly property color accent: appSettings.chromeTheme === "default" ? "#ED6D1F" : theme.accent
+        readonly property color textOnAccent: appSettings.chromeTheme === "default" ? "#241407" : "#0D1117"
+        readonly property color success: _p.success
+        readonly property color danger: _p.danger
         readonly property int radius: 12
         readonly property int touch: 44
         readonly property var accentPresets: [
@@ -210,13 +225,9 @@ ApplicationWindow {
                     Layout.bottomMargin: 4
                     fillMode: Image.PreserveAspectFit; horizontalAlignment: Image.AlignLeft
                     smooth: true; asynchronous: true; mipmap: true
-                    source: {
-                        var c = m.panel
-                        var lum = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b
-                        return lum > 0.6 ? "qrc:/manager/branding/sky-black.png"
-                             : lum < 0.3 ? "qrc:/manager/branding/sky-white.png"
-                             : "qrc:/manager/branding/sky-color.png"
-                    }
+                    source: appSettings.chromeTheme === "light" ? "qrc:/manager/branding/sky-black.png"
+                          : appSettings.chromeTheme === "default" ? "qrc:/manager/branding/sky-color.png"
+                          : "qrc:/manager/branding/sky-white.png"
                 }
                 Text { text: "EdgeHub"; color: m.textPrimary; font.pixelSize: 20; font.bold: true }
                 Text { text: "Manager"; color: m.accent; font.pixelSize: 14 }
@@ -254,6 +265,39 @@ ApplicationWindow {
                 }
 
                 Item { Layout.fillHeight: true }
+
+                // Manager chrome theme switch (Dark / Light / Default).
+                ColumnLayout {
+                    Layout.fillWidth: true; Layout.bottomMargin: 6; spacing: 6
+                    Text {
+                        text: "MANAGER THEME"; color: m.textSecondary
+                        font.pixelSize: 10; font.family: theme.fontMono
+                        opacity: 0.85; Layout.leftMargin: 2
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true; spacing: 6
+                        Repeater {
+                            model: [ { k: "dark", l: "Dark" }, { k: "light", l: "Light" }, { k: "default", l: "Default" } ]
+                            delegate: Rectangle {
+                                required property var modelData
+                                Layout.fillWidth: true; implicitHeight: 30; radius: 8
+                                property bool sel: appSettings.chromeTheme === modelData.k
+                                color: sel ? m.accent : m.panelAlt
+                                border.width: 1; border.color: sel ? m.accent : m.border
+                                Text {
+                                    anchors.centerIn: parent; text: modelData.l
+                                    color: sel ? m.textOnAccent : m.textSecondary
+                                    font.pixelSize: 12; font.bold: sel
+                                }
+                                MouseArea {
+                                    anchors.fill: parent; hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: appSettings.chromeTheme = modelData.k
+                                }
+                            }
+                        }
+                    }
+                }
 
                 // Hub connection status + Start/Stop control.
                 ColumnLayout {
