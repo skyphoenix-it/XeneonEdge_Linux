@@ -126,6 +126,23 @@ vs "buy a license key"). The website's checkout is written for the open-core fra
 
 ---
 
-_Assets to produce next: a 20s demo capture (use the `XENEON_GRAB` hook / real
-device), 4–6 hero screenshots (dashboard + Manager + theme gallery), and a 1024²
-app icon already in `assets/`._
+## Assets
+
+**Real device screenshots** (captured on the live Edge via the `XENEON_GRAB` hook,
+720×2532, on-brand "midnight" theme):
+- `docs/marketing-site/assets/edge-dashboard-orbs.png` — **primary hero**; soft
+  "orbs" backdrop, compact widgets (clock, CPU/GPU/RAM gauges with live data,
+  focus, weather, moon).
+- `docs/marketing-site/assets/edge-dashboard-aurora.png` — alternate; "aurora"
+  backdrop, taller focus tile.
+
+Reproduce / vary (theme, background, widgets) with
+`tests/../tmp` helper `marketing_seed.py` + the grab command in
+[[runtime-e2e-testing]] style:
+`env -u WAYLAND_DISPLAY XDG_CONFIG_HOME=… XDG_RUNTIME_DIR=… DISPLAY=:0
+QT_QPA_PLATFORM=xcb XENEON_GRAB=out.png XENEON_GRAB_W=720 XENEON_GRAB_H=2560
+build/xeneon-edge-hub --windowed` (needs the real X/XWayland display — offscreen
+returns a null pixmap).
+
+_Still to produce: a 20s demo screen-capture, a Manager (companion app) shot, and a
+theme-gallery montage. The 1024² app icon already lives in `assets/`._
