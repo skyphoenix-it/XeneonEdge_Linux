@@ -7,6 +7,21 @@ import QtQuick
 // the expanded overlay, and the edit-mode "add widget" picker. `source` is the
 // qrc path to the widget's QML file (all widgets live under qrc:/qml/ via
 // qml.qrc aliases). `defaults` seeds a fresh instance's persisted settings.
+//
+// SIZES — `sizes` lists the sizes (names from WidgetSizes) a widget can honestly
+// render, and `dflt` is what a fresh instance gets. Every entry declares the `1x1`
+// baseline: a widget that cannot do the default size is a bug. The list is a
+// CAPABILITY claim, not a menu of everything that would technically lay out, and it
+// is judged against two hard facts:
+//   • The screen ROTATES. A size is (short × long), so declaring one means the
+//     widget works in BOTH of its shapes — `0.5x1` is a ~348x853 column in portrait
+//     and a ~853x306 banner in landscape.
+//   • Bigger is not better. `1x3` is the WHOLE screen (~770x2560): only content that
+//     actually grows into it earns it. Almost nothing here does — a lone ring or a
+//     glyph at full screen is a stretched card, not a feature. Likewise `0.5x0.5`
+//     (1/12, ~348x409 portrait / ~423x306 landscape) is where the 36px chrome header
+//     and any fixed control row stop fitting.
+// Comments below explain the non-obvious ABSENCES only.
 // ─────────────────────────────────────────────────────────────────────────
 QtObject {
     id: catalog
@@ -14,42 +29,95 @@ QtObject {
     // `category` groups the picker; icons are SVGs resolved by `type` via AppIcon.
     property var items: [
         // System / hardware (real metrics from the Rust core)
-        { type: "cpu",     title: "CPU",      category: "System", source: "qrc:/qml/CpuWidget.qml",     defaults: {} },
-        { type: "gpu",     title: "GPU",      category: "System", source: "qrc:/qml/GpuWidget.qml",     defaults: {} },
-        { type: "ram",     title: "Memory",   category: "System", source: "qrc:/qml/RamWidget.qml",     defaults: {} },
-        { type: "net",     title: "Network",  category: "System", source: "qrc:/qml/NetWidget.qml",     defaults: {} },
-        { type: "disk",    title: "Disk",     category: "System", source: "qrc:/qml/DiskWidget.qml",    defaults: {} },
-        { type: "sensors", title: "Sensors",  category: "System", source: "qrc:/qml/SensorsWidget.qml", defaults: {} },
+        // The gauge tiles are a ring + a 48-sample sparkline: real content up to half
+        // the screen, nothing that fills two thirds of it.
+        { type: "cpu",     title: "CPU",      category: "System", source: "qrc:/qml/CpuWidget.qml",     defaults: {},
+          sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1", "1x1.5"], dflt: "1x1" },
+        { type: "gpu",     title: "GPU",      category: "System", source: "qrc:/qml/GpuWidget.qml",     defaults: {},
+          sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1", "1x1.5"], dflt: "1x1" },
+        { type: "ram",     title: "Memory",   category: "System", source: "qrc:/qml/RamWidget.qml",     defaults: {},
+          sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1", "1x1.5"], dflt: "1x1" },
+        { type: "net",     title: "Network",  category: "System", source: "qrc:/qml/NetWidget.qml",     defaults: {},
+          sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1", "1x1.5"], dflt: "1x1" },
+        // Disk deliberately draws NO sparkline ("usage barely changes"), so it is a
+        // lone static ring — it has strictly less to show than the tiles above and
+        // earns nothing past the baseline.
+        { type: "disk",    title: "Disk",     category: "System", source: "qrc:/qml/DiskWidget.qml",    defaults: {},
+          sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1"], dflt: "1x1" },
+        // At most 6 rows (CPU/GPU/RAM/DISK + 2 temps) — they share the height, so it
+        // survives a 1/12 tile but runs out of rows past half the screen.
+        { type: "sensors", title: "Sensors",  category: "System", source: "qrc:/qml/SensorsWidget.qml", defaults: {},
+          sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1", "1x1.5"], dflt: "1x1" },
 
         // Time / ambient
-        { type: "clock",   title: "Clock",       category: "Time", source: "qrc:/qml/ClockWidget.qml",   defaults: {} },
-        { type: "analog",  title: "Analog Clock",category: "Time", source: "qrc:/qml/AnalogClockWidget.qml", defaults: {} },
-        { type: "moon",    title: "Moon Phase",  category: "Time", source: "qrc:/qml/MoonWidget.qml",    defaults: {} },
+        { type: "clock",   title: "Clock",       category: "Time", source: "qrc:/qml/ClockWidget.qml",   defaults: {},
+          sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1", "1x1.5"], dflt: "1x1" },
+        { type: "analog",  title: "Analog Clock",category: "Time", source: "qrc:/qml/AnalogClockWidget.qml", defaults: {},
+          sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1", "1x1.5"], dflt: "1x1" },
+        // A glyph + the phase name; illumination/next-new/next-full are expanded-only,
+        // so a larger tile would just scale the emoji.
+        { type: "moon",    title: "Moon Phase",  category: "Time", source: "qrc:/qml/MoonWidget.qml",    defaults: {},
+          sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1"], dflt: "1x1" },
 
         // Focus / productivity (persisted user data)
-        { type: "focus",    title: "Focus Timer", category: "Focus", source: "qrc:/qml/FocusWidget.qml",    defaults: { preset: "classic", phase: "work", running: false, endEpoch: 0, pausedRemaining: 1500, doneToday: 0, day: "" } },
-        { type: "tasks",    title: "Tasks",       category: "Focus", source: "qrc:/qml/TasksWidget.qml",    defaults: { items: [] } },
-        { type: "rightnow", title: "Right Now",   category: "Focus", source: "qrc:/qml/RightNowWidget.qml", defaults: { text: "" } },
-        { type: "notes",    title: "Quick Note",  category: "Focus", source: "qrc:/qml/NotesWidget.qml",    defaults: { text: "" } },
-        { type: "habit",    title: "Habit Streak",category: "Focus", source: "qrc:/qml/HabitWidget.qml",     defaults: { checkins: [] } },
-        { type: "hydration",title: "Hydration",   category: "Focus", source: "qrc:/qml/HydrationWidget.qml", defaults: { goal: 8, count: 0, day: "" } },
-        { type: "break",    title: "Break Reminder", category: "Focus", source: "qrc:/qml/BreakWidget.qml",  defaults: { intervalMin: 30 } },
+        // The ring is min(w,h)-scaled with the Start/Skip row anchored over its
+        // bottom, so it needs a roughly SQUARE box; every half size is a wide-short
+        // or narrow-tall shape in one orientation, which collides the two.
+        { type: "focus",    title: "Focus Timer", category: "Focus", source: "qrc:/qml/FocusWidget.qml",    defaults: { preset: "classic", phase: "work", running: false, endEpoch: 0, pausedRemaining: 1500, doneToday: 0, day: "" },
+          sizes: ["1x1", "1x1.5"], dflt: "1x1" },
+        // Unbounded list → genuinely fills any height. Not 1/12: the 40px add-field +
+        // ＋ button would leave ~2 visible rows.
+        { type: "tasks",    title: "Tasks",       category: "Focus", source: "qrc:/qml/TasksWidget.qml",    defaults: { items: [] },
+          sizes: ["0.5x1", "1x0.5", "1x1", "1x1.5", "1x2", "1x3"], dflt: "1x1" },
+        // One focus, capped at 3 lines.
+        { type: "rightnow", title: "Right Now",   category: "Focus", source: "qrc:/qml/RightNowWidget.qml", defaults: { text: "" },
+          sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1", "1x1.5"], dflt: "1x1" },
+        { type: "notes",    title: "Quick Note",  category: "Focus", source: "qrc:/qml/NotesWidget.qml",    defaults: { text: "" },
+          sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1", "1x1.5", "1x2", "1x3"], dflt: "1x1" },
+        // The heatmap is expanded-only and the stored history is pruned to 28 days —
+        // a tile shows a streak number + one button, whatever room it is given.
+        { type: "habit",    title: "Habit Streak",category: "Focus", source: "qrc:/qml/HabitWidget.qml",     defaults: { checkins: [] },
+          sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1"], dflt: "1x1" },
+        // Today's glasses only — no history is kept, so there is nothing to grow into.
+        { type: "hydration",title: "Hydration",   category: "Focus", source: "qrc:/qml/HydrationWidget.qml", defaults: { goal: 8, count: 0, day: "" },
+          sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1"], dflt: "1x1" },
+        // A countdown + two buttons.
+        { type: "break",    title: "Break Reminder", category: "Focus", source: "qrc:/qml/BreakWidget.qml",  defaults: { intervalMin: 30 },
+          sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1"], dflt: "1x1" },
 
         // Media
-        { type: "media",    title: "Now Playing", category: "Media", source: "qrc:/qml/MediaWidget.qml", defaults: {} },
+        // Art + title/artist + transport; the compact row keeps a 52px play target.
+        { type: "media",    title: "Now Playing", category: "Media", source: "qrc:/qml/MediaWidget.qml", defaults: {},
+          sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1", "1x1.5"], dflt: "1x1" },
 
         // Data (generic, connect-anything primitives — devs, homelab, enterprise)
+        // Value/gauge/list. Its largest mode is hard-capped at 12 list rows, which
+        // stops short of filling the whole screen.
         { type: "httpjson", title: "HTTP / JSON", category: "Data", source: "qrc:/qml/HttpJsonWidget.qml",
-          defaults: { url: "", jsonPath: "", pollSec: 60, mode: "value", unit: "", gaugeMax: 100, listMax: 5, authToken: "", warnAt: "", critAt: "" } },
+          defaults: { url: "", jsonPath: "", pollSec: 60, mode: "value", unit: "", gaugeMax: 100, listMax: 5, authToken: "", warnAt: "", critAt: "" },
+          sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1", "1x1.5", "1x2"], dflt: "1x1" },
+        // The one widget whose POINT is a single number read across a room, so the
+        // full screen is the intent rather than a stretch.
         { type: "kpi",      title: "KPI",         category: "Data", source: "qrc:/qml/KpiWidget.qml",
-          defaults: { source: "http", url: "", filePath: "", jsonPath: "", label: "", unit: "", pollSec: 60, authToken: "", invert: false, warnAt: "", critAt: "" } },
+          defaults: { source: "http", url: "", filePath: "", jsonPath: "", label: "", unit: "", pollSec: 60, authToken: "", invert: false, warnAt: "", critAt: "" },
+          sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1", "1x1.5", "1x2", "1x3"], dflt: "1x1" },
 
         // Info
-        { type: "calendar", title: "Calendar",    category: "Info", source: "qrc:/qml/CalendarWidget.qml",  defaults: { url: "" } },
-        { type: "weather",  title: "Weather",     category: "Info", source: "qrc:/qml/WeatherWidget.qml",  defaults: { lat: 52.52, lon: 13.405, place: "Berlin" } },
-        { type: "countdown",title: "Countdown",   category: "Info", source: "qrc:/qml/CountdownWidget.qml", defaults: { label: "", date: "", repeatYearly: false } },
-        { type: "eod",      title: "End of Day",  category: "Info", source: "qrc:/qml/EndOfDayWidget.qml",  defaults: { startHour: 9, endHour: 17, progressStyle: "bar" } },
-        { type: "quote",    title: "Daily Quote", category: "Info", source: "qrc:/qml/QuoteWidget.qml",    defaults: { category: "focus", customText: "" } }
+        // An agenda grows with height, but maxEvents caps at 12 — enough for two
+        // thirds, not the whole screen. Not 1/12: "Up next" + the event rows.
+        { type: "calendar", title: "Calendar",    category: "Info", source: "qrc:/qml/CalendarWidget.qml",  defaults: { url: "" },
+          sizes: ["0.5x1", "1x0.5", "1x1", "1x1.5", "1x2"], dflt: "1x1" },
+        // The forecast request asks for `current` + `daily` only (never `hourly`) and
+        // forecastDays caps at 7, so the content is a reading plus a few day columns.
+        { type: "weather",  title: "Weather",     category: "Info", source: "qrc:/qml/WeatherWidget.qml",  defaults: { lat: 52.52, lon: 13.405, place: "Berlin" },
+          sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1", "1x1.5"], dflt: "1x1" },
+        { type: "countdown",title: "Countdown",   category: "Info", source: "qrc:/qml/CountdownWidget.qml", defaults: { label: "", date: "", repeatYearly: false },
+          sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1", "1x1.5"], dflt: "1x1" },
+        { type: "eod",      title: "End of Day",  category: "Info", source: "qrc:/qml/EndOfDayWidget.qml",  defaults: { startHour: 9, endHour: 17, progressStyle: "bar" },
+          sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1", "1x1.5"], dflt: "1x1" },
+        // One quote, capped at 4 lines collapsed.
+        { type: "quote",    title: "Daily Quote", category: "Info", source: "qrc:/qml/QuoteWidget.qml",    defaults: { category: "focus", customText: "" },
+          sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1", "1x1.5"], dflt: "1x1" }
     ]
 
     // One-line descriptions shown in the expanded (full-screen) view header.
@@ -91,6 +159,26 @@ QtObject {
     // Deep clone so callers can freely mutate the seed without aliasing the
     // catalog's live object (or every future instance seeded from it).
     function defaults(type) { var d = def(type); return d ? JSON.parse(JSON.stringify(d.defaults)) : ({}) }
+
+    // ── Sizes ────────────────────────────────────────────────────────────────
+    // All three route through def(), which SCANS `items` rather than indexing an
+    // object: layouts arrive from config.toml and the Manager socket, so a type of
+    // "constructor"/"__proto__" must resolve to "unknown", never to something
+    // inherited from Object.prototype.
+
+    // The sizes this type can render, smallest → largest. [] for an unknown type —
+    // callers must treat that as "no such widget", not as "any size is fine".
+    // Copied so a caller cannot mutate the catalog's live list (cf. defaults()).
+    function sizesFor(type) { var d = def(type); return (d && d.sizes) ? d.sizes.slice() : [] }
+
+    function supports(type, size) { return sizesFor(type).indexOf(size) >= 0 }
+
+    // What a fresh instance gets. Falls back to the baseline for an unknown type so
+    // a bad type still lands on a placeable tile rather than a sizeless one. The
+    // literal keeps this registry free of any dependency on WidgetSizes (it is a
+    // plain data table, reused as-is by the Manager); tst_widget_catalog asserts it
+    // equals WidgetSizes.baseline, so the two cannot drift apart unnoticed.
+    function defaultSize(type) { var d = def(type); return (d && d.dflt) ? d.dflt : "1x1" }
 
     // Distinct category names, in declaration order.
     function categories() {

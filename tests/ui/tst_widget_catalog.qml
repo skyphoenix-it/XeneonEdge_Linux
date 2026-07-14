@@ -12,6 +12,9 @@ Item {
     id: root
     width: 300; height: 300
     App.WidgetCatalog { id: catalog }
+    // The size vocabulary, so legality is checked against its definition rather than
+    // a list copied into this file (which would agree with itself forever).
+    App.WidgetSizes { id: sz }
 
     // Context globals so a widget under test loads cleanly (like WidgetHarness),
     // letting us distinguish a present file (Loader.Ready) from a missing one
@@ -104,6 +107,87 @@ Item {
             }
             compare(total, catalog.items.length, "every item belongs to exactly one category bucket")
             compare(catalog.inCategory("NoSuchCategory").length, 0, "an unknown category yields nothing")
+        }
+
+        // ── Sizes ────────────────────────────────────────────────────────────
+        // Every entry declares a non-empty, LEGAL size list containing its default.
+        // Legality is asked of WidgetSizes, so inventing a size here (or dropping one
+        // there) fails rather than silently producing an unplaceable tile.
+        function test_every_entry_declares_legal_sizes() {
+            for (var i = 0; i < catalog.items.length; i++) {
+                var it = catalog.items[i]
+                verify(it.sizes && it.sizes.length > 0, it.type + " declares at least one size")
+                for (var j = 0; j < it.sizes.length; j++)
+                    verify(sz.isLegal(it.sizes[j]),
+                           it.type + " declares a legal size: " + it.sizes[j])
+                verify(it.dflt && it.dflt.length > 0, it.type + " has a default size")
+                verify(sz.isLegal(it.dflt), it.type + " default is a legal size: " + it.dflt)
+                verify(it.sizes.indexOf(it.dflt) >= 0,
+                       it.type + " default " + it.dflt + " is among its own sizes")
+            }
+        }
+
+        // The baseline is the contract: a widget that cannot render the size a fresh
+        // instance is placed at is a bug, so it must be declared by EVERY entry.
+        function test_every_entry_supports_the_baseline() {
+            for (var i = 0; i < catalog.items.length; i++) {
+                var it = catalog.items[i]
+                verify(it.sizes.indexOf(sz.baseline) >= 0,
+                       it.type + " declares the " + sz.baseline + " baseline")
+                compare(catalog.supports(it.type, sz.baseline), true,
+                        it.type + " supports() the baseline")
+            }
+        }
+
+        // No entry declares a size it has no content for. 1x3 is the WHOLE screen —
+        // it is the size a stretched card hides in, so the few that claim it are
+        // pinned here by name and a new claim has to be argued for in review.
+        function test_full_screen_is_rare_and_deliberate() {
+            var full = []
+            for (var i = 0; i < catalog.items.length; i++)
+                if (catalog.items[i].sizes.indexOf("1x3") >= 0) full.push(catalog.items[i].type)
+            full.sort()
+            compare(full.join(","), "kpi,notes,tasks",
+                    "only genuinely unbounded/billboard content declares the full screen")
+        }
+
+        // sizesFor / supports / defaultSize on a real type.
+        function test_size_helpers_resolve() {
+            verify(catalog.sizesFor("cpu").length > 0, "sizesFor returns cpu's sizes")
+            compare(catalog.supports("cpu", "1x1"), true)
+            compare(catalog.supports("cpu", "1x3"), false, "a lone ring does not fill the screen")
+            compare(catalog.defaultSize("cpu"), "1x1")
+        }
+
+        // sizesFor() copies, so a caller cannot mutate the catalog's live list.
+        function test_sizesFor_does_not_alias_the_catalog() {
+            var a = catalog.sizesFor("cpu")
+            var n = a.length
+            a.push("MUTATED")
+            compare(catalog.sizesFor("cpu").length, n,
+                    "mutating a returned size list does not poison the catalog")
+        }
+
+        // An unknown type must be answerable, not throw — and must not report that it
+        // supports anything.
+        function test_size_helpers_handle_an_unknown_type() {
+            compare(catalog.sizesFor("nonexistent").length, 0, "unknown type has no sizes")
+            compare(catalog.supports("nonexistent", "1x1"), false,
+                    "unknown type supports nothing — not even the baseline")
+            compare(catalog.defaultSize("nonexistent"), sz.baseline,
+                    "unknown type falls back to the WidgetSizes baseline")
+        }
+
+        // The catalog is fed user/file data (config.toml, the Manager socket), so a
+        // type of "constructor" must resolve via `items`, NOT via Object.prototype.
+        function test_size_helpers_are_prototype_safe() {
+            var keys = ["constructor", "__proto__", "toString", "hasOwnProperty", "valueOf"]
+            for (var i = 0; i < keys.length; i++) {
+                compare(catalog.sizesFor(keys[i]).length, 0, keys[i] + " is not a widget type")
+                compare(catalog.supports(keys[i], "1x1"), false, keys[i] + " supports nothing")
+                compare(catalog.defaultSize(keys[i]), sz.baseline, keys[i] + " gets the baseline")
+                compare(catalog.def(keys[i]), null, keys[i] + " has no catalog entry")
+            }
         }
 
         // ── Every source resolves to a real widget file ──────────────────────

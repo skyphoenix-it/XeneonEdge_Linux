@@ -114,6 +114,38 @@ Item {
             }
         }
 
+        // COVERS: fn:WidgetSizes.semiUnits
+        // Packing must happen in THIS space. Packing in physical coordinates makes a
+        // rotation re-pack into a different layout (measured: 99.2% of 5-tile pages
+        // scramble); in semantic space orientation is not an input, so there is one
+        // packing and rotation is a pure projection.
+        function test_semiUnits_is_orientation_free() {
+            var u = sz.semiUnits("0.5x1")
+            compare(u.s, 1, "half the short axis")
+            compare(u.l, 2, "a third of the long axis")
+            // The defining property: no orientation argument exists, so the same size
+            // cannot yield two different packings.
+            compare(JSON.stringify(sz.semiUnits("1x1")), JSON.stringify({ s: 2, l: 2 }))
+            compare(JSON.stringify(sz.semiUnits("1x3")), JSON.stringify({ s: 2, l: 6 }))
+            compare(sz.semiUnits("2x2"), null, "an unknown size has no units")
+        }
+
+        // halfUnits is semiUnits PROJECTED — the projection is the only place
+        // orientation may enter.
+        function test_halfUnits_is_semiUnits_projected() {
+            var names = sz.all()
+            for (var i = 0; i < names.length; i++) {
+                var u = sz.semiUnits(names[i])
+                var p = sz.halfUnits(names[i], false)
+                var l = sz.halfUnits(names[i], true)
+                compare(p.w, u.s, names[i] + ": portrait width is the SHORT axis")
+                compare(p.h, u.l, names[i] + ": portrait height is the LONG axis")
+                compare(l.w, u.l, names[i] + ": landscape width is the LONG axis")
+                compare(l.h, u.s, names[i] + ": landscape height is the SHORT axis")
+                compare(p.w * p.h, l.w * l.h, names[i] + ": rotation conserves area")
+            }
+        }
+
         function test_unknown_size_yields_null_not_a_default() {
             // Must NOT silently become 1x1: a bad value has to be visible.
             compare(sz.halfUnits("2x2", false), null)
