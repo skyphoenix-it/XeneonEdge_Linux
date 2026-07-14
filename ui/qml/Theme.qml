@@ -14,6 +14,38 @@ QtObject {
     property bool reduceMotion: false
     property string accentName: "blue"
 
+    // ── Reduce motion: OS signal vs. explicit choice ─────────────────────────
+    // `reduceMotion` above is the PERSISTED config flag. Two more inputs decide
+    // what actually renders; `effectiveReduceMotion` is what the motion tokens
+    // consume. Kept separate (rather than folded into `reduceMotion`) because
+    // main.qml aliases `reduceMotion` onto the persisted value — collapsing them
+    // would let an OS signal write itself back into the user's config.
+    //
+    // Qt cannot report the OS setting: there is NO reduce-motion style hint in
+    // Qt 6 — verified on 6.11 (`Qt.styleHints.useReducedMotion === undefined`;
+    // the only a11y hint is `accessibility.contrastPreference`, itself 6.10+),
+    // and 6.7 (CI) exposes strictly fewer hints. So the platform read (GNOME
+    // `enable-animations`, XDG desktop-portal) must be injected here by the host
+    // app. Default false = "no OS signal", which is also the safe CI value.
+    property bool systemReduceMotion: false
+
+    // "auto" (default) | "on" | "off" — an EXPLICIT choice, and it beats the OS.
+    // Precedence: explicit > OS > legacy flag.
+    //   "auto" → no explicit choice yet, so the OS signal (or the persisted
+    //            `reduceMotion` flag) may turn motion off.
+    //   "off"  → motion stays ON even when the OS asks to reduce it.
+    // "off" deliberately overrides the OS because this hub is a dedicated
+    // appliance, not a desktop window: a user who re-enabled motion *on this
+    // device* must not have that silently undone by an unrelated global desktop
+    // a11y setting. Mirrors the web, where prefers-reduced-motion is a default
+    // an app-level setting is allowed to override.
+    property string reduceMotionPreference: "auto"
+
+    readonly property bool effectiveReduceMotion:
+        reduceMotionPreference === "on" ? true
+      : reduceMotionPreference === "off" ? false
+      : (reduceMotion || systemReduceMotion)
+
     property color backgroundColor: "#0D1117"
     property color backgroundColor2: "#0A0E14"
     property color backgroundColor3: "#0A0E14"
@@ -43,7 +75,24 @@ QtObject {
         "red":     { a: "#F85149", b: "#FF7B72" }, "gold":    { a: "#E3B341", b: "#F2CC60" },
         "cyan":    { a: "#22D3EE", b: "#67E8F9" }, "indigo":  { a: "#818CF8", b: "#A5B4FC" },
         "mint":    { a: "#34D399", b: "#6EE7B7" }, "coral":   { a: "#FB7185", b: "#FDA4AF" },
-        "amber":   { a: "#FBBF24", b: "#FCD34D" }, "magenta": { a: "#E879F9", b: "#F0ABFC" }
+        "amber":   { a: "#FBBF24", b: "#FCD34D" }, "magenta": { a: "#E879F9", b: "#F0ABFC" },
+
+        // Okabe–Ito: the published Color Universal Design palette, chosen to stay
+        // mutually distinguishable under protanopia/deuteranopia/tritanopia.
+        // Okabe & Ito (2008), "Color Universal Design (CUD)" — https://jfly.uni-koeln.de/color/
+        // The `a` tones are the canonical hexes and must NOT be hand-tuned: the
+        // set's guarantee is a property of the 8 colours *together*. `b` is a 35%
+        // tint toward white, matching the lighter-second-tone rule above.
+        // Namespaced `oi_*` so they ADD to the table — the 14 names above are
+        // referenced by name in saved configs and must keep resolving unchanged.
+        "oi_black":          { a: "#000000", b: "#595959" },
+        "oi_orange":         { a: "#E69F00", b: "#EFC159" },
+        "oi_sky_blue":       { a: "#56B4E9", b: "#91CEF1" },
+        "oi_bluish_green":   { a: "#009E73", b: "#59C0A4" },
+        "oi_yellow":         { a: "#F0E442", b: "#F5ED84" },
+        "oi_blue":           { a: "#0072B2", b: "#59A3CD" },
+        "oi_vermillion":     { a: "#D55E00", b: "#E49659" },
+        "oi_reddish_purple": { a: "#CC79A7", b: "#DEA8C6" }
     })
 
     property int spacingXs: 4
@@ -67,11 +116,20 @@ QtObject {
     property int iconMd: 28
     property int iconSm: 22
 
-    property int fontData: 40
-    property int fontDataLarge: 48
-    property int fontTitle: 17
-    property int fontLabel: 15
-    property int fontCaption: 13
+    // Global text-size multiplier. Every font token below is derived from it, so
+    // call sites keep reading `theme.fontLabel` and scale for free.
+    // Clamped, not free-form: under 0.8 the captions stop being legible at the
+    // Edge's viewing distance, and over 1.6 the 40–48px data readouts overflow
+    // the narrow panel's tiles. An out-of-range value is a bug, not a taste —
+    // clamp rather than let it break the layout.
+    property real textScale: 1.0
+    readonly property real textScaleEff: Math.max(0.8, Math.min(1.6, textScale))
+
+    property int fontData: Math.round(40 * textScaleEff)
+    property int fontDataLarge: Math.round(48 * textScaleEff)
+    property int fontTitle: Math.round(17 * textScaleEff)
+    property int fontLabel: Math.round(15 * textScaleEff)
+    property int fontCaption: Math.round(13 * textScaleEff)
     property string fontMono: "JetBrains Mono, Fira Code, monospace"
     property string fontDisplay: "Inter, Segoe UI, Roboto, sans-serif"
 
@@ -88,12 +146,12 @@ QtObject {
                        0.22 + (1.0 - glassOpacity) * 0.62)
     }
 
-    property int motionPage: reduceMotion ? 0 : 250
-    property int motionAdd: reduceMotion ? 0 : 200
-    property int motionRemove: reduceMotion ? 0 : 150
-    property int motionEdit: reduceMotion ? 0 : 200
-    property int motionFast: reduceMotion ? 0 : 150
-    property int motionSlow: reduceMotion ? 0 : 500
+    property int motionPage: effectiveReduceMotion ? 0 : 250
+    property int motionAdd: effectiveReduceMotion ? 0 : 200
+    property int motionRemove: effectiveReduceMotion ? 0 : 150
+    property int motionEdit: effectiveReduceMotion ? 0 : 200
+    property int motionFast: effectiveReduceMotion ? 0 : 150
+    property int motionSlow: effectiveReduceMotion ? 0 : 500
 
     function applyAccent(name) {
         var p = accentPresets[name] || accentPresets["blue"]

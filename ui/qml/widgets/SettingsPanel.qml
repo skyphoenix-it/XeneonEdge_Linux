@@ -30,6 +30,35 @@ Rectangle {
     // scrim click closes
     MouseArea { anchors.fill: parent; onClicked: panel.closeRequested() }
 
+    // One swatch shape for both accent groups (house palette + Okabe–Ito).
+    Component {
+        id: accentSwatch
+        Rectangle {
+            required property var modelData
+            width: 52; height: 52; radius: 26
+            property bool active: root.accentName === modelData
+            color: theme.accentPresets[modelData].a
+            // Okabe–Ito includes pure black, which would otherwise disappear
+            // against the dark sheet — every swatch keeps a hairline so the
+            // unselected ones stay findable whatever their tone.
+            border.width: active ? 3 : 1
+            border.color: active ? theme.textPrimary : theme.cardBorder
+            scale: active ? 1.08 : 1.0
+            Behavior on scale { NumberAnimation { duration: theme.motionFast } }
+            // The check sits ON the swatch, so it must contrast with the swatch,
+            // not with the sheet: the palette spans near-black (oi_black) to
+            // near-white (oi_yellow). Rec. 601 luma picks the readable ink.
+            AppIcon {
+                anchors.centerIn: parent; visible: parent.active
+                name: "ui-check"; size: 22
+                color: (0.299 * parent.color.r + 0.587 * parent.color.g
+                        + 0.114 * parent.color.b) > 0.55 ? "#000000" : "#FFFFFF"
+            }
+            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                onClicked: theme.applyAccent(modelData) }
+        }
+    }
+
     Rectangle {
         id: sheet
         width: Math.min(parent.width * 0.9, 620)
@@ -215,19 +244,25 @@ Rectangle {
                             Repeater {
                                 model: ["blue","purple","green","orange","pink","teal","red","gold",
                                         "cyan","indigo","mint","coral","amber","magenta"]
-                                delegate: Rectangle {
-                                    required property var modelData
-                                    width: 52; height: 52; radius: 26
-                                    property bool active: root.accentName === modelData
-                                    color: theme.accentPresets[modelData].a
-                                    border.width: active ? 3 : 0
-                                    border.color: theme.textPrimary
-                                    scale: active ? 1.08 : 1.0
-                                    Behavior on scale { NumberAnimation { duration: theme.motionFast } }
-                                    AppIcon { anchors.centerIn: parent; visible: parent.active; name: "ui-check"; size: 22; color: theme.backgroundColor }
-                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                        onClicked: theme.applyAccent(modelData) }
-                                }
+                                delegate: accentSwatch
+                            }
+                        }
+
+                        // The Okabe–Ito set stays mutually distinguishable for the
+                        // ~1-in-12 of men with a colour-vision deficiency. Split out
+                        // under its own heading so it reads as a deliberate choice
+                        // rather than eight more decorative tones.
+                        Text {
+                            text: "Colour-blind safe (Okabe–Ito)"
+                            font.pixelSize: theme.fontLabel; font.bold: true; color: theme.textSecondary
+                            Layout.topMargin: theme.spacingSm
+                        }
+                        Flow {
+                            Layout.fillWidth: true; spacing: theme.spacingMd
+                            Repeater {
+                                model: ["oi_blue","oi_sky_blue","oi_bluish_green","oi_yellow",
+                                        "oi_orange","oi_vermillion","oi_reddish_purple","oi_black"]
+                                delegate: accentSwatch
                             }
                         }
                     }
