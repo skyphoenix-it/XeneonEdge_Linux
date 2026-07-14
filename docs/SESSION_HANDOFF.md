@@ -82,6 +82,19 @@ epics in sequence; Sequence-0 (licensing/docs/QA-hook guard) already landed.
     -5) because that is all the world-clock model supports today — it does not follow US
     daylight-saving. E6 (DST/world clocks) should re-point that tile at a real zone.
 
+### CI gotcha fixed this session (`b6d6183`) — read before trusting a green local run
+The smoke tests drive the real binaries via `XENEON_GRAB`, which `a304d0b` (B7) compiled
+out unless `-DXENEON_QA_HOOKS=ON`. `scripts/build.sh` passes that flag, so every local
+`build/` dir had it cached ON and `run_cpp_tests.sh` stayed green; CI configures a fresh
+tree without it → the binaries never exited → 30s timeouts. Now `run_cpp_tests.sh` + the
+CI cpp-test job both configure `-DXENEON_QA_HOOKS=ON` (CI's `build` job still covers the
+hooks-OFF product config), and the smoke tests `QSKIP` with the real reason instead of
+timing out. **CI now also triggers on `v1.0-alpha`** — it previously ran only on
+`[main, master]`, so the entire alpha track was unverified and this break rode it
+invisibly for 8 commits, going red the moment alpha merged.
+**Rule:** local green ≠ CI green. On a build-shaped CI-only failure, diff the cmake flags
+(`grep XENEON build/CMakeCache.txt` vs the workflow) before anything else.
+
 ## Current state: GREEN — 95%+ coverage across all layers
 
 Full plan + results: `docs/DEV_AND_TEST_PLAN.md`, `docs/MANAGER_UIUX_PLAN.md`. Run

@@ -1,10 +1,13 @@
 name: CI
 
+# v1.0-alpha is a long-lived release track (epics E4-E9 land there before master).
+# Without it here the whole alpha branch went unverified for 8 commits and a real
+# break — smoke tests vs the XENEON_QA_HOOKS guard — only surfaced when it merged.
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, v1.0-alpha]
   pull_request:
-    branches: [main, master]
+    branches: [main, master, v1.0-alpha]
 
 # Cancel superseded runs on the same ref (e.g. rapid pushes to a PR branch).
 concurrency:

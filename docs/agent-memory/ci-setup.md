@@ -56,8 +56,27 @@ GOTCHAS (each cost a red CI run the first time CI ever executed — the dev box 
    (the layout-bounded box `num.width <= avail`) rather than glyph ink (`paintedWidth`),
    which is what `docs/DEV_AND_TEST_PLAN.md` calls "genuinely unmeasurable headless".
 
+5. **A STALE LOCAL CMAKE CACHE CAN HIDE A REAL BREAK — the local suite is not CI.**
+   `scripts/build.sh` configures `-DXENEON_QA_HOOKS=ON`, so every local `build/` dir has it
+   cached ON forever; `run_cpp_tests.sh` reused that cache and went green. CI configures a
+   FRESH tree and (until 2026-07-14) did not pass the flag → default OFF → `XENEON_GRAB`
+   compiled out (a304d0b/B7) → the smoke tests, which drive the real binaries via
+   XENEON_GRAB expecting render-one-frame-and-exit, hung until a 30s timeout. FIX
+   (`b6d6183`): `run_cpp_tests.sh` + the CI cpp-test job both pass `-DXENEON_QA_HOOKS=ON`
+   (CI's separate `build` job still covers the hooks-OFF product config), and the smoke
+   tests `QSKIP` on `QA_HOOKS_BUILD == 0` instead of timing out uselessly.
+   RULE: when local is green and CI is red on a BUILD-shaped failure, diff the cmake flags
+   first (`grep XENEON build/CMakeCache.txt` vs the workflow's configure line) — a
+   long-lived local build dir does not represent a fresh clone.
+
+6. **CI only triggers on `[main, master]`, so branch work is UNVERIFIED until it merges.**
+   The whole `v1.0-alpha` epic track (Sequence-0/E1/E2) never ran CI once; gotcha #5 rode
+   the branch invisibly for 8 commits and went red the instant alpha merged to master. If a
+   release/epic branch is going to live for more than a session, add it to the trigger (or
+   expect the merge itself to be the first real test).
+
 RULE: because the dev box (Qt 6.11) is far ahead of CI (Qt 6.7), always assume CI can catch
 parser/layout/coverage-tool differences the local suite can't. When a CI-only QML failure
 appears, suspect (in order) missing Qt module → reserved-word/parser strictness → Layout
-cap-vs-preferred → font/offscreen metrics → gcovr version. [[packaging]] covers the
-runtime Qt deps; [[dashboard-architecture]] the widget contract.
+cap-vs-preferred → font/offscreen metrics → gcovr version → stale local cmake cache (#5).
+[[packaging]] covers the runtime Qt deps; [[dashboard-architecture]] the widget contract.
