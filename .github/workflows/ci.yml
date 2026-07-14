@@ -142,6 +142,14 @@ jobs:
         run: ./scripts/run_ui_tests.sh
       - name: Enforce QML behavior-matrix coverage (>= 95%)
         run: python3 scripts/qml_coverage.py | tee coverage-qml.txt
+      # The two structural lints. They lived only in run_all_tests.sh, i.e. they
+      # gated nothing anyone was forced to run — and the egress lint is the whole
+      # basis of the "no telemetry" claim, so it has to hold on every push, not
+      # just when a dev remembers. Both are plain bash with no deps.
+      - name: Egress lint (no raw XHR outside the NetHub gate)
+        run: bash scripts/check_no_raw_xhr.sh
+      - name: Icon lint (every widget type has a bundled, registered icon)
+        run: bash scripts/check_widget_icons.sh
       - name: Upload uncovered-behavior list
         if: always()
         uses: actions/upload-artifact@v4
