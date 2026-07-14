@@ -138,3 +138,84 @@ Submit the **site or repo** as the URL, then post this as the first comment:
 - **"Does it need the daemon/root?"** No root. It talks to standard Linux
   interfaces; `/dev/uinput` touch and sensor access use existing device
   permissions.
+
+---
+
+## REDDIT
+
+Two subs, two registers. r/unixporn is **image-first** — the screenshot carries
+the post, the title follows the `[environment]` convention, and details/links go
+in a comment; keep any selling almost invisible. r/linux wants a **plain,
+open-source-forward** announcement from a disclosed developer and reacts badly to
+marketing tone or a paywall lede. Both **require an actual screenshot** — grab one
+from the real device (`XENEON_GRAB` hook) before posting. Fill `<links>`.
+
+### r/unixporn
+
+**Title** (must use the `[DE/WM]` bracket format; pick one):
+- `[KDE Plasma] I turned my Corsair Xeneon Edge into a live Linux dashboard`
+- `[KWin/Wayland] Xeneon Edge as a widget dashboard (my project, EdgeHub)`
+
+**Top "details" comment** (the r/unixporn ritual — post it yourself right away):
+> Thanks! Details:
+>
+> - **OS:** CachyOS (Arch)
+> - **Compositor:** KWin / Wayland
+> - **Display:** Corsair Xeneon Edge — a 2560×720 portrait secondary touchscreen
+> - **App:** EdgeHub — my own project, native **Rust + Qt6** (not a web page in a
+>   kiosk). It auto-detects the panel over EDID and goes fullscreen on it.
+> - **Theme shown:** Midnight (one of 22 built in) with the aurora backdrop
+> - **Widgets on screen:** clock, CPU/RAM ring gauges, focus timer, now-playing
+> - **Config:** all drag-and-drop from a companion desktop app — no dotfiles to
+>   share this time, it's a GUI
+> - **Source (MIT/Apache-2.0):** `<github-url>`
+>
+> Happy to answer anything. Works with other portrait secondary touchscreens too,
+> not just the Edge. (Independent project — not affiliated with Corsair.)
+
+**Note:** don't put price/"buy" in the r/unixporn post or top comment — link the
+repo, mention it's open source, and let people find the rest. Overt selling gets
+downvoted there.
+
+### r/linux
+
+**Title** (plain, descriptive — no hype):
+`EdgeHub: a native Linux dashboard for the Corsair Xeneon Edge (open source, Rust + Qt6)`
+
+**Body:**
+> _Disclosure: I'm the developer._
+>
+> The Corsair Xeneon Edge is a 14.5", 2560×720 touchscreen meant to sit next to
+> your monitor — but Corsair's software (iCUE) is Windows-only, so on Linux it's
+> just a blank second display. I got tired of that and wrote **EdgeHub**.
+>
+> It detects the panel by its EDID, goes fullscreen on it, and runs a touch-first
+> widget dashboard: 22 widgets (system gauges, clock/calendar, weather, a focus
+> timer, tasks, habits, media, and more) across swipeable pages. A companion
+> desktop app mirrors the device live over a local socket, so you configure it by
+> drag-and-drop instead of editing files.
+>
+> Technical notes for this crowd:
+> - **Rust** core (metrics/config/FFI) + **Qt6/QML** UI; metrics on a worker
+>   thread, media over async D-Bus.
+> - **Wayland and X11** (developed on KWin). Config is local TOML — no account,
+>   no telemetry.
+> - ~3.5% CPU worst-case, ~378 MB RSS; ~95% automated coverage including an
+>   end-to-end suite that drives the real binary.
+> - Packaged for AUR, AppImage and Flatpak.
+>
+> It's **open source (MIT/Apache-2.0)** — build it yourself: `<github-url>`.
+> There's also a prebuilt, auto-updating package for a few euros if you'd rather
+> not compile, but nothing is paywalled out of the source.
+>
+> Feedback very welcome — especially on the display-detection and on which
+> widgets are actually worth having on a glance screen. It works with other
+> portrait secondary touchscreens too. (Independent project, not affiliated with
+> Corsair.)
+
+**Etiquette:** post from your own account as the dev, reply to comments, and read
+r/linux's self-promotion rules first (they limit frequency). Good adjacent subs to
+cross-post (not simultaneously): **r/Corsair**, **r/linuxhardware**, **r/kde**,
+**r/archlinux** (as a project share). Lead every one of them with open source, not
+price.
+
