@@ -261,10 +261,24 @@ int main(int argc, char *argv[]) {
     QQuickStyle::setStyle(QStringLiteral("Fusion"));
     QGuiApplication::setPalette(darkPalette());
 
+    // QA automation hooks (screenshot capture + auto-expand + single-instance
+    // bypass) are compiled in ONLY when XENEON_QA_HOOKS is defined (CI / tests /
+    // marketing builds). In production packages these stay empty/false, so the
+    // env vars are inert — no screenshot/automation surface ships.
+#ifdef XENEON_QA_HOOKS
+    const bool    qaGrabMode = qEnvironmentVariableIsSet("XENEON_GRAB");
+    const QString qaGrabPath = qEnvironmentVariable("XENEON_GRAB");
+    const QString qaExpand   = qEnvironmentVariable("XENEON_EXPAND");
+#else
+    const bool    qaGrabMode = false;
+    const QString qaGrabPath;
+    const QString qaExpand;
+#endif
+
     // Single-instance guard — two hubs racing the shared config.toml corrupt it.
     // Skipped in grab mode so headless QA captures run alongside a real instance.
     auto instanceLock = xeneon::acquireSingleInstance(
-        QStringLiteral("hub"), qEnvironmentVariableIsSet("XENEON_GRAB"));
+        QStringLiteral("hub"), qaGrabMode);
     if (!instanceLock) {
         // fprintf (not qWarning): Qt's default handler routes to journald when
         // stderr isn't a TTY, so a plain write guarantees the user sees why the
@@ -358,7 +372,7 @@ int main(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("_windowedMode", parser.isSet(windowedOpt));
     // QA affordance: XENEON_EXPAND=<type> auto-opens that widget's expanded
     // config view on the first matching tile (mirrors the Manager's XENEON_CFG).
-    engine.rootContext()->setContextProperty("_expandType", qEnvironmentVariable("XENEON_EXPAND"));
+    engine.rootContext()->setContextProperty("_expandType", qaExpand);
 
     // Config path for diagnostics
     XeneonString configDir(xeneon_config_dir());
@@ -586,7 +600,7 @@ int main(int argc, char *argv[]) {
     // the Manager). Optional XENEON_GRAB_W / XENEON_GRAB_H resize the window first so
     // a tall portrait shell renders fully on a smaller dev monitor. Always quits, so
     // a headless/bg run can never hang (addresses the earlier no-fallback-quit note).
-    const QString grabPath = qEnvironmentVariable("XENEON_GRAB");
+    const QString grabPath = qaGrabPath;   // empty unless built with XENEON_QA_HOOKS
     if (!grabPath.isEmpty()) {
         if (mainWindow) {
             const int gw = qEnvironmentVariable("XENEON_GRAB_W", "0").toInt();
