@@ -67,8 +67,11 @@ E2E_SOAK_SECONDS=5 python3 tests/hardware/edge_e2e.py   # quick smoke (~2 min)
 ```
 
 **Coverage (~199 checks):**
-- **Widget lifecycle** — add / render / no-error / resize (1↔2) / remove for **all
-  22 widget types** (via IPC `setUiState`/`getUiState` + Edge screenshots).
+- **Widget lifecycle** — add / render / no-error / resize (1↔2) / remove for **every
+  type in `WidgetCatalog.qml`** (24 today) via IPC `setUiState`/`getUiState` + Edge
+  screenshots. The list is asserted against the catalog first, so a new widget can't
+  go silently unexercised. `httpjson` is seeded with **no URL** (the shipping preset
+  state, and it keeps the run offline); `kpi` uses its **local-file** source.
 - **Theming** — every theme, every background style, per-widget accent override,
   glass/glow, each verified in state + grabbed.
 - **Interaction (synthetic touch)** — compact widget controls (Focus Start/Pause,

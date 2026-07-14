@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """E2E widget-lifecycle suite for the Xeneon Edge hub.
 
-For every one of the 22 widget types this exercises ADD -> RENDER -> RESIZE ->
-REMOVE over the control-socket IPC (set_state / get_state), grabs a screenshot
-of each rendered widget, and scans the hub log for fallback / unknown-type
-errors. Every step is guarded so a single failure records a FAIL via h.check()
+For every widget type in WidgetCatalog.qml this exercises ADD -> RENDER ->
+RESIZE -> REMOVE over the control-socket IPC (set_state / get_state), grabs a
+screenshot of each rendered widget, and scans the hub log for fallback /
+unknown-type errors. The type list is checked against the catalog first, so a
+newly added widget cannot silently go unexercised. Every step is guarded so a single failure records a FAIL via h.check()
 and never aborts the run.
 
 The runner owns launch/stop; this module only calls run(h) and assumes the hub
@@ -12,17 +13,47 @@ is already up and h.get_state() works. Per-widget settings are keyed by tile id
 (store.settingsFor(id)), matching the hub's DashboardStore contract.
 """
 import os
+import re
 from e2e_harness import doc, page, tile
 
-# The 22 widget types the dashboard ships.
+# Every widget type the dashboard ships. MUST stay in step with
+# ui/qml/WidgetCatalog.qml — test_catalog_drift() below fails the run if it
+# doesn't, because a type missing here is simply never exercised on the panel
+# and the omission is otherwise silent (that is how httpjson/kpi went untested
+# on real hardware after E1 added them).
 WIDGETS = [
     "cpu", "gpu", "ram", "net", "disk", "sensors", "clock", "analog", "moon",
     "focus", "tasks", "rightnow", "notes", "habit", "hydration", "break",
     "media", "calendar", "weather", "countdown", "eod", "quote",
+    "httpjson", "kpi",
 ]
 
+_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_CATALOG = os.path.join(_REPO, "ui", "qml", "WidgetCatalog.qml")
 
-def _seed(wtype, tid, today):
+
+def _catalog_types():
+    """The types declared in WidgetCatalog.qml (the picker's source of truth)."""
+    with open(_CATALOG, "r", errors="replace") as f:
+        return set(re.findall(r'\{\s*type:\s*"([a-z0-9]+)"', f.read()))
+
+
+def test_catalog_drift(h):
+    """WIDGETS must cover the catalog exactly — no untested type, no ghost."""
+    try:
+        cat = _catalog_types()
+        h.check("catalog_parsed", bool(cat), "%d types in WidgetCatalog.qml" % len(cat))
+        missing = sorted(cat - set(WIDGETS))
+        extra = sorted(set(WIDGETS) - cat)
+        h.check("catalog_no_untested_types", not missing,
+                "not exercised on hardware: %r" % missing if missing else "all covered")
+        h.check("catalog_no_stale_types", not extra,
+                "in WIDGETS but not in the catalog: %r" % extra if extra else "none stale")
+    except Exception as e:
+        h.check("catalog_drift", False, "exc: %r" % e)
+
+
+def _seed(h, wtype, tid, today):
     """Sensible per-instance settings (keyed by tile id) for widgets that
     need data to render meaningfully. Empty for widgets that self-seed."""
     if wtype == "weather":
@@ -31,6 +62,21 @@ def _seed(wtype, tid, today):
         return {tid: {"items": [{"text": "A", "done": False}]}}
     if wtype in ("hydration", "focus", "habit"):
         return {tid: {"day": today}}
+    if wtype == "httpjson":
+        # No url ON PURPOSE: that is how the presets ship it, it is the state a
+        # user first sees, and it keeps the suite offline (a real endpoint would
+        # make the run flaky and put egress in a test).
+        return {tid: {"title": "CI status", "mode": "value"}}
+    if wtype == "kpi":
+        # The file source reads a local path — a real number, fully offline.
+        p = os.path.join(h.work, "kpi_value.json")
+        try:
+            with open(p, "w") as f:
+                f.write('{"stats": {"count": 42}}')
+        except Exception:
+            pass
+        return {tid: {"source": "file", "filePath": p, "jsonPath": "stats.count",
+                      "label": "Queue depth", "unit": ""}}
     return {}
 
 
@@ -45,9 +91,11 @@ def _log_tail(h, n=8000):
 
 
 def run(h):
+    test_catalog_drift(h)
+
     for wtype in WIDGETS:
         tid = wtype + "-1"
-        seed = _seed(wtype, tid, h.today)
+        seed = _seed(h, wtype, tid, h.today)
 
         # ── ADD ──────────────────────────────────────────────────────────
         try:
