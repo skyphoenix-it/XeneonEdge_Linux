@@ -150,10 +150,14 @@ Item {
             if (!store._sizes.isLegal(name)) continue
             var area = store._sizes.area(name)
             if (area > want + 1e-9) continue
-            var short = store._sizes.table[name].short
+            // NOT `var short`: `short` is an ECMAScript future-reserved word, and
+            // Qt 6.7's V4 parser (what CI runs) rejects it as an identifier —
+            // "Expected token `identifier'" — while 6.11 (the dev box) accepts it.
+            // The .short PROPERTY read below is fine; only the declaration breaks.
+            var shortAxis = store._sizes.table[name].short
             if (area > bestArea + 1e-9 ||
-                (Math.abs(area - bestArea) < 1e-9 && short > bestShort)) {
-                best = name; bestArea = area; bestShort = short
+                (Math.abs(area - bestArea) < 1e-9 && shortAxis > bestShort)) {
+                best = name; bestArea = area; bestShort = shortAxis
             }
         }
         return best
