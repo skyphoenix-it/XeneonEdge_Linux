@@ -153,7 +153,38 @@ sha256sum -c SHA256SUMS
 sudo pacman -U xeneon-edge-hub-1.0.0.alpha.1-1-x86_64.pkg.tar.zst
 ```
 
-> **This build is not signed.** No release key exists yet — verify the checksum above. Signed artifacts are a requirement for the beta/RC, not for this alpha.
+> **This alpha build is not signed.** It was published before a release key existed, and that isn't retroactively fixable — verify the checksum above. Releases from the **beta onward are signed**; see below.
+
+### Verifying your download
+
+Releases from the beta onward ship `SHA256SUMS` alongside a detached signature `SHA256SUMS.asc`, made with the EdgeHub release key. (`v1.0.0-alpha.1` predates the key and is checksum-only — it has no `.asc`.)
+
+**1. Import the key.** It is not on a keyserver yet, so `gpg --recv-keys` will not find it. Use either route:
+
+```sh
+curl -sL https://github.com/SimonKreitmayer.gpg | gpg --import   # from GitHub
+gpg --import packaging/edgehub-signing.pub                        # from a clone
+```
+
+**2. Verify the signature, then the files:**
+
+```sh
+gpg --verify SHA256SUMS.asc SHA256SUMS   # is the checksum list authentic?
+sha256sum -c SHA256SUMS                  # do the files match the list?
+```
+
+`gpg --verify` must say **Good signature** for this fingerprint:
+
+```
+SKYPhoenix IT <simon.kreitmayer@skyphoenix-it.com>
+2F0C AD36 DC1D 46F3 347B  7EF2 93CD C77E ACF9 8990
+```
+
+**Check the fingerprint, not just the words "Good signature."** Any key can produce a good signature over anything — including one an attacker made and shipped next to a tampered download. The signature is only worth what the fingerprint is, so compare it against the line above (published here, in [`packaging/edgehub-signing.pub`](packaging/edgehub-signing.pub), and on [GitHub](https://github.com/SimonKreitmayer.gpg)).
+
+gpg will also warn `This key is not certified with a trusted signature`. That is expected and not a failure: it means you haven't personally certified the key. Trust here rests on the fingerprint matching, not on the web of trust.
+
+Policy, scope and key rotation: [`docs/DISTRIBUTION.md`](docs/DISTRIBUTION.md#release-signing).
 
 ### Everything else
 
@@ -247,7 +278,7 @@ The hardware suite asserts its widget list against `WidgetCatalog.qml`, so a new
 What works is tested. What isn't done yet:
 
 - **Widget sizing is not final.** Widgets have two layouts (tile and full-screen overlay); a tall tile stretches the compact layout rather than using the room. A fixed, per-widget-optimized size system is the v1.1 headline. The foundation is in this build.
-- **The release is unsigned.** Verify the checksum. Signing is a beta/RC requirement.
+- **This alpha release is unsigned.** Verify the checksum. The release key now exists and the signing flow is in place ([`scripts/release.sh`](scripts/release.sh)), so the beta is the first signed release — but nothing signs `v1.0.0-alpha.1` after the fact.
 - **Packaging is incomplete.** Only an Arch package is published. AppImage / Flatpak / `.deb` / `.rpm` are authored but unverified; Fedora and Ubuntu come in v1.1.
 - **Weather and Calendar reach the network** for the feeds you configure — as designed, through the same audited gate as everything else.
 - **The Manager's display/autostart settings** write config directly; a narrow two-writer window with a running hub remains (tracked).
