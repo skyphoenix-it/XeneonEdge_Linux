@@ -46,6 +46,9 @@ add_qt_test(path_sanitize)
 add_qt_test(orientation_byte SOURCES "${APP_SRC}/orientation_sensor.cpp")
 add_qt_test(reconcile       SOURCES "${MGR_SRC}/reconcile.cpp")
 add_qt_test(autostart       SOURCES "${APP_SRC}/autostart.cpp")
+# Offline licence FFI. No extra sources: it calls the Rust core directly, which
+# is the whole surface the app uses. Qt6::Test already brings QJson*.
+add_qt_test(license)
 
 # ── Unit (event loop) ──
 # The Q_OBJECT header is listed as a source so AUTOMOC generates its moc.

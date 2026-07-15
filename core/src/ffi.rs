@@ -935,6 +935,58 @@ pub extern "C" fn xeneon_distro_probe_json(root: *const c_char) -> *mut c_char {
     to_c_string(crate::distro::to_json(&info))
 }
 
+// --- Licensing (E11) ---
+
+/// Verify an offline licence key and describe the result as JSON.
+///
+/// Returns an owned JSON object (free with `xeneon_string_free`):
+/// ```json
+/// { "state": "licensed", "tier": "pro", "reason": null,
+///   "issuedTo": "Ada Lovelace", "id": "XE-0001", "expires": 1798761600 }
+/// ```
+/// `state` is `licensed` | `expired` | `unlicensed`. `expired` is deliberately
+/// NOT `unlicensed`: the signature is genuine and the user should be asked to
+/// renew, not told their key is bad. `tier` is what to actually unlock, and is
+/// `free` for every non-`licensed` state — callers should gate on `tier` and use
+/// `state` only for what they say to the user.
+///
+/// `reason` is a short failure description on `unlicensed`, else null. It names
+/// the failure mode only and NEVER echoes the key. `issuedTo`/`id`/`expires` are
+/// null unless the signature verified.
+///
+/// This never returns null for a bad key, never panics, and never blocks: an
+/// unreadable key is simply the free tier. It performs NO network I/O — the
+/// public key is compiled in, so the result is identical under `unshare -n`.
+///
+/// `issuedTo` is holder data: it is returned for display and must not be logged.
+#[no_mangle]
+pub extern "C" fn xeneon_license_verify_json(key: *const c_char) -> *mut c_char {
+    // A null or non-UTF-8 key is just "no licence" — same as an empty box.
+    let key_str: &str = if key.is_null() {
+        ""
+    } else {
+        unsafe { CStr::from_ptr(key) }.to_str().unwrap_or("")
+    };
+    let status = crate::license::verify(key_str);
+    let license = match &status {
+        crate::license::Status::Licensed(l) | crate::license::Status::Expired(l) => Some(l),
+        crate::license::Status::Unlicensed(_) => None,
+    };
+    let reason = match &status {
+        crate::license::Status::Unlicensed(e) => Some(e.to_string()),
+        _ => None,
+    };
+    let json = serde_json::json!({
+        "state": status.state(),
+        "tier": status.tier().as_str(),
+        "reason": reason,
+        "issuedTo": license.map(|l| l.issued_to.clone()),
+        "id": license.map(|l| l.id.clone()),
+        "expires": license.and_then(|l| l.expires),
+    });
+    to_c_string(json.to_string())
+}
+
 // --- String utilities ---
 
 /// Free a string returned by any xeneon_* function.
@@ -1079,6 +1131,81 @@ mod tests {
             // A null err_out must not crash either.
             assert!(xeneon_secret_resolve(std::ptr::null(), std::ptr::null_mut()).is_null());
         }
+    }
+
+    // --- Licensing (E11) ---
+    //
+    // These assert the FFI *contract* only. The verifier's own behaviour (valid
+    // / tampered / wrong-issuer / expired) is proven in license.rs against a
+    // test issuer; it cannot be reached from here, because this path is pinned
+    // to the compiled-in issuer key and no test may redirect it — which is
+    // exactly the property that stops a licence bypass.
+
+    fn license_json(key: &str) -> serde_json::Value {
+        let c = CString::new(key).unwrap();
+        let s = unsafe { take(xeneon_license_verify_json(c.as_ptr())) };
+        serde_json::from_str(&s).expect("FFI must always return valid JSON")
+    }
+
+    #[test]
+    fn license_verify_json_has_the_documented_shape() {
+        let v = license_json("");
+        for field in ["state", "tier", "reason", "issuedTo", "id", "expires"] {
+            assert!(v.get(field).is_some(), "missing `{field}` in {v}");
+        }
+        assert!(v["issuedTo"].is_null());
+        assert!(v["id"].is_null());
+        assert!(v["expires"].is_null());
+    }
+
+    // Fail SOFT: every unusable key is the free tier, not an error and not a crash.
+    #[test]
+    fn license_verify_json_fails_soft_for_every_bad_input() {
+        for key in [
+            "",
+            "   ",
+            "garbage",
+            "XE1.only-two",
+            "XE1.a.b.c",
+            "XE9.AAAA.BBBB",
+            "XE1.****.****",
+        ] {
+            let v = license_json(key);
+            assert_eq!(v["tier"], "free", "{key:?} unlocked a paid tier: {v}");
+            assert_eq!(v["state"], "unlicensed", "{key:?} -> {v}");
+            assert!(v["reason"].is_string(), "{key:?} must explain itself");
+        }
+    }
+
+    // A null key is "no licence", not a crash and not a null return.
+    #[test]
+    fn license_verify_json_handles_null() {
+        let s = unsafe { take(xeneon_license_verify_json(std::ptr::null())) };
+        let v: serde_json::Value = serde_json::from_str(&s).unwrap();
+        assert_eq!(v["tier"], "free");
+        assert_eq!(v["state"], "unlicensed");
+    }
+
+    // The reason string is user- and log-facing; it must name the failure mode
+    // and never echo the key back.
+    #[test]
+    fn license_verify_json_reason_never_echoes_the_key() {
+        let secret = "XE1.SUPERSECRETLICENCEPAYLOAD.SUPERSECRETSIGNATURE";
+        let v = license_json(secret);
+        let whole = v.to_string();
+        assert!(
+            !whole.contains("SUPERSECRET"),
+            "FFI echoed the key: {whole}"
+        );
+    }
+
+    // While the issuer key is the unissued placeholder, even a well-formed key
+    // must resolve to free — the shipped default is "Pro is not unlockable".
+    #[test]
+    fn license_verify_json_is_free_while_the_issuer_key_is_a_placeholder() {
+        let v = license_json("XE1.eyJ0aWVyIjoicHJvIn0.AAAA");
+        assert_eq!(v["tier"], "free");
+        assert_eq!(v["state"], "unlicensed");
     }
 
     // No `unsafe` block: xeneon_secret_is_plaintext is a safe extern "C" fn (it
