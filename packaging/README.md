@@ -14,7 +14,7 @@ the hicolor icons (scalable SVG + PNG 16–512), the `LICENSE`, and the udev rul
 | **CPack .rpm** | `CMakeLists.txt` (CPack block) | ✅ Fedora 43: built, installed on a clean image, launches (CI: `distro.yml`) |
 | **CPack .deb** | `CMakeLists.txt` (CPack block) | ✅ Ubuntu 26.04 LTS: built, installed on a clean image, launches (CI: `distro.yml`) |
 | **CPack .tgz** | `CMakeLists.txt` (CPack block) | ✅ TGZ tested |
-| **AppImage** | `packaging/appimage/build-appimage.sh` | ⚠️ recipe written, not build-tested here |
+| **AppImage** | `packaging/appimage/build-appimage.sh` | ✅ built (Ubuntu 24.04 + Qt 6.7.3) + smoke-tested in a bare container with no Qt. CI job added but **not yet run on GitHub** |
 | **Flatpak** | `packaging/flatpak/` | ⚠️ starter manifest, open items (see `flatpak/README.md`) |
 
 "Installs on a clean image" means the package was installed into a container with
@@ -29,6 +29,7 @@ nothing — the `-devel` packages already dragged Qt in.
 | Fedora 43 | 6.10.3 | ✅ | ✅ RPM | ✅ | ✅ |
 | Ubuntu 26.04 LTS | 6.10.2 | ✅ | ✅ DEB | ✅ | ✅ |
 | Arch / CachyOS | rolling | ✅ (dev box + AUR) | ✅ AUR | — | ✅ |
+| Ubuntu 24.04 LTS | 6.4.2 (too old) | ✅ w/ Qt 6.7.3 | ✅ AppImage | ✅ bare, no Qt | ✅ |
 
 Both distros now ship Qt ≥ 6.5 in their own repos, so neither needs the
 `jurplel/install-qt-action` Qt that `ci.yml` uses for the Ubuntu 24.04 jobs
@@ -57,6 +58,15 @@ bundles all of them in one RPM.
 alone is not enough: `main.qml` only imports QtQuick/Controls/Layouts/Window/
 VirtualKeyboard, so `QtQuick.Effects`/`Shapes`/`Dialogs` (reached via lazily
 loaded widgets) can be missing and the app still starts cleanly for 10s.
+
+The same script covers the AppImage via `packaging/ci/smoke-appimage.sh`, which
+extracts the AppImage (containers have no FUSE), puts a wrapper on `PATH`, and
+points `QML_DIR` at the bundled `usr/qml`. The AppImage is the case that needs the
+module check most: `linuxdeploy`'s Qt plugin bundles what it can *see*, and it
+cannot see a lazily-imported QML module. `distro.yml` therefore also runs a
+**negative control** — it deletes `QtQuick.Effects` from the AppImage and asserts
+the smoke FAILS. (Confirmed: with `Effects` deleted the hub still runs a clean 10s
+launch; only the module check catches it. A smoke that cannot fail proves nothing.)
 
 ## AUR
 
@@ -99,10 +109,33 @@ apt-get install -y ca-certificates cmake g++ make file dpkg-dev rustc cargo \
 ## AppImage
 
 ```sh
-./packaging/appimage/build-appimage.sh
+./packaging/appimage/build-appimage.sh          # needs qmake6 (Qt >= 6.5) on PATH
 ```
 Downloads `linuxdeploy` + the Qt plugin and bundles Qt into a single portable
-`.AppImage`. Run it on a normal desktop with the Qt6 dev stack.
+`xeneon-edge-hub-<version>-x86_64.AppImage` (~46 MB, 41 Qt libs).
+
+Build it on the **oldest** distro you intend to support — an AppImage's glibc floor
+is its build host's. CI uses Ubuntu 24.04 with upstream Qt 6.7.3 via
+`install-qt-action`, deliberately *not* 24.04's apt Qt 6.4.2 (too old for
+`QtQuick.Effects`). `build-appimage.sh` needs the xcb/wayland/fontconfig runtime
+libs present on the build host so `linuxdeploy` can resolve every ELF it bundles,
+even though they are excluded from the result — the exact list is in the `appimage`
+job in `.github/workflows/distro.yml`.
+
+Smoke it the way CI does — in a container with **no Qt**:
+```sh
+bash packaging/ci/smoke-appimage.sh xeneon-edge-hub-0.1.0-x86_64.AppImage "$(pwd)"
+```
+
+It bundles Qt but **not** libGL/libGLX/libOpenGL/libEGL/libfontconfig or fonts;
+`linuxdeploy` excludes the graphics stack on purpose (a bundled libGL breaks on a
+host with a different driver), so those come from the host. Desktops have them,
+bare containers don't.
+
+Two failure modes are baked into the script as comments because both are **silent**
+— they produce a smaller AppImage with *no Qt in it* and still exit 0: omitting
+`--executable` for both binaries, and leaving Qt off `LD_LIBRARY_PATH`. See
+`docs/DISTRIBUTION.md`.
 
 ## Flatpak
 

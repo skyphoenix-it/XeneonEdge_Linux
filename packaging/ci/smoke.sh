@@ -56,8 +56,11 @@ fi
 # import cannot silently escape the packaging.
 SRC_ROOT="${SRC_ROOT:-$(pwd)}"
 if [ -d "$SRC_ROOT/ui/qml" ]; then
-  QML_DIR=""
-  if command -v qmake6 >/dev/null 2>&1; then
+  # QML_DIR may be preset by the caller. The AppImage job does that: its modules
+  # live inside the extracted AppDir (usr/qml), not in a system Qt prefix, and a
+  # bare container has no qmake6 to ask.
+  QML_DIR="${QML_DIR:-}"
+  if [ -z "$QML_DIR" ] && command -v qmake6 >/dev/null 2>&1; then
     QML_DIR="$(qmake6 -query QT_INSTALL_QML 2>/dev/null)"
   fi
   if [ -z "$QML_DIR" ] || [ ! -d "$QML_DIR" ]; then

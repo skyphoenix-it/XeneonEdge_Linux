@@ -110,6 +110,114 @@ jobs:
           desktop-file-validate /usr/share/applications/xeneon-edge-hub.desktop
           desktop-file-validate /usr/share/applications/xeneon-edge-manager.desktop
 
+  appimage:
+    name: AppImage (Qt 6.7 bundled)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+
+      # Deliberately NOT 24.04's apt Qt (6.4.2 — too old for QtQuick.Effects).
+      # Upstream Qt 6.7 on 24.04's old glibc is exactly what an AppImage wants:
+      # a modern Qt with the lowest practical glibc floor. Building on a newer
+      # distro would raise that floor and defeat the format.
+      - name: Install Qt 6.7
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.7.3'
+          modules: 'qtvirtualkeyboard'
+          cache: true
+
+      - name: Install build + deploy dependencies
+        # linuxdeploy resolves every NEEDED entry of every ELF it bundles, so the
+        # xcb/wayland/fontconfig runtime libs must exist on the BUILD host even
+        # though they are excluded from the final AppImage. Missing any one of
+        # them aborts the qt plugin (e.g. "Could not find dependency:
+        # libxcb-icccm.so.4").
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            cmake g++ make file curl patchelf desktop-file-utils \
+            libgl1-mesa-dev libxkbcommon-dev libxkbcommon-x11-dev libdbus-1-dev \
+            libfontconfig1-dev libfreetype-dev libx11-dev libxcb1-dev \
+            libxcb-cursor-dev libglib2.0-dev libwayland-dev \
+            libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
+            libxcb-render-util0 libxcb-render0 libxcb-shape0 libxcb-shm0 \
+            libxcb-sync1 libxcb-xfixes0 libxcb-xkb1 libxcb-glx0 libxcb-util1 \
+            libxcb-cursor0 libxcb-xinerama0 libxkbcommon-x11-0 libsm6 libice6 \
+            libegl1 libopengl0
+
+      - name: Build AppImage
+        run: ./packaging/appimage/build-appimage.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: appimage
+          path: '*.AppImage'
+
+  appimage-smoke:
+    name: AppImage smoke (bare container, no Qt)
+    needs: appimage
+    runs-on: ubuntu-24.04
+    # The whole promise of an AppImage is running where nothing is installed, so
+    # smoking it on the build runner (which has a full Qt) would prove nothing at
+    # all. This container has no Qt and no Rust — only the graphics/font stack
+    # that linuxdeploy intentionally excludes and every real desktop provides.
+    container: ubuntu:24.04
+    env:
+      DEBIAN_FRONTEND: noninteractive
+    steps:
+      - run: apt-get update -qq && apt-get install -y --no-install-recommends git ca-certificates
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: appimage
+          path: pkg
+
+      - name: Install the host graphics/font stack (NOT Qt)
+        # linuxdeploy excludes libGL/libEGL/libfontconfig on purpose: a bundled
+        # libGL breaks on hosts with a different (e.g. NVIDIA) driver, so GL must
+        # come from the host. Fonts likewise. Nothing here is Qt.
+        run: |
+          apt-get install -y --no-install-recommends \
+            libgl1 libglx-mesa0 libopengl0 libegl1 libfontconfig1 fonts-dejavu-core
+
+      - name: Assert the container really has no Qt
+        run: |
+          if ls /usr/lib/*/libQt6Core.so* >/dev/null 2>&1; then
+            echo "FAIL: this container has a system Qt — the smoke would be meaningless"; exit 1
+          fi
+          echo "confirmed: no system Qt present"
+
+      - name: Smoke the AppImage (offscreen)
+        run: bash packaging/ci/smoke-appimage.sh pkg/*.AppImage "$(pwd)"
+
+      - name: Negative control — smoke must FAIL if a QML module is missing
+        # A smoke test that cannot fail proves nothing. Deleting QtQuick.Effects
+        # still yields a clean 10s launch (main.qml never imports it; it is
+        # reached through a lazily-loaded widget), so this also proves the module
+        # check — not just the launch — is what catches a mis-bundled AppImage.
+        run: |
+          cd /tmp
+          cp "$GITHUB_WORKSPACE"/pkg/*.AppImage ./neg.AppImage
+          chmod +x ./neg.AppImage
+          ./neg.AppImage --appimage-extract >/dev/null
+          rm -rf /tmp/squashfs-root/usr/qml/QtQuick/Effects
+          mkdir -p /tmp/negbin
+          printf '#!/bin/sh\nexec /tmp/squashfs-root/AppRun "$@"\n' > /tmp/negbin/xeneon-edge-hub
+          chmod +x /tmp/negbin/xeneon-edge-hub
+          export PATH="/tmp/negbin:$PATH"
+          export QML_DIR=/tmp/squashfs-root/usr/qml
+          export SRC_ROOT="$GITHUB_WORKSPACE"
+          export LC_ALL=C.UTF-8
+          if bash "$GITHUB_WORKSPACE/packaging/ci/smoke.sh" > /tmp/neg.log 2>&1; then
+            echo "FAIL: smoke PASSED with QtQuick.Effects deleted — the check is not working"
+            cat /tmp/neg.log; exit 1
+          fi
+          grep -q 'MISSING: QtQuick.Effects' /tmp/neg.log || {
+            echo "FAIL: smoke failed for the wrong reason"; cat /tmp/neg.log; exit 1; }
+          echo "negative control OK: smoke correctly failed on the missing module"
+
   ubuntu:
     name: Ubuntu ${{ matrix.release }} (DEB)
     runs-on: ubuntu-24.04
