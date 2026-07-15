@@ -18,10 +18,12 @@
         <file alias="moon.svg">icons/moon.svg</file>
         <file alias="net.svg">icons/net.svg</file>
         <file alias="notes.svg">icons/notes.svg</file>
+        <file alias="packages.svg">icons/packages.svg</file>
         <file alias="quote.svg">icons/quote.svg</file>
         <file alias="ram.svg">icons/ram.svg</file>
         <file alias="rightnow.svg">icons/rightnow.svg</file>
         <file alias="sensors.svg">icons/sensors.svg</file>
+        <file alias="sinceinstall.svg">icons/sinceinstall.svg</file>
         <file alias="tasks.svg">icons/tasks.svg</file>
         <file alias="ui-add-page.svg">icons/ui-add-page.svg</file>
         <file alias="ui-caret-left.svg">icons/ui-caret-left.svg</file>

@@ -65,6 +65,11 @@ add_qt_test(orientation_reopen SOURCES "${APP_SRC}/orientation_sensor.cpp")
 # generates its moc (otherwise: undefined reference to vtable).
 add_qt_test(timezone_bridge SOURCES "${APP_SRC}/timezone_bridge.h" LINK Qt6::Gui)
 
+# Distro identity / package count / system age, probed off-thread. Same rule as
+# above: the Q_OBJECT header must be a SOURCE (it declares TWO QObjects — the
+# bridge and its worker) or AUTOMOC never runs and both vtables go undefined.
+add_qt_test(distro_bridge SOURCES "${APP_SRC}/distro_bridge.h" LINK Qt6::Gui)
+
 # ── Smoke: launch the REAL binaries offscreen (main()/screen match/thread lifecycle;
 #    doubles as the XENEON_GRAB UAF regression) ──
 add_executable(smoke_hub tst_smoke_hub.cpp)

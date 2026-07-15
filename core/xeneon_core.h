@@ -113,6 +113,24 @@ char* xeneon_secret_resolve(const char* raw, char** err_out);
 // 1 when the value is a bare plaintext secret (so the UI can warn), else 0.
 int xeneon_secret_is_plaintext(const char* raw);
 
+// === Distro (packages / system age) ===
+// Probe distro identity, installed-package count and install date, rooted at
+// `root`. Pass NULL (or "") for the real system; any other path roots the probe
+// at a fixture tree (how the C++ tests avoid touching the host's /etc + /var).
+//
+// Returns owned JSON — free with xeneon_string_free:
+//   { "id": "cachyos", "name": "CachyOS", "family": "arch|debian|rpm|unknown",
+//     "packageCount": 1461, "unsupportedReason": null,
+//     "updates": null, "installEpoch": 1752191590 }
+// packageCount / updates / installEpoch are null (NEVER 0 or -1) when unknown,
+// so a sentinel cannot render as a real measurement. `updates` is always null:
+// no package manager answers "are there updates?" cheaply or without a sync.
+//
+// READ-ONLY: reads files and lists directories. Never mutates a package
+// database, never spawns a process. Can touch a ~10MB file (dpkg status) — call
+// it OFF the GUI thread.
+char* xeneon_distro_probe_json(const char* root);
+
 // === String Utilities ===
 void xeneon_string_free(char* s);
 

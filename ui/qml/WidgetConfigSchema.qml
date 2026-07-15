@@ -47,6 +47,29 @@ QtObject {
     function _schemaFor(type) {
         switch (type) {
 
+        case "packages": return { sections: [
+            { title: "Display", cols: 1, fields: [
+                { key: "showDistro", label: "Show the distribution name", type: "toggle", dflt: true,
+                  help: "Reads the name your system reports in /etc/os-release." } ] },
+            titleSection("Packages"),
+            about("Counts the packages installed on this machine, straight from your package "
+                  + "manager's database — pacman or dpkg. It only ever READS: nothing here "
+                  + "installs, removes or updates anything, and it needs no privileges. "
+                  + "RPM-based systems aren't supported, because reading that database needs "
+                  + "librpm and this app will not shell out to `rpm`.") ] }
+
+        case "sinceinstall": return { sections: [
+            { title: "Display", cols: 1, fields: [
+                { key: "ageUnit", label: "Show as", type: "segmented", dflt: "auto", options: [
+                    { value: "auto", label: "Automatic" },
+                    { value: "days", label: "Days" } ],
+                  help: "Automatic switches to months, then years, as the system ages." },
+                { key: "showDate", label: "Show the install date", type: "toggle", dflt: true } ] },
+            titleSection("System Age"),
+            about("How long this system has been installed, measured from the first install "
+                  + "recorded in your package manager's log. If that log has been rotated "
+                  + "away, this is the age of the log rather than of the system.") ] }
+
         case "clock": return { sections: [
             { title: "Display", cols: 1, fields: [
                 { key: "format24", label: "24-hour clock", type: "toggle", dflt: false },

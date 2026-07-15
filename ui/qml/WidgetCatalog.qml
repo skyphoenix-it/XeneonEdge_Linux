@@ -49,6 +49,18 @@ QtObject {
         { type: "sensors", title: "Sensors",  category: "System", source: "qrc:/qml/SensorsWidget.qml", defaults: {},
           sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1", "1x1.5"], dflt: "1x1" },
 
+        // Installed-package count + system age, read from the package manager's
+        // own database (never mutated). Both are ONE number plus a caption — the
+        // same content shape as `countdown`, so the same sizes: they read fine
+        // down to 1/12 of the screen and have nothing to grow into past half of
+        // it (a lone number at 1x2 is a stretched card, not more information).
+        { type: "packages",     title: "Packages",   category: "System", source: "qrc:/qml/PackagesWidget.qml",
+          defaults: { showDistro: true },
+          sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1", "1x1.5"], dflt: "1x1" },
+        { type: "sinceinstall", title: "System Age", category: "System", source: "qrc:/qml/SinceInstallWidget.qml",
+          defaults: { ageUnit: "auto", showDate: true },
+          sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1", "1x1.5"], dflt: "1x1" },
+
         // Time / ambient
         { type: "clock",   title: "Clock",       category: "Time", source: "qrc:/qml/ClockWidget.qml",   defaults: {},
           sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1", "1x1.5"], dflt: "1x1" },
@@ -128,6 +140,8 @@ QtObject {
         "net": "Live upload and download throughput across your network interfaces.",
         "disk": "How full your root filesystem is.",
         "sensors": "CPU, GPU, memory, disk and temperatures together at a glance.",
+        "packages": "How many packages are installed, counted from your package manager's own database. Read-only — nothing here installs, removes or updates anything.",
+        "sinceinstall": "How long this system has been installed, measured from the first install recorded in your package manager's log.",
         "clock": "The current time and date.",
         "analog": "A classic analog clock face.",
         "moon": "Tonight's moon phase and how illuminated it is.",

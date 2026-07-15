@@ -899,6 +899,42 @@ pub extern "C" fn xeneon_secret_is_plaintext(raw: *const c_char) -> i32 {
     }
 }
 
+// --- Distro (packages / system age) ---
+
+/// Probe the distro identity, installed-package count and install date of the
+/// system rooted at `root`.
+///
+/// `root` is NULL or empty for the real system (`/`); any other value roots the
+/// probe at a fixture tree, which is how the C++ side tests this without
+/// touching the host's `/etc` or `/var`.
+///
+/// Returns an owned JSON object (free with `xeneon_string_free`):
+/// ```json
+/// { "id": "cachyos", "name": "CachyOS", "family": "arch",
+///   "packageCount": 1461, "unsupportedReason": null,
+///   "updates": null, "installEpoch": 1752191590 }
+/// ```
+/// `packageCount`, `updates` and `installEpoch` are `null` — never `0` or `-1` —
+/// when unknown, so a sentinel can never render as a real measurement.
+///
+/// This is READ-ONLY: it opens files and lists directories. It never mutates a
+/// package database and never spawns a process.
+#[no_mangle]
+pub extern "C" fn xeneon_distro_probe_json(root: *const c_char) -> *mut c_char {
+    let root_path: String = if root.is_null() {
+        "/".to_string()
+    } else {
+        match unsafe { CStr::from_ptr(root) }.to_str() {
+            Ok(s) if !s.is_empty() => s.to_string(),
+            // Unreadable/empty root: probe the real system rather than fail. A
+            // bad path here is a caller bug, not a reason to have no widget.
+            _ => "/".to_string(),
+        }
+    };
+    let info = crate::distro::probe(std::path::Path::new(&root_path));
+    to_c_string(crate::distro::to_json(&info))
+}
+
 // --- String utilities ---
 
 /// Free a string returned by any xeneon_* function.
@@ -921,6 +957,61 @@ mod tests {
         let s = CStr::from_ptr(p).to_string_lossy().into_owned();
         xeneon_string_free(p);
         s
+    }
+
+    // --- Distro FFI ---
+
+    #[test]
+    fn distro_probe_over_ffi_reports_a_fixture_root() {
+        let d = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(d.path().join("etc")).unwrap();
+        std::fs::write(
+            d.path().join("etc/os-release"),
+            "ID=arch\nNAME=\"Arch Linux\"\n",
+        )
+        .unwrap();
+        let local = d.path().join("var/lib/pacman/local");
+        std::fs::create_dir_all(&local).unwrap();
+        for i in 0..4 {
+            std::fs::create_dir(local.join(format!("p{i}"))).unwrap();
+        }
+        std::fs::write(local.join("ALPM_DB_VERSION"), "9\n").unwrap();
+
+        unsafe {
+            let root = CString::new(d.path().to_str().unwrap()).unwrap();
+            let json = take(xeneon_distro_probe_json(root.as_ptr()));
+            let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+            assert_eq!(v["family"], "arch");
+            assert_eq!(v["id"], "arch");
+            // 5 entries, 4 dirs: the ALPM_DB_VERSION file is not a package.
+            assert_eq!(v["packageCount"], 4);
+        }
+    }
+
+    // A NULL root means "the real system" — it must return a parseable probe on
+    // whatever box this runs on, never a null pointer.
+    #[test]
+    fn distro_probe_over_ffi_handles_null_root_as_the_real_system() {
+        unsafe {
+            let json = take(xeneon_distro_probe_json(std::ptr::null()));
+            let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+            assert!(v["family"].is_string());
+            assert!(v["name"].is_string());
+        }
+    }
+
+    // An unknown root must degrade to "unknown", with nulls rather than zeros.
+    #[test]
+    fn distro_probe_over_ffi_degrades_on_an_empty_root() {
+        let d = tempfile::tempdir().unwrap();
+        unsafe {
+            let root = CString::new(d.path().to_str().unwrap()).unwrap();
+            let json = take(xeneon_distro_probe_json(root.as_ptr()));
+            let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+            assert_eq!(v["family"], "unknown");
+            assert!(v["packageCount"].is_null());
+            assert!(v["installEpoch"].is_null());
+        }
     }
 
     // --- Secrets FFI ---

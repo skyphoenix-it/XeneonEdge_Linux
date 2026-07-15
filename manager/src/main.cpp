@@ -23,6 +23,7 @@
 #include <cstdio>
 #include "../../app/src/single_instance.h"
 #include "../../app/src/timezone_bridge.h"
+#include "../../app/src/distro_bridge.h"
 
 // Build a dark QPalette from the app's dark design tokens. Fusion (set below)
 // draws every Qt Quick control that ISN'T hand-restyled (Switch/Slider/Button/
@@ -111,6 +112,12 @@ int main(int argc, char* argv[]) {
     // would silently fall back to a fixed offset and disagree with the Edge.
     TimeZoneBridge timeZoneBridge;
     engine.rootContext()->setContextProperty("timeZones", &timeZoneBridge);
+
+    // Same reasoning for the distro bridge: the Manager previews PackagesWidget /
+    // SinceInstallWidget, and without this they would render their "unknown"
+    // placeholder in the preview while the Edge showed a real count.
+    DistroBridge distroBridge;
+    engine.rootContext()->setContextProperty("distro", &distroBridge);
 
     engine.load(QUrl(QStringLiteral("qrc:/manager/Manager.qml")));
     if (engine.rootObjects().isEmpty()) {

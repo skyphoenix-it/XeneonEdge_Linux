@@ -35,6 +35,8 @@
         <file alias="qml/WidgetConfigPanel.qml">qml/widgets/WidgetConfigPanel.qml</file>
 
         <!-- Widgets (registered in WidgetCatalog.qml) -->
+        <file alias="qml/PackagesWidget.qml">qml/widgets/PackagesWidget.qml</file>
+        <file alias="qml/SinceInstallWidget.qml">qml/widgets/SinceInstallWidget.qml</file>
         <file alias="qml/ClockWidget.qml">qml/widgets/ClockWidget.qml</file>
         <file alias="qml/AnalogClockWidget.qml">qml/widgets/AnalogClockWidget.qml</file>
         <file alias="qml/MoonWidget.qml">qml/widgets/MoonWidget.qml</file>

@@ -33,6 +33,8 @@
         <file alias="BokehBackground.qml">../ui/qml/widgets/BokehBackground.qml</file>
         <file alias="GridBackground.qml">../ui/qml/widgets/GridBackground.qml</file>
         <!-- Widgets -->
+        <file alias="PackagesWidget.qml">../ui/qml/widgets/PackagesWidget.qml</file>
+        <file alias="SinceInstallWidget.qml">../ui/qml/widgets/SinceInstallWidget.qml</file>
         <file alias="ClockWidget.qml">../ui/qml/widgets/ClockWidget.qml</file>
         <file alias="AnalogClockWidget.qml">../ui/qml/widgets/AnalogClockWidget.qml</file>
         <file alias="MoonWidget.qml">../ui/qml/widgets/MoonWidget.qml</file>

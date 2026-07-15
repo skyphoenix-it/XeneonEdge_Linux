@@ -23,6 +23,7 @@
 
 #include "single_instance.h"
 #include "timezone_bridge.h"
+#include "distro_bridge.h"
 #include <QColor>
 #include <csignal>
 #include <unistd.h>
@@ -418,6 +419,12 @@ int main(int argc, char *argv[]) {
     // option on toLocaleString is silently ignored), so the clock needs this.
     TimeZoneBridge* timeZoneBridge = new TimeZoneBridge(&engine);
     engine.rootContext()->setContextProperty("timeZones", timeZoneBridge);
+
+    // Distro identity / package count / system age. QML has no filesystem access,
+    // so /etc/os-release and the package db can only be read over the FFI. The
+    // bridge probes on its own thread — see distro_bridge.h.
+    DistroBridge* distroBridge = new DistroBridge(&engine);
+    engine.rootContext()->setContextProperty("distro", distroBridge);
 
     // Expose the MPRIS media bridge (Now Playing + transport control).
     MprisBridge* mediaBridge = new MprisBridge(&engine);
