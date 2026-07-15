@@ -124,6 +124,109 @@ gives you `.deb`/`.rpm`/`.tar.gz` for free.
 
 ---
 
+## Release signing
+
+### The key
+
+| | |
+|---|---|
+| **Fingerprint** | `2F0CAD36DC1D46F3347B7EF293CDC77EACF98990` |
+| **Short id** | `93CDC77EACF98990` (display only — **never** use a short id to decide trust; they are forgeable by construction) |
+| **UID** | SKYPhoenix IT `<simon.kreitmayer@skyphoenix-it.com>` |
+| **Type** | ed25519, created 2026-07-15, **expires 2028-07-14** |
+| **Public half** | [`packaging/edgehub-signing.pub`](../packaging/edgehub-signing.pub) in this repo, and <https://github.com/SimonKreitmayer.gpg> |
+| **Secret half** | The maintainer's machine. Nowhere else. |
+
+### What is signed, and what isn't
+
+| Release | Signed? |
+|---|---|
+| `v0.1.0` | ❌ predates the key |
+| `v1.0.0-alpha.1` | ❌ predates the key — checksum-only, and its release notes say so |
+| beta onward | ✅ `SHA256SUMS.asc` + a `.sig` on the source tarball |
+
+`v1.0.0-alpha.1` is **not** retroactively signed. Signing an old artifact today
+would attest that it was vouched for at publication, which isn't true; the honest
+record is that it shipped before the key existed. Its notes stay as they are.
+
+Per release, `scripts/release.sh` signs:
+
+- **`SHA256SUMS.asc`** — a detached armored signature over the checksum list. One
+  signature covers every artifact transitively: sign the list, and the list
+  fixes the files.
+- **`<tarball>.tar.gz.sig`** — a detached binary signature over the source
+  tarball, which is what `packaging/aur/PKGBUILD` verifies via `validpgpkeys`.
+
+Binaries themselves are not individually signed, and there is no Secure Boot /
+kernel-module signing story — there's nothing here that needs one.
+
+### The policy: signing is interactive, local, and never automated
+
+**The passphrase belongs to the maintainer and is never delegated** — not to a CI
+secret, not to an environment variable, not to a script. `scripts/release.sh`
+runs on the maintainer's own machine and gpg prompts a human, who answers.
+
+This is deliberate, and it costs something: releases cannot be cut by CI. That
+cost *is* the feature. A signature exists to prove a specific person vouched for
+specific bytes; a key a build server can use unattended proves only that the
+build server was reachable, and it moves the trust root to whoever can push a
+workflow file or read a secret. `.github/workflows/` therefore has no signing
+step, and must not grow one.
+
+Consequences worth stating plainly:
+
+- **Releases are cut by hand.** No tag-triggered publishing.
+- **A compromised CI cannot forge a release.** It can forge an *unsigned* one, so
+  users must check the signature — which is why the verification steps are in the
+  README and not buried here.
+- **`release.sh` refuses rather than degrades.** Every path that cannot sign exits
+  non-zero *before* any artifact is written. An unsigned release that looks
+  signed is worse than an honest unsigned one, so a half-failed run cannot leave
+  publishable-looking output in `dist/`.
+
+### Known gaps
+
+- **The key is not on a keyserver.** `gpg --recv-keys` does not find it, so users
+  (and `makepkg`, which fails with "unknown public key") must import from GitHub
+  or this repo. Publishing to <https://keys.openpgp.org> is a maintainer action:
+  ```sh
+  gpg --send-keys --keyserver keys.openpgp.org 2F0CAD36DC1D46F3347B7EF293CDC77EACF98990
+  ```
+- **`packaging/aur/PKGBUILD` is staged, not buildable.** It points at signed
+  release assets, and no signed release exists yet. Bump `pkgver`/`_tag` at the
+  first signed release.
+- **No revocation certificate is published.** If the key is lost, there is no way
+  to tell users to stop trusting it. Generate one (`gpg --gen-revoke`) and store
+  it offline, separately from the key.
+
+### Expiry and rotation
+
+The key **expires 2028-07-14**. Expiry is a dead-man's switch: if the key is lost
+or abandoned, it stops being trusted on its own rather than staying valid
+forever. It is not a deadline to dread — extending is routine:
+
+```sh
+gpg --edit-key 2F0CAD36DC1D46F3347B7EF293CDC77EACF98990   # > expire > save
+gpg --export --armor 2F0CAD36DC1D46F3347B7EF293CDC77EACF98990 > packaging/edgehub-signing.pub
+```
+
+Extending keeps the fingerprint, so every published signature and
+`validpgpkeys` entry stays valid — **prefer this over rotating.** Re-export the
+public key afterwards, or users importing from the repo will still see the old
+expiry.
+
+Rotate to a *new* key only on compromise or loss. That is expensive and should be
+treated as such: the new fingerprint must be published in the README,
+`packaging/edgehub-signing.pub`, `packaging/aur/PKGBUILD` (`validpgpkeys`),
+`scripts/release.sh` (`RELEASE_KEY`), and this file — and, if the old key is
+compromised rather than merely lost, users must be told which releases predate
+the rotation, via the revocation certificate above.
+
+Calendar note: **check the expiry at the 2028 GA planning point**, not on
+2028-07-14. A key that expires between an RC and a GA is a bad afternoon.
+
+---
+
 ## 3. Licensing (the part that decides your money options)
 
 - **This project is MIT** (`LICENSE`) — the most permissive license. You may sell
@@ -189,6 +292,11 @@ behind a paywall (kills the community that makes it valuable).
       Still open: ship an install helper for the udev rule alongside it.
 - [x] `.deb`/`.rpm` build + install + launch verified in CI (`distro.yml`).
 - [ ] Tag a release; attach the AppImage + `.deb`/`.rpm` from `cpack`.
+- [x] Release signing key exists + published (`packaging/edgehub-signing.pub`),
+      signing flow in `scripts/release.sh`, verify steps in the README.
+      Still open: publish the key to a keyserver, generate a revocation
+      certificate, and cut the first actually-signed release (see
+      [Release signing](#release-signing)).
 - [ ] (Later) Flathub submission.
 
 See also: [authoring widgets](widgets/authoring.md) · [installation](installation/).
