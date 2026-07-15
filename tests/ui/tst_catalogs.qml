@@ -21,7 +21,7 @@ Item {
         when: windowShown
 
         function test_expected_count() {
-            compare(bg.styles.length, 8, "eight background styles")
+            compare(bg.styles.length, 11, "eleven background styles")
         }
 
         function test_unique_keys_and_required_fields() {

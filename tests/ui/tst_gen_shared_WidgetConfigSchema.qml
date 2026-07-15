@@ -33,6 +33,7 @@ Item {
 
     // Schema + catalog under test.
     App.WidgetConfigSchema { id: sc }
+    App.BackgroundCatalog { id: bgcat }
     App.WidgetCatalog { id: catalog }
 
     // Stores for the direct-instantiation tests.
@@ -290,13 +291,25 @@ Item {
             compare(missing, [], "every widget gets accent + cardBackdrop fields")
         }
 
-        // cardBackdrop options must match exactly the styles BackdropLayer implements
-        // (plus "none"): none/orbs/mesh/aurora/waves/stars/bokeh/grid.
-        function test_cardBackdrop_options_match_implemented_styles() {
+        // A card backdrop must be a style that actually EXISTS — offering one that
+        // doesn't renders an empty card. It is a deliberate SUBSET, not an equality:
+        // the full-screen motifs (peaks/loops/ribbons) are composed for a whole
+        // panel and read as noise inside a small card, so they are not offered here.
+        //
+        // This used to compare the schema against a HARD-CODED literal list while
+        // claiming it matched "the styles BackdropLayer implements" — so it passed
+        // no matter how far the two drifted, which is exactly what happened. It now
+        // checks against the real catalog.
+        function test_cardBackdrop_options_all_exist_as_real_styles() {
             var f = fieldByKey(sc.schemaFor("clock"), "cardBackdrop")
-            var vals = (f.options || []).map(function (o) { return o.value }).sort()
-            var impl = ["none", "orbs", "mesh", "aurora", "waves", "stars", "bokeh", "grid"].sort()
-            compare(vals, impl, "cardBackdrop options == implemented backdrop styles")
+            var vals = (f.options || []).map(function (o) { return o.value })
+            verify(vals.length > 1, "the field offers backdrops, got " + vals.length)
+            verify(vals.indexOf("none") >= 0, "'none' is always available")
+            var known = { "none": 1 }
+            for (var i = 0; i < bgcat.styles.length; i++) known[bgcat.styles[i].v] = 1
+            for (var j = 0; j < vals.length; j++)
+                verify(known[vals[j]] === 1,
+                       "cardBackdrop option '" + vals[j] + "' is a style BackgroundCatalog really has")
         }
     }
 
