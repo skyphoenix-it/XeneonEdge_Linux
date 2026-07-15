@@ -1,0 +1,202 @@
+name: Distro Packages
+
+# Builds against each distro's OWN Qt6 packages — deliberately NOT the
+# jurplel/install-qt-action Qt used by ci.yml. ci.yml answers "does the code
+# compile against upstream Qt 6.7"; this answers "can a Fedora/Ubuntu user
+# actually install and run it", which is a different question and the one that
+# broke: the .deb installed fine and then died at startup on a missing QML module.
+#
+# GitHub runners are Ubuntu-only, so each distro runs in a container.
+# Every job is two stages on purpose:
+#   build   — install -devel packages, compile, cpack
+#   install — a CLEAN container that installs ONLY the artifact
+# The clean stage is the point. Installing in the build container proves nothing:
+# the -devel packages already dragged in the whole Qt runtime, so a package with
+# missing Requires/Depends would still "work" there.
+
+on:
+  push:
+    branches: [main, master, v1.0-alpha]
+  pull_request:
+    branches: [main, master, v1.0-alpha]
+  workflow_dispatch:
+
+concurrency:
+  group: distro-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fedora:
+    name: Fedora ${{ matrix.release }} (RPM)
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        release: ['43']
+    container: fedora:${{ matrix.release }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          dnf -y install \
+            git cmake gcc-c++ make rpm-build cargo rust \
+            qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel \
+            qt6-qtvirtualkeyboard-devel qt6-qtwayland-devel \
+            mesa-libGL-devel
+
+      - name: Record + gate Qt version (>= 6.5)
+        # find_package(Qt6 6.5) would catch this at configure time anyway, but a
+        # named step makes a distro Qt regression obvious in the job list.
+        run: |
+          rpm -q qt6-qtbase-devel qt6-qtdeclarative-devel
+          v=$(rpm -q --qf '%{VERSION}' qt6-qtbase-devel)
+          echo "Fedora Qt: $v"
+          [ "$(printf '6.5\n%s\n' "$v" | sort -V | head -1)" = "6.5" ] || {
+            echo "Qt $v < 6.5 (QtQuick.Effects unavailable)"; exit 1; }
+
+      - name: Build Rust core
+        run: cargo build --release
+        working-directory: core
+
+      - name: Configure + build
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j"$(nproc)"
+
+      - name: Package (RPM)
+        run: cpack -G RPM
+        working-directory: build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fedora-${{ matrix.release }}-rpm
+          path: build/*.rpm
+
+  fedora-install:
+    name: Fedora ${{ matrix.release }} install + smoke (clean)
+    needs: fedora
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        release: ['43']
+    container: fedora:${{ matrix.release }}
+    steps:
+      # actions/checkout needs git present in the container image.
+      - run: dnf -y install git
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: fedora-${{ matrix.release }}-rpm
+          path: pkg
+
+      - name: Install the RPM with no Qt preinstalled
+        # Resolves Requires from the repos only — this is what proves the
+        # declared dependency list is complete and installable.
+        run: dnf -y install ./pkg/*.rpm
+
+      - name: Launch smoke (offscreen)
+        run: |
+          dnf -y install dejavu-sans-fonts fontconfig
+          bash packaging/ci/smoke.sh
+
+      - name: Validate AppStream + desktop entries
+        run: |
+          dnf -y install appstream desktop-file-utils
+          for f in /usr/share/metainfo/com.skyphoenix_it.*.xml; do
+            appstreamcli validate --no-net "$f"
+          done
+          desktop-file-validate /usr/share/applications/xeneon-edge-hub.desktop
+          desktop-file-validate /usr/share/applications/xeneon-edge-manager.desktop
+
+  ubuntu:
+    name: Ubuntu ${{ matrix.release }} (DEB)
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        release: ['26.04']
+    container: ubuntu:${{ matrix.release }}
+    env:
+      DEBIAN_FRONTEND: noninteractive
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        # ca-certificates is not optional: without it cargo's crates.io fetch
+        # fails on the bare image with "[77] Problem with the SSL CA cert".
+        run: |
+          apt-get update -qq
+          apt-get install -y --no-install-recommends \
+            ca-certificates git cmake g++ make file dpkg-dev rustc cargo \
+            qt6-base-dev qt6-declarative-dev qt6-svg-dev qt6-virtualkeyboard-dev \
+            libgl1-mesa-dev
+
+      - name: Record + gate Qt version (>= 6.5)
+        run: |
+          dpkg -l qt6-base-dev qt6-declarative-dev | grep ^ii
+          v=$(qmake6 -query QT_VERSION)
+          echo "Ubuntu Qt: $v"
+          [ "$(printf '6.5\n%s\n' "$v" | sort -V | head -1)" = "6.5" ] || {
+            echo "Qt $v < 6.5 (QtQuick.Effects unavailable)"; exit 1; }
+
+      - name: Build Rust core
+        run: cargo build --release
+        working-directory: core
+
+      - name: Configure + build
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j"$(nproc)"
+
+      - name: Package (DEB)
+        run: cpack -G DEB
+        working-directory: build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ubuntu-${{ matrix.release }}-deb
+          path: build/*.deb
+
+  ubuntu-install:
+    name: Ubuntu ${{ matrix.release }} install + smoke (clean)
+    needs: ubuntu
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        release: ['26.04']
+    container: ubuntu:${{ matrix.release }}
+    env:
+      DEBIAN_FRONTEND: noninteractive
+    steps:
+      # actions/checkout needs git present in the container image.
+      - run: apt-get update -qq && apt-get install -y --no-install-recommends git ca-certificates
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: ubuntu-${{ matrix.release }}-deb
+          path: pkg
+
+      - name: Install the DEB with no Qt preinstalled
+        # The regression guard for the qml6-module-* Depends in CMakeLists.txt:
+        # dpkg-shlibdeps cannot see dlopen'd QML plugins, so if that list is ever
+        # trimmed this step still passes and the smoke step below fails.
+        run: |
+          apt-get update -qq
+          apt-get install -y ./pkg/*.deb
+
+      - name: Launch smoke (offscreen)
+        run: |
+          apt-get install -y --no-install-recommends fonts-dejavu-core fontconfig
+          bash packaging/ci/smoke.sh
+
+      - name: Validate AppStream + desktop entries
+        run: |
+          apt-get install -y --no-install-recommends appstream desktop-file-utils
+          for f in /usr/share/metainfo/com.skyphoenix_it.*.xml; do
+            appstreamcli validate --no-net "$f"
+          done
+          desktop-file-validate /usr/share/applications/xeneon-edge-hub.desktop
+          desktop-file-validate /usr/share/applications/xeneon-edge-manager.desktop

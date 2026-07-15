@@ -6,12 +6,33 @@ How to let other people install this, and your options for making money.
 
 ## 1. What users need to build & run
 
-**Runtime:** a Linux desktop with Qt6 (Quick, QuickControls2, Svg, DBus, Network,
-VirtualKeyboard) and a working GPU/compositor. No web browser, no server.
+**Runtime:** a Linux desktop with **Qt6 ≥ 6.5** (Quick, QuickControls2, Svg, DBus,
+Network, VirtualKeyboard) and a working GPU/compositor. No web browser, no server.
+The ≥ 6.5 floor is real — the widgets use `QtQuick.Effects`, which does not exist
+before it.
 
 **Build:** a C++17 toolchain, CMake ≥ 3.22, the Rust toolchain (`cargo`), and the
 Qt6 dev packages. See `docs/installation/` for per-distro package lists
-(`cachyos.md`, `ubuntu.md`, `generic-linux.md`).
+(`cachyos.md`, `ubuntu.md`, `generic-linux.md`), and
+`.github/workflows/distro.yml` for the exact, CI-executed Fedora/Ubuntu lists.
+
+### Distro support (what CI actually proves)
+
+`.github/workflows/distro.yml` builds against each distro's **own** Qt packages,
+then installs the resulting package into a **clean** container (no Qt, no
+`-devel`) and launches it offscreen. Verified:
+
+| Distro | Distro's Qt | Status |
+|---|---|---|
+| **Fedora 43** | 6.10.3 | ✅ builds, RPM installs clean, launches |
+| **Ubuntu 26.04 LTS** | 6.10.2 | ✅ builds, DEB installs clean, launches |
+| **Arch / CachyOS** | rolling | ✅ dev box + AUR (`makepkg`) |
+| **Ubuntu 24.04 LTS** | 6.4.2 | ❌ Qt too old for `QtQuick.Effects` — use the AppImage |
+
+Both Fedora 43 and Ubuntu 26.04 now ship Qt ≥ 6.5 themselves, so building from
+source on either needs nothing beyond the distro's own packages. (`ci.yml` still
+installs Qt 6.7 via `jurplel/install-qt-action` because its jobs run on Ubuntu
+24.04, whose apt Qt is 6.4.2.)
 
 ### Do they need sudo?
 
@@ -54,7 +75,7 @@ Ranked by effort-vs-reach for this app:
 |---|---|---|
 | **AppImage** | Widest reach, zero install | One portable file that bundles Qt. Ship the udev rule + a helper script alongside. Easiest for non-technical users. Recommended first target. |
 | **AUR (PKGBUILD)** | Arch / CachyOS (your distro) | Cheap to maintain; installs the udev rule as part of the package. Great starting point since you're on CachyOS. |
-| **.deb / .rpm** | Debian/Ubuntu & Fedora | `cpack` can generate these from CMake; package the udev rule under `/usr/lib/udev/rules.d`. |
+| **.deb / .rpm** | Ubuntu 26.04+ & Fedora | `cpack` generates these from CMake; the udev rule ships under `/usr/lib/udev/rules.d`. Both are CI-verified end to end (build → install on a clean image → launch). Note the `.deb` must list every `qml6-module-*` by hand — `dpkg-shlibdeps` cannot see dlopen'd QML plugins. See `packaging/README.md`. |
 | **Flatpak / Flathub** | Discoverability + auto-update + a built-in donation link | Sandboxed — you must grant `--device=all` (or specific hidraw) and `/proc`/`/sys` access, and the udev rule still has to be installed on the host. More work; do it after AppImage/AUR. |
 
 Practical rollout: **AUR first** (you, today) → **AppImage** (everyone) →
@@ -128,6 +149,7 @@ behind a paywall (kills the community that makes it valuable).
 - [ ] Add `.github/FUNDING.yml` + a Support section in the README.
 - [ ] Write an AUR `PKGBUILD` (installs binaries + udev rule).
 - [ ] Produce an AppImage (bundle Qt; ship the udev rule + install helper).
+- [x] `.deb`/`.rpm` build + install + launch verified in CI (`distro.yml`).
 - [ ] Tag a release; attach the AppImage + `.deb`/`.rpm` from `cpack`.
 - [ ] (Later) Flathub submission.
 

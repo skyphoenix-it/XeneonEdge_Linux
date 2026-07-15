@@ -274,8 +274,25 @@ if(PROJECT_IS_TOP_LEVEL)
     # Debian/Ubuntu
     set(CPACK_DEBIAN_PACKAGE_SECTION "utils")
     set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)   # auto-resolve lib deps (needs dpkg-shlibdeps)
+    # QML modules are dlopen'd plugins, not linked libraries, so dpkg-shlibdeps
+    # cannot see them and Debian/Ubuntu ship each one as a separate qml6-module-*
+    # package. Without these listed explicitly the .deb installs cleanly and then
+    # dies at startup with `module "QtQuick.Controls" plugin
+    # "qtquickcontrols2plugin" not found` (verified on a clean ubuntu:26.04).
+    # Keep this list in sync with the `import` lines under ui/qml/ and manager/.
+    # Fedora needs no equivalent: qt6-qtdeclarative bundles all of these.
     set(CPACK_DEBIAN_PACKAGE_DEPENDS
-        "libqt6svg6, qml6-module-qtquick-virtualkeyboard | qt6-virtualkeyboard, qt6-wayland")
+        "libqt6svg6, qt6-wayland, \
+qml6-module-qtcore, \
+qml6-module-qtquick, \
+qml6-module-qtquick-controls, \
+qml6-module-qtquick-dialogs, \
+qml6-module-qtquick-effects, \
+qml6-module-qtquick-layouts, \
+qml6-module-qtquick-shapes, \
+qml6-module-qtquick-window, \
+qml6-module-qtqml-workerscript, \
+qml6-module-qtquick-virtualkeyboard | qt6-virtualkeyboard")
     set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
 
     # Fedora/openSUSE
