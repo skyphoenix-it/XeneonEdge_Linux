@@ -5,6 +5,20 @@ import QtQuick.Layouts
 // TextArea) for consistent theming and to avoid style-specific issues. The
 // editor initialises from stored text and saves on edit; the compact tile
 // shows a live preview via the reactive `cfg`.
+//
+// Sizing (W1 wave 2b): this is ONE body of text, so — exactly like a list earning
+// more rows — a bigger box earns more LINES, not bigger type. The preview was a
+// flat 13px at every size, which is both too small to read on a 696x819 tile and
+// the same on a 348x409 one.
+//   • 0.5x0.5 (micro) — headerless: at 1/12 the note itself is the tile, and 36px
+//                       of chrome is a line of text you cannot spare.
+//   • every other size — the preview scales gently with the box (13px in a narrow
+//                       column, up to 20px in a wide one — longer lines carry
+//                       bigger type) and the taller box simply shows more of them.
+//   • full (overlay)  — the editor. Editing is genuinely modal, so THAT stays
+//                       keyed off `expanded` rather than off size.
+// This widget has the least to gain from a big box of the nine: there is no extra
+// content to earn, only more of the same note.
 WidgetChrome {
     id: w
     property var metrics: ({})
@@ -14,6 +28,14 @@ WidgetChrome {
     property string instanceId: ""
 
     title: "Quick Note"; iconName: "notes"; accentColor: theme.catInfo
+    showHeader: !micro
+
+    // ── Per-size layout (sizeClass injected by Dashboard) ────────────────────
+    // The preview scales with the COLUMN (a wider column means longer lines, which
+    // carry bigger type) and is capped so a big box earns more LINES, not a
+    // billboard. Height only floors it — a tall narrow sliver must not inflate.
+    readonly property real previewPx: w.expanded ? 18
+        : Math.max(13, Math.min(width * 0.024, height * 0.045, 20))
 
     readonly property var cfg: {
         var _ = store ? store.revision : 0
@@ -34,14 +56,16 @@ WidgetChrome {
     // last edit is silently lost.
     Component.onDestruction: flush()
 
-    // Compact preview
+    // Tile preview — as many lines as the box holds, at a size the box earns.
     Text {
-        anchors.fill: parent; anchors.margins: theme.spacingSm
+        anchors.fill: parent; anchors.margins: w.micro ? theme.spacingXs : theme.spacingSm
         visible: !w.expanded
         // A whitespace-only note is effectively empty — show the placeholder.
-        text: w.current.trim().length ? w.current : "Tap to jot a note…"
+        text: w.current.trim().length ? w.current
+                                      : (w.micro ? "Jot a note…" : "Tap to jot a note…")
         color: w.current.trim().length ? theme.textPrimary : theme.textTertiary
-        font.pixelSize: 13; wrapMode: Text.WordWrap; elide: Text.ElideRight
+        font.pixelSize: Math.round(w.previewPx)
+        wrapMode: Text.WordWrap; elide: Text.ElideRight
     }
 
     // Expanded editor

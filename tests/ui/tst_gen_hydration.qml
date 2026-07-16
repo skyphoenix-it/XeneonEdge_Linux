@@ -354,4 +354,105 @@ Item {
             compare(glassMl.dflt, 250, "glassMl default 250 matches widget default")
         }
     }
+
+    // ── Per-sizeClass structure (W1 wave 2b) ────────────────────────────────
+    // Fixed-size hosts at the real projected cell footprints.
+    Item { width: 348; height: 409
+        WidgetHarness { id: yMicro; anchors.fill: parent; widgetFile: "HydrationWidget.qml"; expanded: false } }
+    Item { width: 696; height: 819
+        WidgetHarness { id: yBase; anchors.fill: parent; widgetFile: "HydrationWidget.qml"; expanded: false } }
+    Item { id: yWideWrap; width: 696; height: 409
+        WidgetHarness { id: yWide; anchors.fill: parent; widgetFile: "HydrationWidget.qml"; expanded: false } }
+
+    TestCase {
+        name: "HydrationSizes"
+        when: windowShown
+
+        function seed(host) {
+            host.storeCtl.patchSettings(host.instanceId,
+                { goal: 8, count: 3, day: Qt.formatDate(new Date(), "yyyy-MM-dd") })
+        }
+        function findAll(node, pred, acc) {
+            if (!node) return acc
+            if (pred(node)) acc.push(node)
+            var kids = node.children
+            for (var i = 0; kids && i < kids.length; i++) findAll(kids[i], pred, acc)
+            return acc
+        }
+        // Every PillButton holds exactly one MouseArea; the button is its parent.
+        function pills(host) {
+            return findAll(host.item, function (n) {
+                return n.hasOwnProperty("label") && n.hasOwnProperty("glyph")
+                       && n.hasOwnProperty("primary") && n.visible
+            }, [])
+        }
+
+        // 0.5x0.5 — the count, and the one tap that matters. Nothing else.
+        function test_micro_is_count_plus_one_tap() {
+            tryVerify(function () { return yMicro.ready }, 3000)
+            var y = yMicro.item
+            y.sizeClass = "compact"
+            seed(yMicro)
+            compare(y.micro, true, "a 348x409 compact box is the micro tile")
+            compare(y.showHeader, false, "micro drops the chrome header")
+            compare(y.showGrid, false, "micro drops the glass grid — 8 droplets there are mush")
+            compare(y.showStreak, false, "…and the streak line")
+            verify(y.countPx >= 20, "the count is a readout, not a caption ("
+                   + y.countPx.toFixed(0) + "px)")
+            // The +1 survives, at a real touch size.
+            var p = pills(yMicro)
+            compare(p.length, 1, "micro keeps exactly one control: +1")
+            compare(p[0].label, "+1", "…and it is the +1")
+            verify(p[0].height >= yMicro.theme.touchTertiary,
+                   "the +1 is >= touchTertiary (" + p[0].height + " >= "
+                   + yMicro.theme.touchTertiary + ") — never shrunk to fit")
+        }
+
+        // 1x1 — the grid comes back and scales to the box.
+        function test_baseline_earns_the_grid() {
+            tryVerify(function () { return yBase.ready }, 3000)
+            tryVerify(function () { return yMicro.ready }, 3000)
+            yMicro.item.sizeClass = "compact"; seed(yMicro)
+            var y = yBase.item
+            y.sizeClass = "compact"
+            seed(yBase)
+            compare(y.micro, false, "a 696x819 baseline tile is not micro")
+            compare(y.showGrid, true, "the baseline earns the glass grid")
+            verify(y.glassPx > 16, "the droplets scale to the box, past the old fixed 16px ("
+                   + y.glassPx.toFixed(0) + ")")
+            // Both controls, both real targets.
+            var p = pills(yBase)
+            compare(p.length, 2, "the baseline carries both − and +1")
+            for (var i = 0; i < p.length; i++)
+                verify(p[i].height >= yBase.theme.touchTertiary,
+                       p[i].label + " is >= touchTertiary (" + p[i].height + ")")
+        }
+
+        // wide — the grid moves BESIDE the count/controls; same delegates.
+        function test_wide_puts_the_grid_beside_the_controls() {
+            tryVerify(function () { return yWide.ready }, 3000)
+            var y = yWide.item
+            y.sizeClass = "compact"
+            seed(yWide)
+            var grid = gridOf(yWide)
+            compare(grid.columns, 1, "a stacked box is one column")
+            var dropBefore = findAll(y, function (n) {
+                return n.hasOwnProperty("text") && String(n.text) === "💧" }, [])[0]
+            y.sizeClass = "wide"
+            compare(y.horiz, true, "wide is the horizontal shape")
+            compare(grid.columns, 2, "wide flows the grid beside the controls")
+            var dropAfter = findAll(y, function (n) {
+                return n.hasOwnProperty("text") && String(n.text) === "💧" }, [])[0]
+            verify(dropAfter === dropBefore,
+                   "the same droplet object survives the class flip (no rebuild)")
+            y.sizeClass = "compact"
+        }
+        // The content GridLayout: the glass Grid's parent.
+        function gridOf(host) {
+            var g = findAll(host.item, function (n) {
+                return n.hasOwnProperty("horizontalItemAlignment")
+                       && n.hasOwnProperty("columns") }, [])[0]
+            return g ? g.parent : null
+        }
+    }
 }

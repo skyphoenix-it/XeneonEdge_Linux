@@ -439,4 +439,84 @@ Item {
                     "reset does not leak/clear another instance's note")
         }
     }
+
+    // ── Per-sizeClass structure (W1 wave 2b) ────────────────────────────────
+    // Fixed-size hosts at the real projected cell footprints.
+    Item { width: 348; height: 409
+        WidgetHarness { id: qMicro; anchors.fill: parent; widgetFile: "NotesWidget.qml"; expanded: false } }
+    Item { width: 696; height: 819
+        WidgetHarness { id: qBase; anchors.fill: parent; widgetFile: "NotesWidget.qml"; expanded: false } }
+    // 1x3 portrait — the whole panel.
+    Item { width: 696; height: 2459
+        WidgetHarness { id: qBoard; anchors.fill: parent; widgetFile: "NotesWidget.qml"; expanded: false } }
+
+    TestCase {
+        name: "NotesSizes"
+        when: windowShown
+
+        function findAll(node, pred, acc) {
+            acc = acc || []
+            if (!node) return acc
+            if (pred(node)) acc.push(node)
+            var kids = node.children
+            for (var i = 0; kids && i < kids.length; i++) findAll(kids[i], pred, acc)
+            return acc
+        }
+        function seed(host) {
+            host.storeCtl.setSetting(host.instanceId, "text",
+                "Pick up the dry cleaning before six, and ask Ana whether the "
+                + "invoice for March ever went out. Also: the boiler service is due.")
+        }
+        // Every Text has a wrapMode property (the chrome header's title matches a
+        // naive predicate), so identify the preview by the note it is showing.
+        function preview(host) {
+            return findAll(host.item, function (n) {
+                return n.hasOwnProperty("wrapMode") && n.hasOwnProperty("elide")
+                       && n.visible && String(n.text).indexOf("Pick up the dry") === 0 }, [])[0]
+        }
+
+        // 0.5x0.5 — the note IS the tile; 36px of chrome is a line you cannot spare.
+        function test_micro_drops_the_header_for_a_line_of_note() {
+            tryVerify(function () { return qMicro.ready }, 3000)
+            var q = qMicro.item
+            q.sizeClass = "compact"
+            seed(qMicro)
+            wait(32)
+            compare(q.micro, true, "a 348x409 compact box is the micro tile")
+            compare(q.showHeader, false, "micro drops the chrome header")
+            verify(preview(qMicro) !== null, "the note still renders")
+        }
+
+        // The preview is sized off the BOX, not off `expanded` — the wave-2b bug.
+        function test_the_preview_scales_with_the_tile() {
+            tryVerify(function () { return qBase.ready }, 3000)
+            tryVerify(function () { return qMicro.ready }, 3000)
+            qMicro.item.sizeClass = "compact"; seed(qMicro)
+            var q = qBase.item
+            q.sizeClass = "compact"
+            seed(qBase)
+            wait(32)
+            verify(q.previewPx > 13,
+                   "a 696x819 tile reads past the old flat 13px (" + q.previewPx.toFixed(0) + ")")
+            verify(q.previewPx > qMicro.item.previewPx,
+                   "…and bigger than a 348x409 tile's (" + q.previewPx.toFixed(0)
+                   + " vs " + qMicro.item.previewPx.toFixed(0) + ")")
+        }
+
+        // 1x3 earns more LINES, not bigger type: a note is one body of text.
+        function test_the_full_panel_earns_lines_not_bigger_type() {
+            tryVerify(function () { return qBoard.ready }, 3000)
+            tryVerify(function () { return qBase.ready }, 3000)
+            qBase.item.sizeClass = "compact"; seed(qBase)
+            var q = qBoard.item
+            q.sizeClass = "large"
+            seed(qBoard)
+            wait(32)
+            compare(q.previewPx, qBase.item.previewPx,
+                    "a 696x2459 panel uses the SAME type size as a 696x819 tile — "
+                    + "the same column width carries the same line length")
+            verify(preview(qBoard).height > preview(qBase).height * 2,
+                   "…it just has room for far more lines")
+        }
+    }
 }
