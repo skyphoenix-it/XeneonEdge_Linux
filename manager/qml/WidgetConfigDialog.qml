@@ -150,6 +150,9 @@ Dialog {
         contentItem: Text {
             text: "Reset " + catalog.title(dlg.wType) + " to its default settings? This can't be undone."
             color: m.textPrimary; wrapMode: Text.WordWrap; padding: 14; font.pixelSize: 14
+            // Same cap as Manager's confirmDialog: an uncapped Text keeps widening
+            // the dialog that sizes it (implicitWidth binding loop).
+            width: Math.min(implicitWidth, 360)
         }
         onAccepted: store.resetSettings(dlg.wId, catalog.defaults(dlg.wType))
     }
