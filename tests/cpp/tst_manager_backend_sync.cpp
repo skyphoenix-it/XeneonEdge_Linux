@@ -3,6 +3,7 @@
 // suppression window (driven by an INJECTED clock so there is zero real waiting),
 // and the image import/delete/sanitize surface. Needs a QGuiApplication (offscreen).
 #include <QtTest>
+#include <QStandardPaths>
 #include <QLocalServer>
 #include <QLocalSocket>
 #include <QJsonDocument>
@@ -227,7 +228,10 @@ private slots:
     // ── Autostart install/remove via the Manager surface (HOME = per-test temp). ──
     void autostartSurface() {
         ManagerBackend b;
-        const QString entry = QDir::homePath() + "/.config/autostart/xeneon-edge-hub.desktop";
+        // ConfigLocation, matching applyAutostart(): homePath() was the sandbox-escape
+        // bug — see tst_autostart::entryFollowsXdgNotHome.
+        const QString entry = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation)
+                              + "/autostart/xeneon-edge-hub.desktop";
         QFile::remove(entry);
         QVERIFY(!b.isAutostart());
         QVERIFY(b.setAutostart(true));
@@ -489,7 +493,10 @@ private slots:
     void autostartSurvivesHubSave() {
         XeneonString cd(xeneon_config_dir());
         const QString cfgPath = cd.qstring() + "/config.toml";
-        const QString entry = QDir::homePath() + "/.config/autostart/xeneon-edge-hub.desktop";
+        // ConfigLocation, matching applyAutostart(): homePath() was the sandbox-escape
+        // bug — see tst_autostart::entryFollowsXdgNotHome.
+        const QString entry = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation)
+                              + "/autostart/xeneon-edge-hub.desktop";
         QFile::remove(cfgPath);
         QFile::remove(entry);
 

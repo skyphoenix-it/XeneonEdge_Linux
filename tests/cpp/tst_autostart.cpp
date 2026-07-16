@@ -3,6 +3,7 @@
 // to a per-test temp dir via the ctest ENVIRONMENT. GUILESS (needs QCoreApplication
 // for applicationFilePath()).
 #include <QtTest>
+#include <QStandardPaths>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -21,9 +22,27 @@ class TstAutostart : public QObject {
     QString path_;
 private slots:
     void initTestCase() {
-        path_ = QDir::homePath() + "/.config/autostart/xeneon-edge-hub.desktop";
-        // Start clean.
+        // ConfigLocation, matching the code under test — homePath() was the BUG:
+        // it ignores XDG_CONFIG_HOME, so an isolated hub wrote the REAL autostart
+        // dir (and cleanup deleted the user's genuine entry). The hermetic harness
+        // gives this test a sandboxed XDG_CONFIG_HOME, which is the point.
+        path_ = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation)
+                + "/autostart/xeneon-edge-hub.desktop";
         QFile::remove(path_);
+    }
+
+    // The regression itself: with HOME and XDG_CONFIG_HOME pointing at DIFFERENT
+    // places (exactly the escaped-sandbox shape), the entry must land under
+    // XDG_CONFIG_HOME and $HOME/.config/autostart must stay untouched.
+    void entryFollowsXdgNotHome() {
+        const QString homeSide = QDir::homePath() + "/.config/autostart/xeneon-edge-hub.desktop";
+        QVERIFY2(homeSide != path_,
+                 "hermetic env must diverge HOME from XDG_CONFIG_HOME for this test to bite");
+        QFile::remove(homeSide);
+        QVERIFY(applyAutostart(true));
+        QVERIFY2(QFile::exists(path_), "entry lands under XDG_CONFIG_HOME");
+        QVERIFY2(!QFile::exists(homeSide), "and NEVER under $HOME/.config — the escape is closed");
+        QVERIFY(applyAutostart(false));
     }
     void cleanup() {
         // Restore write on the entry dir first so a test that dropped permissions

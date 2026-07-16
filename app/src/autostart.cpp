@@ -3,6 +3,7 @@
 #include <QCoreApplication>
 #include <QDebug>
 #include <QDir>
+#include <QStandardPaths>
 #include <QFile>
 #include <QLatin1Char>
 #include <QString>
@@ -17,7 +18,13 @@ QString quoteExecForDesktop(const QString& execPath) {
 }
 
 bool applyAutostart(bool enabled) {
-    const QString dir = QDir::homePath() + "/.config/autostart";
+    // QStandardPaths, NOT QDir::homePath(): homePath ignores XDG_CONFIG_HOME, so
+    // a sandboxed test hub (isolated XDG_CONFIG_HOME, real HOME) wrote its
+    // autostart entry into the REAL ~/.config/autostart — with Exec pointing at a
+    // throwaway worktree build — and a later cleanup deleted the user's genuine
+    // entry alongside it. ConfigLocation honours the env, so isolation actually
+    // isolates.
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation) + "/autostart";
     const QString path = dir + "/xeneon-edge-hub.desktop";
     if (!enabled) {
         // Removing a non-existent entry is already "off" (success); otherwise

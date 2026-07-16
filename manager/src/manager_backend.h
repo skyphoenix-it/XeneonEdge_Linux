@@ -4,6 +4,7 @@
 #include <QDateTime>
 #include <QDebug>
 #include <QDir>
+#include <QStandardPaths>
 #include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
@@ -518,7 +519,12 @@ private slots:
 
 private:
     static QString autostartPath() {
-        return QDir::homePath() + "/.config/autostart/xeneon-edge-hub.desktop";
+        // ConfigLocation, matching the hub's applyAutostart(): homePath() ignores
+        // XDG_CONFIG_HOME (the sandbox-escape bug), and TWO path derivations that
+        // can disagree is exactly how the Manager and hub would silently manage
+        // two different autostart entries.
+        return QStandardPaths::writableLocation(QStandardPaths::ConfigLocation)
+               + "/autostart/xeneon-edge-hub.desktop";
     }
     // Locate the hub executable: prefer the one shipped next to this Manager, else
     // rely on PATH (installed system-wide). Returns an absolute path when found.
