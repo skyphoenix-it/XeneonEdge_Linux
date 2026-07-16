@@ -147,6 +147,18 @@ Dialog {
         modal: true; title: "Reset this widget?"
         standardButtons: Dialog.Yes | Dialog.No
         background: Rectangle { color: m.panel; radius: m.radius; border.width: 1; border.color: m.border }
+        // Custom token header (mirrors Manager's confirmDialog): the Fusion title
+        // chrome clashed with the dark UI and its label sizing fed the Dialog an
+        // implicitWidth binding loop.
+        header: Rectangle {
+            color: "transparent"; implicitHeight: 52
+            RowLayout {
+                anchors.fill: parent; anchors.leftMargin: 18; anchors.rightMargin: 18; spacing: 10
+                AppIcon { name: "ui-warning"; size: 20; color: m.danger; Layout.alignment: Qt.AlignVCenter }
+                Text { text: resetConfirm.title; color: m.textPrimary; font.pixelSize: 17; font.bold: true
+                    Layout.fillWidth: true }
+            }
+        }
         contentItem: Text {
             text: "Reset " + catalog.title(dlg.wType) + " to its default settings? This can't be undone."
             color: m.textPrimary; wrapMode: Text.WordWrap; padding: 14; font.pixelSize: 14
