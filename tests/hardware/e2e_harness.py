@@ -280,8 +280,9 @@ class E2E:
 
     def _seed_probe_layout(self):
         """The pixel-verified control layout (same as e2e_interaction's) with
-        two independent probe controls: hydration '+' at Edge-local (394,955)
-        and focus Start at (317,568)."""
+        two independent probe controls: hydration '+' at Edge-local (394,1281)
+        and focus Start at (316,787) — grab-measured 2026-07-16 against the
+        current build (the store's {w,h}->size migration moved the layout)."""
         self.set_state(doc([page("Probe", [
             tile("focus-pr", "focus", 1, 1),
             tile("hydration-pr", "hydration", 1, 1),
@@ -300,13 +301,13 @@ class E2E:
         distinct pixels rule out both a mis-aimed injector and a lucky stray
         tap locking in a wrong axis transform."""
         self._seed_probe_layout()
-        tap_fn(394, 955)
+        tap_fn(394, 1281)
         time.sleep(0.4)
         got = self.settings().get("hydration-pr", {}).get("count")
         print("  LANDING-PROBE %s [1/2]: hydration count=%s (want 1)" % (label, got), flush=True)
         if got != 1:
             return False
-        tap_fn(317, 568)
+        tap_fn(316, 787)
         time.sleep(0.4)
         run = self.settings().get("focus-pr", {}).get("running")
         print("  LANDING-PROBE %s [2/2]: focus running=%s (want True)" % (label, run), flush=True)
@@ -341,7 +342,10 @@ class E2E:
                 try:
                     vt.map_to_output(self.edge_name)   # KWin readback-verified
                     print("  VTouch bound to output %s (%s)" % (self.edge_name, vt.mapped_path), flush=True)
-                    for tr in ("identity", "rot270", "rot90", "rot180"):
+                    # rot270 first: measured on this box 2026-07-16 (KWin maps the MT
+                    # device in the panel's NATIVE landscape axes, then applies the
+                    # output's 270-degree transform). Fewer stray probe taps this way.
+                    for tr in ("rot270", "identity", "rot90", "rot180"):
                         vt.transform = tr
                         if self._probe_landing(vt.tap, "touch/" + tr):
                             self._injector = ("touch", vt)
