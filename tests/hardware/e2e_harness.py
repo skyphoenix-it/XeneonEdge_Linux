@@ -280,22 +280,37 @@ class E2E:
 
     def _seed_probe_layout(self):
         """The pixel-verified control layout (same as e2e_interaction's) with
-        a hydration counter at Edge-local (394, 955) used as landing probe."""
+        two independent probe controls: hydration '+' at Edge-local (394,955)
+        and focus Start at (317,568)."""
         self.set_state(doc([page("Probe", [
             tile("focus-pr", "focus", 1, 1),
             tile("hydration-pr", "hydration", 1, 1),
             tile("tasks-pr", "tasks", 1, 2),
-        ])], settings={"hydration-pr": {"count": 0, "goal": 8, "day": self.today}}))
+        ])], settings={
+            "hydration-pr": {"count": 0, "goal": 8, "day": self.today},
+            "focus-pr": {"preset": "classic", "phase": "work", "running": False,
+                         "endEpoch": 0, "pausedRemaining": 1500, "doneToday": 0,
+                         "day": self.today, "points": 0, "dailyGoal": 4,
+                         "rewardPoints": True, "celebrate": True, "autoStartBreak": False},
+        }))
 
     def _probe_landing(self, tap_fn, label):
-        """IPC-verified landing probe: tap the hydration '+' and require the
-        counter to move. Proves events reach OUR hub at the expected pixels."""
+        """IPC-verified landing probe at TWO independent points: hydration '+'
+        must increment AND focus Start must flip `running`. Two hits at
+        distinct pixels rule out both a mis-aimed injector and a lucky stray
+        tap locking in a wrong axis transform."""
         self._seed_probe_layout()
         tap_fn(394, 955)
         time.sleep(0.4)
         got = self.settings().get("hydration-pr", {}).get("count")
-        print("  LANDING-PROBE %s: hydration count=%s (want 1)" % (label, got), flush=True)
-        return got == 1
+        print("  LANDING-PROBE %s [1/2]: hydration count=%s (want 1)" % (label, got), flush=True)
+        if got != 1:
+            return False
+        tap_fn(317, 568)
+        time.sleep(0.4)
+        run = self.settings().get("focus-pr", {}).get("running")
+        print("  LANDING-PROBE %s [2/2]: focus running=%s (want True)" % (label, run), flush=True)
+        return run is True
 
     def ensure_injection_ready(self):
         """Build (once) the guarded, verified injector. Raises InjectionRefused
@@ -318,33 +333,42 @@ class E2E:
         if not self.verify_target_window():
             raise InjectionRefused("hub window not verified at the Edge rect -> no injection")
         self.guard.arm()                        # from here, any user event aborts
-        # 3a. preferred: ABS_MT touchscreen physically bound to the Edge output
+        dev = None
         try:
-            vt = u.VTouch((0, 0, self.ew, self.eh), guard=self.guard)
+            # 3a. preferred: ABS_MT touchscreen physically bound to the Edge output
             try:
-                vt.map_to_output(self.edge_name)   # KWin readback-verified
-                print("  VTouch bound to output %s (%s)" % (self.edge_name, vt.mapped_path), flush=True)
-                for tr in ("identity", "rot270", "rot90", "rot180"):
-                    vt.transform = tr
-                    if self._probe_landing(vt.tap, "touch/" + tr):
-                        self._injector = ("touch", vt)
-                        return "touch"
-                vt.close()
-                print("  VTouch landing probe failed for all transforms; falling back", flush=True)
-            except u.OutputMappingError as e:
-                vt.close()
-                print("  VTouch output mapping unavailable (%s); falling back" % e, flush=True)
-        except OSError as e:
-            print("  VTouch device creation failed (%s); falling back" % e, flush=True)
-        # 3b. fallback: whole-canvas pointer, arithmetically clamped to the rect
-        vp = u.VPointer(self.cw, self.ch, (self.ex, self.ey, self.ew, self.eh),
-                        guard=self.guard)
-        if self._probe_landing(lambda lx, ly: vp.tap(self.ex + lx, self.ey + ly),
-                               "pointer/clamped"):
-            self._injector = ("pointer", vp)
-            return "pointer"
-        vp.close()
-        raise InjectionRefused("no injector passed the IPC landing probe -> refusing to inject blind")
+                dev = vt = u.VTouch((0, 0, self.ew, self.eh), guard=self.guard)
+                try:
+                    vt.map_to_output(self.edge_name)   # KWin readback-verified
+                    print("  VTouch bound to output %s (%s)" % (self.edge_name, vt.mapped_path), flush=True)
+                    for tr in ("identity", "rot270", "rot90", "rot180"):
+                        vt.transform = tr
+                        if self._probe_landing(vt.tap, "touch/" + tr):
+                            self._injector = ("touch", vt)
+                            return "touch"
+                    print("  VTouch landing probe failed for all transforms; falling back", flush=True)
+                except u.OutputMappingError as e:
+                    print("  VTouch output mapping unavailable (%s); falling back" % e, flush=True)
+                vt.close(); dev = None
+            except OSError as e:
+                print("  VTouch device creation failed (%s); falling back" % e, flush=True)
+            # 3b. fallback: whole-canvas pointer, arithmetically clamped to the rect
+            dev = vp = u.VPointer(self.cw, self.ch, (self.ex, self.ey, self.ew, self.eh),
+                                  guard=self.guard)
+            if self._probe_landing(lambda lx, ly: vp.tap(self.ex + lx, self.ey + ly),
+                                   "pointer/clamped"):
+                self._injector = ("pointer", vp)
+                return "pointer"
+            vp.close(); dev = None
+            raise InjectionRefused("no injector passed the IPC landing probe -> refusing to inject blind")
+        except UserActivityAbort:
+            self.input_aborted = True           # kill switch mid-probe: stay off
+            if dev is not None:
+                try:
+                    dev.close()
+                except Exception:
+                    pass
+            raise
 
     def _gesture(self, fn):
         try:
