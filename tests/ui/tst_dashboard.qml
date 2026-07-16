@@ -114,15 +114,21 @@ Item {
     function tileCells() {
         var out = []
         eachItem(ld.item, function (x) {
-            if (x && x._r !== undefined && x.modelData !== undefined && x.modelData
-                  && x.modelData.size !== undefined && x.modelData.s !== undefined) out.push(x)
+            if (x && x._r !== undefined && x.tileId !== undefined
+                  && x.tileSize !== undefined && x.ps !== undefined) out.push(x)
         })
         return out
     }
     function cellFor(id) {
         var cs = tileCells()
-        for (var i = 0; i < cs.length; i++) if (cs[i].modelData.id === id) return cs[i]
+        for (var i = 0; i < cs.length; i++) if (cs[i].tileId === id) return cs[i]
         return null
+    }
+    // A cell's placement, reassembled from the roles it is built from — the shape
+    // WidgetPacker speaks, which is what the slot assertions below compare in.
+    function slotOf(c) {
+        return ({ id: c.tileId, type: c.tileType, size: c.tileSize, idx: c.tileIdx,
+                  s: c.ps, l: c.pl, es: c.pes, el: c.pel })
     }
     // True once the page has laid out N tiles with real geometry, in `portrait`.
     function laidOut(n, portrait) {
@@ -657,7 +663,7 @@ Item {
             var portraitSlots = {}, portraitPx = {}
             for (var i = 0; i < 5; i++) {
                 var c = root.cellFor(ids[i])
-                var m = c.modelData
+                var m = root.slotOf(c)
                 portraitSlots[ids[i]] = m.s + "," + m.l + "," + m.es + "," + m.el
                 portraitPx[ids[i]] = { x: c.x, y: c.y }
             }
@@ -670,7 +676,7 @@ Item {
             var cellS = f2.cellShort, cellL = f2.cellLong
             for (var j = 0; j < 5; j++) {
                 var c2 = root.cellFor(ids[j])
-                var m2 = c2.modelData
+                var m2 = root.slotOf(c2)
                 compare(m2.s + "," + m2.l + "," + m2.es + "," + m2.el, portraitSlots[ids[j]],
                         ids[j] + ": the rotation did not move it out of its semantic slot")
                 // …and the pixels are that slot PROJECTED: the long axis moved from y to
@@ -712,6 +718,175 @@ Item {
             for (var j = 0; j < 6; j++)
                 fuzzyCompare(root.cellFor("t" + j).height + _theme.spacingMd, f.height / 3, 0.51,
                              "t" + j + " is still a third of the SCREEN on a 2-screen page")
+        }
+
+        // ── W3: a structure edit MOVES tiles, it does not rebuild them ───────
+        // THE OWNER-REPORTED CLUNK, one level up from the sensors bar: reordering
+        // a tile made it TELEPORT. Two Repeaters were handed a fresh JS array on
+        // every structure edit — the pages one (`store.pages()` returns freshly
+        // cloned pages) and the tiles one (`placements` re-packs) — and a Repeater
+        // given a new array resets its whole delegate model. Every delegate was
+        // destroyed and rebuilt, so there was nothing left alive to animate and
+        // the new one was simply already at the destination.
+        //
+        // These pin the same principle tst_gen_sensors pins for metric ticks:
+        // object IDENTITY survives, and only bound values move.
+
+        // Three baselines down a portrait page; returns their cells once laid out.
+        function _threeTilePage() {
+            root.orient(true)
+            ld.item.applyExternalState(root.makeDoc([
+                { id: "a", type: "cpu", size: "1x0.5" },
+                { id: "b", type: "ram", size: "1x0.5" },
+                { id: "c", type: "gpu", size: "1x0.5" } ]))
+            tryVerify(function () { return root.laidOut(3, true) }, 4000, "three tiles laid out")
+        }
+
+        // The two halves of the sync, asserted directly: `_row` maps one packer
+        // placement onto the model's roles, and `_syncPlacements` reconciles the
+        // whole model to the current packing — idempotently, because the rows ARE
+        // the delegates' identity and re-running it must churn nothing.
+        // COVERS: fn:Dashboard._syncPlacements, fn:Dashboard._row
+        function test_placement_row_and_sync_map_the_packing_onto_the_model() {
+            _threeTilePage()
+            var p = root.pageItem()
+            var placement = { id: "z", type: "cpu", size: "1x1", idx: 2, s: 0, l: 3, es: 2, el: 2 }
+            compare(p._row(placement).tileId, "z", "_row carries the tile id")
+            compare(p._row(placement).tileType, "cpu", "_row carries the type")
+            compare(p._row(placement).tileSize, "1x1", "_row carries the size")
+            compare(p._row(placement).tileIdx, 2, "_row carries the STORE tile index, not a row number")
+            var r = p._row(placement)
+            compare([r.ps, r.pl, r.pes, r.pel].join(","), "0,3,2,2", "_row carries the semantic slot")
+
+            var a = root.cellFor("a")
+            compare(p._syncPlacements(), 3, "_syncPlacements holds one row per placed tile")
+            compare(p._syncPlacements(), 3, "_syncPlacements is idempotent — no duplicate rows")
+            verify(root.cellFor("a") === a, "and it rebuilt nothing: same delegate after two syncs")
+        }
+
+        function test_reorder_moves_the_same_delegate_instead_of_rebuilding_it() {
+            _theme.reduceMotionPreference = "off"
+            _threeTilePage()
+            var a = root.cellFor("a"), b = root.cellFor("b"), c = root.cellFor("c")
+            verify(a && b && c, "all three cells found")
+            compare(root.slotOf(a).l, 0, "precondition: a is first down the long axis")
+            compare(root.slotOf(b).l, 1, "precondition: b is second")
+            // b's tile Loader — the object that OWNS the widget instance's lifetime.
+            // (The widget itself cannot be asserted on here: every catalog source is a
+            // `qrc:` path and this harness has no compiled resources, so no tile widget
+            // ever instantiates offscreen. The Loader surviving with an unchanged `wId`
+            // is exactly the condition under which its widget survives — a reload needs
+            // either the Loader to be destroyed or its source key to change.)
+            var bLoader = root.findPred(b, function (x) { return x && x.wId === "b" })
+            verify(bLoader !== null, "found b's tile Loader")
+
+            // Swap the first two tiles.
+            root.store().moveTile(0, 1, 0)
+            tryVerify(function () { return root.slotOf(root.cellFor("b")).l === 0 }, 4000,
+                      "b's placement moved to the first slot")
+
+            // IDENTITY: a rebuilt delegate would be a different object.
+            verify(root.cellFor("b") === b, "b's tile is the SAME object after the reorder")
+            verify(root.cellFor("a") === a, "a's tile is the SAME object after the reorder")
+            verify(root.cellFor("c") === c, "the untouched tile c is the SAME object too")
+            var bLoader2 = root.findPred(root.cellFor("b"), function (x) { return x && x.wId === "b" })
+            verify(bLoader2 === bLoader, "b's tile Loader is the SAME object — its widget was never torn down")
+            compare(bLoader2.wId, "b", "and its source key never changed, so it never reloaded")
+            compare(root.tileCells().length, 3, "still exactly three tiles")
+            // …and the surviving delegate's store-addressing index followed the move.
+            compare(root.slotOf(root.cellFor("b")).idx, 0, "b's tile index tracked the reorder")
+        }
+
+        // A move EASES: the surviving delegate leaves its old pixels behind
+        // gradually and arrives at the new ones. (The eye can only follow a tile
+        // it can see travelling — that is the whole fix.)
+        function test_reorder_eases_the_tile_to_its_new_slot() {
+            _theme.reduceMotionPreference = "off"
+            compare(_theme.motionPage, 250, "precondition: move easing enabled")
+            _threeTilePage()
+            var b = root.cellFor("b")
+            var startY = b.y
+            var startL = b.animL
+            compare(startL, 1, "precondition: b's eased mirror sits at its real slot")
+
+            root.store().moveTile(0, 1, 0)
+
+            // Frame 0 of the transition: the TARGET slot is already the new one,
+            // but the eased mirror — and therefore the pixels — have not jumped.
+            compare(b.pl, 0, "b's target slot updated immediately")
+            verify(b.animL > 0, "but it has NOT teleported: the eased mirror is still en route")
+            fuzzyCompare(b.y, startY, 1.0, "and its pixels are still at the old slot on frame 0")
+
+            // …and it does arrive.
+            tryVerify(function () { return b.animL === 0 }, 4000, "the eased mirror lands on the new slot")
+            verify(b.y < startY - 1, "b ended up further up the page than it started")
+        }
+
+        // REDUCE MOTION: smooth is not more motion. The move must be INSTANT —
+        // not a 0ms animation that still lands a frame late.
+        function test_reduce_motion_makes_a_reorder_instant() {
+            _theme.reduceMotionPreference = "on"
+            compare(_theme.motionPage, 0, "precondition: reduce-motion collapses the move token")
+            _threeTilePage()
+            var b = root.cellFor("b")
+            var startY = b.y
+
+            root.store().moveTile(0, 1, 0)
+
+            // No tryVerify: with the Behavior disabled the write is direct, so the
+            // new slot is already in the pixels on this very line.
+            compare(b.pl, 0, "b's target slot updated")
+            compare(b.animL, 0, "and the mirror is ALREADY there — no animation ran")
+            verify(b.y < startY - 1, "b's pixels moved instantly, in the same event")
+            verify(root.cellFor("b") === b, "instant, but still the same delegate — not a rebuild")
+            _theme.reduceMotionPreference = "auto"
+        }
+
+        // ADD / REMOVE reuse the same machinery: the tiles that stay are moved,
+        // not rebuilt. (A removed tile's own delegate goes, of course.)
+        function test_add_and_remove_keep_the_surviving_delegates() {
+            _theme.reduceMotionPreference = "off"
+            _threeTilePage()
+            var a = root.cellFor("a"), c = root.cellFor("c")
+
+            // Remove the MIDDLE tile — c must slide up, not be reborn there.
+            root.store().removeTile(0, "b")
+            tryVerify(function () { return root.tileCells().length === 2 }, 4000, "b's tile is gone")
+            verify(root.cellFor("b") === null, "b really is removed")
+            verify(root.cellFor("a") === a, "a survived the removal")
+            verify(root.cellFor("c") === c, "c MOVED into the freed slot — same object, not a rebuild")
+            tryVerify(function () { return root.slotOf(root.cellFor("c")).l === 1 }, 4000,
+                      "c's placement closed the gap")
+
+            // Add a tile — the incumbents keep their delegates.
+            root.store().addTile(0, "disk")
+            tryVerify(function () { return root.tileCells().length === 3 }, 4000, "the new tile is placed")
+            verify(root.cellFor("a") === a, "a survived the add")
+            verify(root.cellFor("c") === c, "and so did c")
+        }
+
+        // A ROTATION must stay instant even though a reorder now eases. The two
+        // are separated structurally — easing lives on the SEMANTIC slot, which a
+        // rotation does not touch (it only re-projects it) — so this is the guard
+        // that the smoothness work did not slow the panel turning down.
+        function test_rotation_is_still_instant_not_eased() {
+            _theme.reduceMotionPreference = "off"
+            _threeTilePage()
+            var b = root.cellFor("b")
+            compare(b.animL, 1, "precondition: b's mirror is settled at its slot")
+
+            root.orient(false)                       // turn the panel
+            // THE GUARD: a rotation does not touch the semantic slot at all, so there
+            // is structurally nothing for the ease to act on — it re-projects. (The
+            // pixels themselves settle on the next layout pass, as they always did:
+            // the SwipeView/Layout chain polishes deferred.)
+            compare(b.animL, 1, "the rotation did not disturb the semantic slot")
+            tryVerify(function () { return root.laidOut(3, false) }, 4000, "reflowed to the landscape strip")
+            compare(b.animL, 1, "…and still hasn't after the reflow: nothing eased")
+            var f = root.pageFlick()
+            fuzzyCompare(b.x - _theme.spacingMd / 2, 1 * f.cellLong, 0.51,
+                         "b's long coordinate is the projected X exactly — not a value in flight")
+            root.orient(true)
         }
 
         // ── W5 BLOCKER (finding 2): the expanded overlay in LANDSCAPE ─────────

@@ -621,14 +621,33 @@ Item {
             interactive: !dashboard.editMode
 
             Repeater {
-                // Bind to structureRevision (not revision): only page/tile structure
-                // changes rebuild the tiles; per-widget settings edits don't.
-                model: store.structureRevision, store.pages()
+                // A COUNT, not the pages array. `store.pages()` returns a fresh array
+                // of freshly-cloned page objects on every structure edit (see
+                // DashboardStore._commitStructure: `data = _clone(data)`), and a
+                // Repeater handed a new JS array resets its whole delegate model —
+                // every page delegate, and with it every tile delegate and every live
+                // widget instance, was destroyed and rebuilt for a single tile move.
+                // That is why a reorder TELEPORTED: there was no delegate left to
+                // animate, only a new one already sitting at the destination.
+                //
+                // An int model keys delegates by INDEX, so a structure edit adds or
+                // removes only at the end and pages 0..n-1 survive it. Each page then
+                // re-reads its own slice below (still keyed on structureRevision, so a
+                // per-widget settings keystroke still doesn't reach here).
+                model: { store.structureRevision; return store.pageCount() }
                 delegate: Item {
                     id: pageItem
                     required property int index
-                    required property var modelData
-                    property var tiles: modelData.tiles || []
+                    readonly property var page: {
+                        store.structureRevision
+                        var ps = store.pages()
+                        return (pageItem.index >= 0 && pageItem.index < ps.length)
+                               ? ps[pageItem.index] : ({ name: "", tiles: [] })
+                    }
+                    property var tiles: {
+                        store.structureRevision
+                        return (pageItem.page && pageItem.page.tiles) ? pageItem.page.tiles : []
+                    }
 
                     // Which physical axis the long axis lands on. This is the ONLY
                     // place orientation enters a page's layout: the packing below is
@@ -644,6 +663,77 @@ Item {
                         store.structureRevision
                         return packer.pack(pageItem.tiles)
                     }
+
+                    // ── The tile Repeater's model ────────────────────────────
+                    // `placements` is a fresh JS array every time it re-packs, so
+                    // feeding it to the Repeater directly reset the delegate model on
+                    // every structure edit — same teleport as the page Repeater above,
+                    // one level down. This ListModel is SYNCED to `placements` by id
+                    // instead: a tile that still exists keeps its row, so it keeps its
+                    // delegate, so it keeps its loaded widget instance — and its new
+                    // slot arrives as a property change the delegate can EASE to
+                    // (see animS/animL on the cell).
+                    //
+                    // Row order carries no meaning here: a cell is positioned
+                    // absolutely from its own (s, l), and the packer never overlaps
+                    // two tiles, so there is nothing for row order to decide. Rows are
+                    // therefore patched in place rather than moved — the minimum
+                    // churn that still expresses the edit.
+                    ListModel { id: placementModel }
+
+                    // One packer placement → one model row. The string roles are
+                    // coerced because a ListModel FIXES each role's type on the first
+                    // append: the store's load/applyExternal boundary guarantees a tile
+                    // has an id and a legal size, but nothing validates `type`, and a
+                    // hand-written document with a typeless tile would otherwise seed
+                    // the role with `undefined`. "" is the value the tile loaders below
+                    // already treat as "no usable type" (→ the Unavailable card).
+                    function _row(p) {
+                        return ({ tileId: p.id || "", tileType: p.type || "",
+                                  tileSize: p.size || "", tileIdx: p.idx,
+                                  ps: p.s, pl: p.l, pes: p.es, pel: p.el })
+                    }
+                    // Returns how many rows the model ended up with — one per placed
+                    // tile. (Same shape as _loadUserWidgets above: a count the caller
+                    // and the tests can check the sync against.)
+                    function _syncPlacements() {
+                        var ps = pageItem.placements || []
+                        var byId = Object.create(null)
+                        for (var i = 0; i < ps.length; i++) byId[ps[i].id] = ps[i]
+
+                        // Gone → drop the row (backwards: remove() shifts the tail).
+                        for (var r = placementModel.count - 1; r >= 0; r--)
+                            if (byId[placementModel.get(r).tileId] === undefined)
+                                placementModel.remove(r)
+
+                        // Survivors → patch in place. THIS is the move: same row, same
+                        // delegate object, new slot. set() only touches the roles that
+                        // actually differ, so an unmoved tile is not even notified.
+                        var seen = Object.create(null)
+                        for (var r2 = 0; r2 < placementModel.count; r2++) {
+                            var row = placementModel.get(r2)
+                            var p = byId[row.tileId]
+                            seen[row.tileId] = true
+                            if (row.ps !== p.s || row.pl !== p.l || row.pes !== p.es
+                                || row.pel !== p.el || row.tileIdx !== p.idx
+                                || row.tileSize !== p.size || row.tileType !== p.type)
+                                placementModel.set(r2, pageItem._row(p))
+                        }
+
+                        // Genuinely new tiles → append. A new delegate is born at its
+                        // final slot (a Behavior does not fire on initial binding), so
+                        // an add slides its NEIGHBOURS and never itself.
+                        for (var k = 0; k < ps.length; k++)
+                            if (seen[ps[k].id] === undefined)
+                                placementModel.append(pageItem._row(ps[k]))
+
+                        return placementModel.count
+                    }
+                    // onPlacementsChanged alone is not enough: a property change signal
+                    // is not guaranteed for the binding's FIRST evaluation. Both paths
+                    // are idempotent, so the overlap costs nothing.
+                    onPlacementsChanged: pageItem._syncPlacements()
+                    Component.onCompleted: pageItem._syncPlacements()
                     // How far the page reaches along the long axis, in half-cells.
                     // 6 (WidgetSizes.longHalves) is exactly one screen.
                     property int longExtent: packer.longExtent(pageItem.placements)
@@ -705,17 +795,66 @@ Item {
                         height: pageFlick.contentHeight
 
                         Repeater {
-                            model: pageItem.placements
+                            model: placementModel
                             delegate: Item {
                                 id: cell
-                                // NOT the Repeater's `index`: that counts placements, and
-                                // every store call here addresses the TILE array. The
-                                // placement carries `idx` for exactly that.
-                                required property var modelData   // a WidgetPacker placement
+                                // The placement's roles. NOT the Repeater's `index`:
+                                // that counts rows, and every store call here addresses
+                                // the TILE array — `tileIdx` is that index.
+                                required property string tileId
+                                required property string tileType
+                                required property string tileSize
+                                required property int tileIdx
+                                required property int ps
+                                required property int pl
+                                required property int pes
+                                required property int pel
 
-                                // Absolute placement: the packed semantic slot projected
+                                // ── The move ──────────────────────────────────
+                                // The eased mirror of the semantic slot. Animating HERE
+                                // rather than on x/y/width/height is what keeps the two
+                                // things that move a tile apart:
+                                //
+                                //   • a structure edit changes the SLOT (ps/pl/pes/pel)
+                                //     → these ease → the pixels follow → the tile
+                                //     glides to its new home and the eye keeps it;
+                                //   • a rotation or resize changes only `landscape` and
+                                //     the cell size → the slot is unchanged → `_r`
+                                //     recomputes straight through and the tile is
+                                //     re-projected INSTANTLY, which is the whole point
+                                //     of packing semantically (see WidgetPacker: the
+                                //     dashboard turns WITH the panel; it must not
+                                //     appear to reflow).
+                                //
+                                // No flag, no settling timer — the distinction is
+                                // structural, so it cannot drift out of sync.
+                                //
+                                // REDUCE MOTION: the duration token does the real work —
+                                // motionPage is 0, and a 0ms Behavior animation already
+                                // lands its end value synchronously on write (measured:
+                                // dropping this `enabled` gate does NOT make the move
+                                // observably late). The gate is kept as the explicit
+                                // statement of intent, and to skip starting an animation
+                                // object per tile per edit for a value that cannot move —
+                                // not as the mechanism. Smooth is not more motion.
+                                property real animS:  cell.ps
+                                property real animL:  cell.pl
+                                property real animEs: cell.pes
+                                property real animEl: cell.pel
+                                Behavior on animS  { enabled: theme.motionPage > 0
+                                    NumberAnimation { duration: theme.motionPage; easing.type: Easing.OutCubic } }
+                                Behavior on animL  { enabled: theme.motionPage > 0
+                                    NumberAnimation { duration: theme.motionPage; easing.type: Easing.OutCubic } }
+                                Behavior on animEs { enabled: theme.motionPage > 0
+                                    NumberAnimation { duration: theme.motionPage; easing.type: Easing.OutCubic } }
+                                Behavior on animEl { enabled: theme.motionPage > 0
+                                    NumberAnimation { duration: theme.motionPage; easing.type: Easing.OutCubic } }
+
+                                // Absolute placement: the (eased) semantic slot projected
                                 // onto physical axes at the screen-derived cell size.
-                                readonly property var _r: packer.rect(cell.modelData, pageItem.landscape,
+                                readonly property var _r: packer.rect({ s: cell.animS, l: cell.animL,
+                                                                        es: cell.animEs, el: cell.animEl },
+                                                                      pageItem.landscape,
                                                                       pageFlick.cellShort, pageFlick.cellLong,
                                                                       theme.spacingMd)
                                 x: _r.x; y: _r.y
@@ -741,14 +880,14 @@ Item {
                                     id: tileLd
                                     anchors.fill: parent
                                     clip: true
-                                    property string wId: cell.modelData.id
-                                    property string wType: cell.modelData.type
+                                    property string wId: cell.tileId
+                                    property string wType: cell.tileType
                                     active: wId !== "" && wType !== "" && catalog.source(wType) !== ""
                                             && dashboard.policyAllowsWidget(wType)
                                     source: active ? catalog.source(wType) : ""
                                     onLoaded: {
                                         dashboard.injectWidget(item, wId, wType, false,
-                                            function () { return dashboard.sizeClassFor(cell.modelData.size, pageItem.landscape) })
+                                            function () { return dashboard.sizeClassFor(cell.tileSize, pageItem.landscape) })
                                         if (item) item.active = Qt.binding(function () { return !dashboard.hasExpanded && !dashboard.editMode })
                                     }
                                 }
@@ -756,9 +895,19 @@ Item {
                                 // Error boundary: a tile whose type is unknown/removed —
                                 // or disabled by org policy (E9) — renders the fallback
                                 // card instead of a blank, confusing tile.
+                                //
+                                // Deliberately NOT gated on `wType !== ""`: a real tile
+                                // (it has an id) whose type is missing entirely is the
+                                // most Unavailable a tile can be, and it must not fall
+                                // through to a silent blank card. Previously `type` was
+                                // read straight off the placement object, so a typeless
+                                // tile arrived here as `undefined` — which passed a
+                                // `!== ""` test by accident and showed the card. Now the
+                                // role is coerced to "" (see _row), so the condition has
+                                // to say what it always meant.
                                 Loader {
                                     anchors.fill: parent
-                                    active: tileLd.wId !== "" && tileLd.wType !== ""
+                                    active: tileLd.wId !== ""
                                             && (catalog.source(tileLd.wType) === ""
                                                 || !dashboard.policyAllowsWidget(tileLd.wType))
                                     sourceComponent: dashboard.fallbackTile
@@ -805,8 +954,8 @@ Item {
                                         cursorShape: Qt.PointingHandCursor
                                         onClicked: {
                                             dashboard.cfgStatus = ""
-                                            dashboard.expandedId = cell.modelData.id
-                                            dashboard.expandedType = cell.modelData.type
+                                            dashboard.expandedId = cell.tileId
+                                            dashboard.expandedType = cell.tileType
                                         }
                                     }
                                 }
@@ -846,10 +995,10 @@ Item {
                                             // ARRAY, which is what moveTile addresses —
                                             // the delegate's own index counts placements,
                                             // and the two only coincide by luck.
-                                            visible: cell.modelData.idx > 0
+                                            visible: cell.tileIdx > 0
                                             AppIcon { anchors.centerIn: parent; name: "ui-caret-left"; size: theme.iconMd; color: theme.textPrimary }
                                             MouseArea { anchors.fill: parent
-                                                onClicked: store.moveTile(pageItem.index, cell.modelData.idx, cell.modelData.idx - 1) }
+                                                onClicked: store.moveTile(pageItem.index, cell.tileIdx, cell.tileIdx - 1) }
                                         }
                                         // remove
                                         Rectangle {
@@ -857,16 +1006,16 @@ Item {
                                             radius: width / 2; color: Qt.rgba(theme.error.r, theme.error.g, theme.error.b, 0.2)
                                             border.width: 2; border.color: theme.error
                                             AppIcon { anchors.centerIn: parent; name: "ui-trash"; size: 26; color: theme.error }
-                                            MouseArea { anchors.fill: parent; onClicked: store.removeTile(pageItem.index, cell.modelData.id) }
+                                            MouseArea { anchors.fill: parent; onClicked: store.removeTile(pageItem.index, cell.tileId) }
                                         }
                                         // move right
                                         Rectangle {
                                             Layout.preferredWidth: theme.touchSecondary; Layout.preferredHeight: theme.touchSecondary
                                             radius: width / 2; color: theme.cardBackgroundAlt; border.width: 1; border.color: theme.cardBorder
-                                            visible: cell.modelData.idx < pageItem.tiles.length - 1
+                                            visible: cell.tileIdx < pageItem.tiles.length - 1
                                             AppIcon { anchors.centerIn: parent; name: "ui-caret-right"; size: theme.iconMd; color: theme.textPrimary }
                                             MouseArea { anchors.fill: parent
-                                                onClicked: store.moveTile(pageItem.index, cell.modelData.idx, cell.modelData.idx + 1) }
+                                                onClicked: store.moveTile(pageItem.index, cell.tileIdx, cell.tileIdx + 1) }
                                         }
                                         // Resize: step through THIS widget type's own legal
                                         // sizes. Hidden for a type with only one — a button
@@ -875,13 +1024,13 @@ Item {
                                         Rectangle {
                                             Layout.preferredWidth: theme.touchSecondary; Layout.preferredHeight: theme.touchSecondary
                                             radius: width / 2; color: theme.cardBackgroundAlt; border.width: 1; border.color: theme.cardBorder
-                                            visible: catalog.sizesFor(cell.modelData.type).length > 1
+                                            visible: catalog.sizesFor(cell.tileType).length > 1
                                             AppIcon { anchors.centerIn: parent; name: "ui-resize"; size: theme.iconMd; color: theme.textPrimary }
                                             MouseArea {
                                                 anchors.fill: parent
-                                                onClicked: store.setTileSize(pageItem.index, cell.modelData.id,
-                                                                             dashboard.nextSize(cell.modelData.type,
-                                                                                                cell.modelData.size))
+                                                onClicked: store.setTileSize(pageItem.index, cell.tileId,
+                                                                             dashboard.nextSize(cell.tileType,
+                                                                                                cell.tileSize))
                                             }
                                         }
                                     }
