@@ -193,14 +193,41 @@ QtObject {
         "quote": "A fresh bit of motivation each day."
     })
 
+    // ── Tier-0 user widgets (E3) ─────────────────────────────────────────────
+    // Validated user-widget entries (same shape as `items`), registered at
+    // runtime by the hub's UserWidgetCatalog loader. Default EMPTY: the Manager
+    // and the test harness never set it, so this registry stays a plain data
+    // table everywhere else. def() consults shipped `items` FIRST, so a user
+    // entry can never shadow a shipped type — shipped always wins.
+    property var userItems: []
+
     function def(type) {
         for (var i = 0; i < items.length; i++)
             if (items[i].type === type) return items[i]
+        for (var u = 0; u < userItems.length; u++)
+            if (userItems[u].type === type) return userItems[u]
         return null
     }
     function source(type) { var d = def(type); return d ? d.source : "" }
     function title(type)  { var d = def(type); return d ? d.title : type }
-    function desc(type)   { return _desc[type] || "" }
+    function desc(type) {
+        // typeof guard (not truthiness): a hostile/odd type like "constructor"
+        // must resolve to "", never to something inherited from the prototype.
+        var s = _desc[type]
+        if (typeof s === "string") return s
+        var d = def(type)
+        return (d && typeof d.description === "string") ? d.description : ""
+    }
+    // Picker/header icon for a type. Shipped entries resolve by TYPE from the
+    // bundled qrc set; user entries carry their own file (`source`, untinted)
+    // or a bundled fallback glyph (`name`) — never a blank tile, because the
+    // shipped-icon lint cannot see user directories.
+    function iconFor(type) {
+        var d = def(type)
+        if (d && d.iconSource) return { name: "", source: d.iconSource }
+        if (d && d.iconName)   return { name: d.iconName, source: "" }
+        return { name: type, source: "" }
+    }
     // Deep clone so callers can freely mutate the seed without aliasing the
     // catalog's live object (or every future instance seeded from it).
     function defaults(type) { var d = def(type); return d ? JSON.parse(JSON.stringify(d.defaults)) : ({}) }
@@ -225,17 +252,20 @@ QtObject {
     // equals WidgetSizes.baseline, so the two cannot drift apart unnoticed.
     function defaultSize(type) { var d = def(type); return (d && d.dflt) ? d.dflt : "1x1" }
 
-    // Distinct category names, in declaration order.
+    // Distinct category names, in declaration order — shipped first, then any
+    // categories only user widgets introduce.
     function categories() {
         var seen = [], out = []
-        for (var i = 0; i < items.length; i++) {
-            if (seen.indexOf(items[i].category) === -1) { seen.push(items[i].category); out.push(items[i].category) }
+        var all = items.concat(userItems)
+        for (var i = 0; i < all.length; i++) {
+            if (seen.indexOf(all[i].category) === -1) { seen.push(all[i].category); out.push(all[i].category) }
         }
         return out
     }
     function inCategory(cat) {
         var out = []
-        for (var i = 0; i < items.length; i++) if (items[i].category === cat) out.push(items[i])
+        var all = items.concat(userItems)
+        for (var i = 0; i < all.length; i++) if (all[i].category === cat) out.push(all[i])
         return out
     }
 }

@@ -215,6 +215,38 @@ Item {
         }
 
         // ── disable_widget_types: hidden from picker, never rendered ────────
+        // The E9<->E3 integration point, wired at merge time: the policy's
+        // disableUserWidgets bit vetoes the user-widget loader even when the
+        // user's own enable flag says yes. The veto lives inside
+        // _userWidgetsFlag so every load path inherits it; that is also what
+        // makes it directly testable rather than inferred from an empty
+        // catalog (which "no widgets installed" would fake).
+        function test_policy_vetoes_user_widget_loader() {
+            reload({ "active": true, "source": "policy", "forcePreset": "",
+                     "netOffline": false, "allowedHosts": [],
+                     "disableUserWidgets": true, "disabledWidgetTypes": [] })
+            var d = ld.item
+            // The user says YES on the LIVE store — the strongest form of the
+            // preference — and the org still wins.
+            root.store().setAppearance("enableUserWidgets", true)
+            verify(d.managed, "the session reads as managed")
+            compare(d._userWidgetsFlag(), false,
+                    "org veto beats the user's enabled flag")
+        }
+
+        // ...and without the veto the same user flag reads true — proving the
+        // case above fails for the RIGHT reason, not because the flag never
+        // reads true in this harness.
+        function test_user_widget_flag_honoured_when_policy_allows() {
+            reload({ "active": true, "source": "policy", "forcePreset": "",
+                     "netOffline": false, "allowedHosts": [],
+                     "disableUserWidgets": false, "disabledWidgetTypes": [] })
+            var d = ld.item
+            root.store().setAppearance("enableUserWidgets", true)
+            compare(d._userWidgetsFlag(), true,
+                    "no veto: the user's own flag decides")
+        }
+
         function test_disabled_types_hidden_and_not_rendered() {
             reload({ "active": true, "source": "policy", "forcePreset": "",
                      "netOffline": false, "allowedHosts": [],

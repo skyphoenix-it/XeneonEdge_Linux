@@ -6,6 +6,7 @@
         <file>qml/Diagnostics.qml</file>
         <file>qml/DashboardStore.qml</file>
         <file>qml/WidgetCatalog.qml</file>
+        <file>qml/UserWidgetCatalog.qml</file>
         <file>qml/PresetCatalog.qml</file>
         <file>qml/WidgetSizes.qml</file>
         <file>qml/WidgetPacker.qml</file>
