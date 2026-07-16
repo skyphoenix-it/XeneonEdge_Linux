@@ -385,10 +385,27 @@ fn backup_corrupt_config(path: &std::path::Path) -> Result<PathBuf, ConfigError>
     Ok(backup)
 }
 
-/// Reset configuration to defaults.
+/// Reset configuration to defaults, preserving the discarded config as `.bak`.
+///
+/// `--reset` and `--reset-wizard` are one word apart, and what separates them is
+/// the user's entire layout: reset throws it away, reset-wizard keeps it. This
+/// used to `remove_file` outright, so a mistyped flag was unrecoverable — while
+/// the *corruption* path (which discards strictly less trustworthy data) has
+/// always kept a backup. That asymmetry was an oversight, not a decision.
+///
+/// A config being reset is by definition known-good — it is the live one — so
+/// this is `backup_config_of`'s canonical `<name>.toml.bak`, NOT the timestamped
+/// corrupt backup, which exists precisely so corrupt content never clobbers this
+/// copy.
+///
+/// The backup must SUCCEED before the delete. If the copy fails (a full or
+/// read-only disk), the reset aborts with that error and the config is left
+/// alone: failing to reset is recoverable, resetting without the backup the user
+/// is about to need is not.
 pub fn reset_config() -> Result<AppConfig, ConfigError> {
     let path = config_path();
     if path.exists() {
+        backup_config_of(&path)?;
         fs::remove_file(&path).map_err(|e| ConfigError::Io {
             path: path.clone(),
             source: e,
@@ -922,20 +939,78 @@ version = 1
         std::env::remove_var("XDG_CONFIG_HOME");
     }
 
-    // --- reset_config: remove failure surfaces an Io error ---
+    // --- reset_config: an unusable config surfaces an Io error ---
 
     #[test]
-    fn reset_config_remove_failure_is_io_error() {
+    fn reset_config_unusable_config_is_io_error() {
         let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let dir = tempfile::tempdir().unwrap();
         std::env::set_var("XDG_CONFIG_HOME", dir.path());
 
-        // config.toml exists but is a directory → remove_file fails (EISDIR).
+        // config.toml exists but is a directory, so reset cannot proceed.
+        // (This was named `..._remove_failure_...` when reset went straight to
+        // remove_file. Reset now backs up FIRST, so the copy is what fails here
+        // and the old name no longer described what ran — renamed rather than
+        // left as a test whose name asserts a path it stopped taking.)
         let target = config_path();
         fs::create_dir_all(&target).unwrap();
 
         let err = reset_config().unwrap_err();
         assert!(matches!(err, ConfigError::Io { .. }));
+
+        std::env::remove_var("XDG_CONFIG_HOME");
+    }
+
+    // --- reset_config: the discarded config is recoverable ---
+
+    #[test]
+    fn reset_config_backs_up_the_config_it_discards() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = tempfile::tempdir().unwrap();
+        std::env::set_var("XDG_CONFIG_HOME", dir.path());
+
+        let path = config_path();
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        // A layout the user would be devastated to lose to a one-word typo
+        // (`--reset` where they meant `--reset-wizard`).
+        fs::write(&path, "schema_version = 1\n# irreplaceable layout\n").unwrap();
+
+        reset_config().unwrap();
+
+        assert!(!path.exists(), "reset must discard the live config");
+        let bak = path.with_extension("toml.bak");
+        assert_eq!(
+            fs::read_to_string(&bak).unwrap(),
+            "schema_version = 1\n# irreplaceable layout\n",
+            "the discarded config must be recoverable from {}",
+            bak.display()
+        );
+
+        std::env::remove_var("XDG_CONFIG_HOME");
+    }
+
+    #[test]
+    fn reset_config_that_cannot_back_up_does_not_delete() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = tempfile::tempdir().unwrap();
+        std::env::set_var("XDG_CONFIG_HOME", dir.path());
+
+        let path = config_path();
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, "precious").unwrap();
+        // Block the backup: a directory where the .bak file must be written, so
+        // fs::copy fails on the destination.
+        fs::create_dir_all(path.with_extension("toml.bak")).unwrap();
+
+        let err = reset_config().unwrap_err();
+        assert!(matches!(err, ConfigError::Io { .. }));
+        // The point of the whole change: a reset that cannot preserve the config
+        // must not destroy it. Failing to reset is recoverable; this is not.
+        assert_eq!(
+            fs::read_to_string(&path).unwrap(),
+            "precious",
+            "reset must not delete a config it failed to back up"
+        );
 
         std::env::remove_var("XDG_CONFIG_HOME");
     }

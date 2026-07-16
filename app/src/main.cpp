@@ -322,9 +322,17 @@ int main(int argc, char *argv[]) {
     QCommandLineParser parser;
     parser.addHelpOption();
     parser.addVersionOption();
-    QCommandLineOption resetOpt("reset", "Reset all configuration to defaults");
+    // The two reset flags are one word apart and differ by the user's whole
+    // layout, so the help text has to say which one throws it away. (The core
+    // now copies config.toml to config.toml.bak first, so this is recoverable —
+    // but a flag that reads as harmless is still the wrong flag to reach for.)
+    QCommandLineOption resetOpt(
+        "reset", "Discard ALL configuration, including your dashboard layout, and start "
+                 "from defaults. The discarded config is kept as config.toml.bak. "
+                 "To only re-run the wizard, use --reset-wizard.");
     QCommandLineOption safeModeOpt("safe-mode", "Start in safe mode (all widgets disabled)");
-    QCommandLineOption resetWizardOpt("reset-wizard", "Re-run the first-run wizard");
+    QCommandLineOption resetWizardOpt("reset-wizard",
+                                      "Re-run the first-run wizard, KEEPING your configuration.");
     QCommandLineOption diagOpt("diagnostics", "Start directly in diagnostics view");
     QCommandLineOption windowedOpt("windowed", "Run in windowed mode instead of borderless fullscreen");
     parser.addOption(resetOpt);
@@ -336,14 +344,34 @@ int main(int argc, char *argv[]) {
 
     // Load configuration
     ConfigHandle* config = nullptr;
-    if (parser.isSet(resetOpt)) {
+    const bool resetting = parser.isSet(resetOpt);
+    if (resetting) {
         config = xeneon_config_reset();
-        qInfo() << "Configuration reset to defaults";
+        if (config) {
+            // Name the backup. A safety net nobody is told about is only half a
+            // safety net: the user who reaches for --reset by mistake needs the
+            // path in front of them, not in a doc.
+            XeneonString dir(xeneon_config_dir());
+            qInfo().noquote() << "Configuration reset to defaults. Your previous config was "
+                                 "saved to"
+                              << (dir ? dir.qstring() + "/config.toml.bak"
+                                      : QStringLiteral("config.toml.bak beside your config"));
+        }
     } else {
         config = xeneon_config_load();
     }
     if (!config) {
-        qCritical() << "Failed to load configuration";
+        // Distinguish the two failures. A reset only fails now if the backup
+        // could not be written, in which case the core deliberately left the
+        // config ALONE — saying "failed to load" would send the user hunting for
+        // a corrupt config that is in fact intact.
+        if (resetting) {
+            qCritical() << "Reset aborted: could not back up the existing configuration, so it "
+                           "was left untouched. Free some disk space or check permissions on"
+                        << XeneonString(xeneon_config_dir()).qstring();
+        } else {
+            qCritical() << "Failed to load configuration";
+        }
         return 1;
     }
     g_config = config;
