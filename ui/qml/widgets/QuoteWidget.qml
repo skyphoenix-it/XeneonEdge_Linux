@@ -138,9 +138,9 @@ WidgetChrome {
     readonly property real quotePx: {
         if (sizeClass === "full") return 30
         if (micro) return Math.max(12, Math.min(width * 0.06, 15))
-        if (sizeClass === "compact") return Math.max(13, Math.min(width * 0.045, 19))
+        if (sizeClass === "compact") return Math.max(13, Math.min(width * 0.045, 25))
         if (horiz) return Math.max(14, Math.min(height * 0.07, width * 0.035, 30))
-        return Math.max(14, Math.min(width * 0.055, 26))   // tall
+        return Math.max(14, Math.min(width * 0.055, 30))   // tall
     }
     readonly property int quoteLines: {
         if (sizeClass === "full") return 6
@@ -152,7 +152,9 @@ WidgetChrome {
     GridLayout {
         id: quoteLayout
         anchors.centerIn: parent
-        width: parent.width * 0.9
+        // A very wide box (1x1.5 in landscape) narrows the reading column so a
+        // short quote sits as a centred block instead of hugging the left edge.
+        width: parent.width * (w.horiz && w.width > 1000 ? 0.62 : 0.9)
         columns: w.horiz ? 2 : 1
         columnSpacing: theme.spacingMd
         rowSpacing: w.sizeClass === "full" ? 14 : (w.micro ? 2 : theme.spacingXs)

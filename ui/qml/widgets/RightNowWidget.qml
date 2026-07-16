@@ -89,7 +89,7 @@ WidgetChrome {
         if (micro) return Math.max(14, Math.min(width * 0.12, 22))
         if (sizeClass === "compact") return Math.max(16, Math.min(width * 0.055, 34))
         if (horiz) return Math.max(18, Math.min(height * 0.13, width * 0.045, 40))
-        return Math.max(16, Math.min(width * 0.10, 36))   // tall
+        return Math.max(16, Math.min(width * 0.10, 44))   // tall
     }
 
     // Tile / display mode

@@ -188,6 +188,10 @@ WidgetChrome {
                 Text {
                     width: parent.width
                     horizontalAlignment: Text.AlignHCenter
+                    // Identity for the headerless micro ring; larger tiles already
+                    // say "until next break" outside — only "paused" earns a
+                    // duplicate mention there.
+                    visible: w.micro || !w.running
                     text: w.running ? "break" : "paused"
                     font.pixelSize: Math.max(10, Math.min(ringBox.width * 0.075, 14))
                     color: theme.textTertiary
