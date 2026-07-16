@@ -25,6 +25,19 @@ import QtQuick.Layouts
 // ignored rather than migrated, so the rollover is a read-time decision and the
 // widget never writes on a timer — only a tap writes. Nothing here belongs in
 // DashboardStore._ephemeralKeys because nothing here is per-tick state.
+//
+// Sizing (W1 wave 2b): the day's schedule used to be `expanded`-only, so a 1x2
+// tile (696x1639 — room for two dozen doses) showed ONE dose and a button, and
+// the actual schedule was locked behind the overlay. The split is now by SHAPE:
+//   • wide  — the focused dose + Mark taken BESIDE the schedule. The focus block
+//             is this widget's summary/control, so the wide box spends its width
+//             on it rather than stacking three cramped bands.
+//   • every other shape (compact / tall / large / full) — the day's schedule,
+//             headed by the taken count. Each row IS the touch target
+//             (theme.touchSecondary = 60, above the 52 minimum), so the one-tap
+//             logging survives without a separate button.
+// A list earns MORE ROWS, not bigger ones: the row height is fixed at every size
+// and only the number of visible rows changes.
 // ─────────────────────────────────────────────────────────────────────────
 WidgetChrome {
     id: w
@@ -148,6 +161,19 @@ WidgetChrome {
     }
     status: w.expanded || !w.doses.length ? "" : w.takenCount + "/" + w.doses.length
 
+    // ── Per-size layout (sizeClass injected by Dashboard) ────────────────────
+    readonly property bool horiz: sizeClass === "wide"
+    // The wide shape leads with the focused dose + its button; every other shape
+    // leads with the schedule (whose rows are themselves the tap target).
+    readonly property bool showFocus: w.horiz
+    readonly property bool showSchedule: !w.horiz || w.width > 560
+    // A dose row is a full touch target at EVERY size — never thinned for density.
+    readonly property real rowH: theme.touchSecondary
+    readonly property real rowFont: w.expanded ? 16
+        : Math.max(13, Math.min((w.horiz ? width * 0.55 : width) * 0.028, 16))
+    readonly property real timeFont: w.expanded ? 18
+        : Math.max(14, Math.min((w.horiz ? width * 0.55 : width) * 0.032, 18))
+
     // Toggle, not a one-way "confirm": a mis-tap must be undoable, and an undo is
     // strictly safer than leaving a false "taken" on the record.
     function toggleTaken(key) {
@@ -170,110 +196,153 @@ WidgetChrome {
         horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap
     }
 
-    // ── Compact tile: the one dose that matters + a tap target ──────────────
-    ColumnLayout {
-        anchors.centerIn: parent
-        width: parent.width
-        visible: !w.expanded && w.focusDose !== null
-        spacing: 4
-
-        Text {
-            Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter
-            text: w.focusDose ? w.timeOf(w.focusDose) : ""
-            font.pixelSize: 22; font.bold: true; font.family: theme.fontMono
-            color: w.focusDose ? w.colorOf(w.stateOf(w.focusDose)) : theme.textTertiary
-        }
-        Text {
-            Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter
-            text: w.focusDose ? w.focusDose.name : ""
-            font.pixelSize: 13; color: theme.textPrimary; elide: Text.ElideRight
-        }
-        Text {
-            Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter
-            text: w.focusDose ? w.labelOf(w.stateOf(w.focusDose)) : ""
-            font.pixelSize: 11; color: theme.textSecondary; elide: Text.ElideRight
-        }
-        // Logging from the tile itself — the whole point is that it takes one tap.
-        PillButton {
-            Layout.alignment: Qt.AlignHCenter
-            visible: w.focusDose !== null
-            label: w.focusDose && w.isTaken(w.focusDose.key) ? "Taken ✓" : "Mark taken"
-            primary: !!(w.focusDose && !w.isTaken(w.focusDose.key))
-            tint: w.focusDose && w.isTaken(w.focusDose.key) ? theme.success : w.effAccent
-            onClicked: if (w.focusDose) w.toggleTaken(w.focusDose.key)
-        }
-    }
-
-    // ── Expanded: the whole day's schedule ─────────────────────────────────
-    ColumnLayout {
+    // `columns` flips for a wide box: the focus block sits BESIDE the schedule
+    // instead of replacing it. Only a reshape — the ListView is not rebuilt.
+    GridLayout {
         anchors.fill: parent
-        visible: w.expanded && w.doses.length > 0
-        spacing: theme.spacingSm
+        visible: w.doses.length > 0
+        columns: (w.showFocus && w.showSchedule) ? 2 : 1
+        rowSpacing: theme.spacingSm
+        columnSpacing: theme.spacingLg
 
-        Text {
+        // ── The one dose that matters + a tap target. The wide shape's
+        // summary/control column.
+        ColumnLayout {
+            visible: w.showFocus && w.focusDose !== null
             Layout.fillWidth: true
-            text: w.takenCount + " of " + w.doses.length + " marked taken today"
-            color: theme.textSecondary; font.pixelSize: 15
+            Layout.maximumWidth: w.showSchedule ? w.width * 0.42 : Number.POSITIVE_INFINITY
+            Layout.alignment: Qt.AlignVCenter
+            spacing: 4
+
+            Text {
+                Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter
+                text: w.focusDose ? w.timeOf(w.focusDose) : ""
+                font.pixelSize: Math.round(w.timeFont * 1.4); font.bold: true
+                font.family: theme.fontMono
+                color: w.focusDose ? w.colorOf(w.stateOf(w.focusDose)) : theme.textTertiary
+            }
+            Text {
+                Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter
+                text: w.focusDose ? w.focusDose.name : ""
+                font.pixelSize: Math.round(w.rowFont); color: theme.textPrimary
+                elide: Text.ElideRight
+            }
+            Text {
+                Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter
+                text: w.focusDose ? w.labelOf(w.stateOf(w.focusDose)) : ""
+                font.pixelSize: Math.max(11, Math.round(w.rowFont * 0.8))
+                color: theme.textSecondary; elide: Text.ElideRight
+            }
+            Text {
+                Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter
+                visible: !w.showSchedule
+                text: w.takenCount + " of " + w.doses.length + " marked taken today"
+                font.pixelSize: Math.max(10, Math.round(w.rowFont * 0.75))
+                color: theme.textTertiary; elide: Text.ElideRight
+            }
+            // Logging from the tile itself — the whole point is that it takes one
+            // tap. A PillButton is theme.touchSecondary (60), above the minimum.
+            PillButton {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.topMargin: theme.spacingXs
+                visible: w.focusDose !== null
+                label: w.focusDose && w.isTaken(w.focusDose.key) ? "Taken ✓" : "Mark taken"
+                primary: !!(w.focusDose && !w.isTaken(w.focusDose.key))
+                tint: w.focusDose && w.isTaken(w.focusDose.key) ? theme.success : w.effAccent
+                onClicked: if (w.focusDose) w.toggleTaken(w.focusDose.key)
+            }
         }
 
-        ListView {
+        // ── The day's schedule. Was expanded-only; a 1x2 tile has room for two
+        // dozen doses, so it is earned by ROOM rather than by mode.
+        ColumnLayout {
+            visible: w.showSchedule
             Layout.fillWidth: true; Layout.fillHeight: true
-            clip: true; spacing: theme.spacingSm
-            model: w.doses
-            delegate: Rectangle {
-                id: doseRow
-                required property var modelData
-                readonly property string st: w.stateOf(modelData)
-                width: ListView.view ? ListView.view.width : 0
-                // A full-width row IS the touch target — above touchTertiary (52),
-                // so a shaky tap still lands on the right dose.
-                height: theme.touchSecondary
-                radius: theme.radiusSm
-                color: doseRow.st === "due" ? Qt.rgba(w.effAccent.r, w.effAccent.g, w.effAccent.b, 0.12)
-                                            : "transparent"
-                border.width: 1
-                border.color: doseRow.st === "taken" ? theme.success
-                              : doseRow.st === "due" ? w.effAccent : theme.cardBorder
+            spacing: theme.spacingSm
 
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: theme.spacingMd; anchors.rightMargin: theme.spacingMd
-                    spacing: theme.spacingMd
+            Text {
+                Layout.fillWidth: true
+                visible: !w.showFocus
+                text: w.takenCount + " of " + w.doses.length + " marked taken today"
+                color: theme.textSecondary
+                font.pixelSize: Math.round(w.rowFont * 0.95)
+                elide: Text.ElideRight
+            }
 
-                    Text {
-                        text: w.timeOf(doseRow.modelData)
-                        font.pixelSize: 18; font.family: theme.fontMono
-                        color: w.colorOf(doseRow.st)
-                        Layout.preferredWidth: 64
-                    }
-                    ColumnLayout {
-                        Layout.fillWidth: true; spacing: 0
-                        Text {
-                            text: doseRow.modelData.name; color: theme.textPrimary
-                            font.pixelSize: 16; elide: Text.ElideRight; Layout.fillWidth: true
+            // The viewport is snapped to a WHOLE number of rows: filling the
+            // height outright slices the last dose in half at the card edge.
+            Item {
+                Layout.fillWidth: true; Layout.fillHeight: true
+                ListView {
+                    id: doseList
+                    readonly property real rowPitch: w.rowH + spacing
+                    width: parent.width
+                    height: Math.max(w.rowH,
+                                     Math.floor(parent.height / rowPitch) * rowPitch - spacing)
+                    anchors.top: parent.top
+                    clip: true; spacing: theme.spacingSm
+                    interactive: w.expanded
+                    model: w.doses
+                    delegate: Rectangle {
+                        id: doseRow
+                        required property var modelData
+                        readonly property string st: w.stateOf(modelData)
+                        width: ListView.view ? ListView.view.width : 0
+                        // A full-width row IS the touch target — above
+                        // touchTertiary (52), so a shaky tap still lands on the
+                        // right dose. Fixed across sizes: room buys rows, not bulk.
+                        height: w.rowH
+                        radius: theme.radiusSm
+                        color: doseRow.st === "due" ? Qt.rgba(w.effAccent.r, w.effAccent.g, w.effAccent.b, 0.12)
+                                                    : "transparent"
+                        border.width: 1
+                        border.color: doseRow.st === "taken" ? theme.success
+                                      : doseRow.st === "due" ? w.effAccent : theme.cardBorder
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: theme.spacingMd; anchors.rightMargin: theme.spacingMd
+                            spacing: theme.spacingMd
+
+                            Text {
+                                text: w.timeOf(doseRow.modelData)
+                                font.pixelSize: Math.round(w.timeFont); font.family: theme.fontMono
+                                color: w.colorOf(doseRow.st)
+                                Layout.preferredWidth: Math.round(w.timeFont * 3.6)
+                            }
+                            ColumnLayout {
+                                Layout.fillWidth: true; spacing: 0
+                                Text {
+                                    text: doseRow.modelData.name; color: theme.textPrimary
+                                    font.pixelSize: Math.round(w.rowFont)
+                                    elide: Text.ElideRight; Layout.fillWidth: true
+                                }
+                                Text {
+                                    text: w.labelOf(doseRow.st)
+                                    color: theme.textSecondary
+                                    font.pixelSize: Math.max(10, Math.round(w.rowFont * 0.75))
+                                    elide: Text.ElideRight; Layout.fillWidth: true
+                                }
+                            }
+                            // A check that is filled when taken; the row's
+                            // MouseArea does the work, so this stays purely a
+                            // state read-out.
+                            Rectangle {
+                                Layout.preferredWidth: 32; Layout.preferredHeight: 32
+                                radius: 16
+                                color: doseRow.st === "taken" ? theme.success : "transparent"
+                                border.width: 2
+                                border.color: doseRow.st === "taken" ? theme.success : theme.cardBorder
+                                Text {
+                                    anchors.centerIn: parent
+                                    visible: doseRow.st === "taken"
+                                    text: "✓"; color: "#0D1117"; font.bold: true; font.pixelSize: 18
+                                }
+                            }
                         }
-                        Text {
-                            text: w.labelOf(doseRow.st)
-                            color: theme.textSecondary; font.pixelSize: 12
-                            elide: Text.ElideRight; Layout.fillWidth: true
-                        }
-                    }
-                    // A check that is filled when taken; the row's MouseArea does
-                    // the work, so this stays purely a state read-out.
-                    Rectangle {
-                        Layout.preferredWidth: 32; Layout.preferredHeight: 32
-                        radius: 16
-                        color: doseRow.st === "taken" ? theme.success : "transparent"
-                        border.width: 2
-                        border.color: doseRow.st === "taken" ? theme.success : theme.cardBorder
-                        Text {
-                            anchors.centerIn: parent
-                            visible: doseRow.st === "taken"
-                            text: "✓"; color: "#0D1117"; font.bold: true; font.pixelSize: 18
-                        }
+                        MouseArea { anchors.fill: parent; onClicked: w.toggleTaken(doseRow.modelData.key) }
                     }
                 }
-                MouseArea { anchors.fill: parent; onClicked: w.toggleTaken(doseRow.modelData.key) }
             }
         }
     }

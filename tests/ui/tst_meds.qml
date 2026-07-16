@@ -398,4 +398,111 @@ Item {
         for (var i = 0; kids && i < kids.length; i++) findAll(kids[i], pred, acc)
         return acc
     }
+
+    // ── Per-sizeClass structure (W1 wave 2b) ────────────────────────────────
+    // Fixed-size hosts at the real projected cell footprints. meds declares no
+    // 0.5x0.5, so there is no micro case.
+    Item { width: 348; height: 819
+        WidgetHarness { id: mTall; anchors.fill: parent; widgetFile: "MedsWidget.qml"; expanded: false } }
+    Item { id: mWideWrap; width: 696; height: 409
+        WidgetHarness { id: mWide; anchors.fill: parent; widgetFile: "MedsWidget.qml"; expanded: false } }
+    Item { width: 696; height: 1639
+        WidgetHarness { id: mLarge; anchors.fill: parent; widgetFile: "MedsWidget.qml"; expanded: false } }
+
+    TestCase {
+        name: "MedsSizes"
+        when: windowShown
+
+        function seed(host) {
+            host.storeCtl.patchSettings(host.instanceId,
+                { schedule: "08:00 Vitamin D\n12:30 Ritalin\n18:00 Magnesium\n22:00 Melatonin",
+                  dueWindowMin: 60, taken: [], takenDay: "" })
+        }
+        function doseRows(host) {
+            return root.findAll(host.item, function (n) {
+                return n.hasOwnProperty("st") && n.hasOwnProperty("modelData") }, [])
+        }
+        function listOf(host) {
+            return root.findAll(host.item, function (n) {
+                return n.hasOwnProperty("contentY") && n.hasOwnProperty("model") }, [])[0]
+        }
+
+        // A tall tile shows the SCHEDULE — it used to be overlay-only.
+        function test_a_tall_tile_earns_the_whole_schedule() {
+            tryVerify(function () { return mTall.ready }, 3000)
+            var m = mTall.item
+            m.sizeClass = "tall"
+            seed(mTall)
+            wait(32)
+            compare(m.showSchedule, true,
+                    "a 348x819 tile shows the day's schedule without expanding")
+            compare(m.showFocus, false, "…and does not spend it on a single dose")
+            compare(doseRows(mTall).length, 4, "all four doses render")
+        }
+
+        // 1x2 — the size that most obviously used to waste its box.
+        function test_a_large_tile_shows_every_dose() {
+            tryVerify(function () { return mLarge.ready }, 3000)
+            var m = mLarge.item
+            m.sizeClass = "large"
+            seed(mLarge)
+            wait(32)
+            compare(m.showSchedule, true, "a 696x1639 tile shows the schedule")
+            compare(doseRows(mLarge).length, 4, "every dose is on the tile")
+        }
+
+        // wide — the focus block sits BESIDE the schedule.
+        function test_wide_puts_the_focus_dose_beside_the_schedule() {
+            tryVerify(function () { return mWide.ready }, 3000)
+            var m = mWide.item
+            m.sizeClass = "tall"
+            seed(mWide)
+            wait(32)
+            var outer = listOf(mWide).parent.parent.parent
+            compare(outer.columns, 1, "a tall box is a single column")
+            m.sizeClass = "wide"
+            wait(32)
+            compare(m.showFocus, true, "wide leads with the focused dose")
+            compare(m.showSchedule, true, "…and still shows the schedule beside it")
+            compare(outer.columns, 2, "…as two columns")
+        }
+
+        // Every dose row is a real touch target at every size — logging a dose is
+        // the whole interaction, so it is never thinned for density.
+        function test_dose_rows_are_touch_targets_at_every_size() {
+            tryVerify(function () { return mTall.ready }, 3000)
+            tryVerify(function () { return mLarge.ready }, 3000)
+            var hosts = [mTall, mLarge]
+            var classes = ["tall", "large"]
+            for (var i = 0; i < hosts.length; i++) {
+                hosts[i].item.sizeClass = classes[i]
+                seed(hosts[i])
+                wait(32)
+                var rows = doseRows(hosts[i])
+                verify(rows.length > 0, classes[i] + ": rows render")
+                for (var j = 0; j < rows.length; j++)
+                    verify(rows[j].height >= hosts[i].theme.touchTertiary,
+                           classes[i] + " dose row " + j + " is >= touchTertiary ("
+                           + rows[j].height + ")")
+            }
+            compare(mLarge.item.rowH, mTall.item.rowH,
+                    "the row height does not grow with the box — room buys rows")
+        }
+
+        // The tone rule survives the new sizes: an un-marked past dose is quiet.
+        function test_an_unmarked_past_dose_is_never_an_alarm_on_a_tile() {
+            tryVerify(function () { return mLarge.ready }, 3000)
+            var m = mLarge.item
+            m.sizeClass = "large"
+            seed(mLarge)
+            wait(32)
+            // 08:00 with the clock at 23:00 is long past and un-marked → "open".
+            var open = m.stateOf(m.doses[0], 23 * 60)
+            compare(open, "open", "a long-past un-marked dose is 'open', not 'missed'")
+            compare(String(m.colorOf(open)), String(mLarge.theme.textTertiary),
+                    "…and renders quiet, never error/warning coloured")
+            verify(String(m.colorOf(open)) !== String(mLarge.theme.error), "never red")
+            compare(m.labelOf(open), "Not marked", "…and says 'Not marked'")
+        }
+    }
 }
