@@ -177,6 +177,61 @@ Item {
     }
     WidgetConfigSchema { id: cfgSchema }
 
+    // ── Tier-0 user widgets (E3) ─────────────────────────────────────────────
+    // Validates manifests scanned from $XDG_DATA_HOME/xeneon-edge-hub/widgets
+    // and feeds WidgetCatalog.userItems (see docs/widgets/manifest-spec.md).
+    // Gated by the `enableUserWidgets` appearance flag, DEFAULT OFF — the
+    // attested default configuration never scans the directory.
+    UserWidgetCatalog {
+        id: userCatalog
+        sizesModel: sizes
+        shippedTypes: {
+            var out = []
+            for (var i = 0; i < catalog.items.length; i++) out.push(catalog.items[i].type)
+            return out
+        }
+        urlResolver: (typeof configBridge !== "undefined" && configBridge && configBridge.imageUrl)
+                     ? function (p) { return configBridge.imageUrl(p) } : null
+    }
+    // Test seam: replaces ConfigBridge.listUserWidgets as the scan source, so
+    // the offscreen suite can both feed fixtures and PROVE the flag-off path
+    // performs no scan at all (the provider is never invoked).
+    property var userWidgetProvider: null
+
+    // Whether Tier-0 user widgets are enabled. A plain config read (managed
+    // config can pin it), default FALSE. Registration must happen BEFORE the
+    // store loads — persisted tile sizes validate against declared `sizes` —
+    // so before the store is loaded this peeks at the same persisted document
+    // store.load() is about to read.
+    function _userWidgetsFlag() {
+        if (store.loaded) return store.appearance().enableUserWidgets === true
+        if (typeof configBridge !== "undefined" && configBridge && configBridge.uiState) {
+            try {
+                var doc = JSON.parse(configBridge.uiState() || "{}")
+                return !!(doc && doc.appearance && doc.appearance.enableUserWidgets === true)
+            } catch (e) { return false }
+        }
+        return false
+    }
+
+    // (Re)load user widgets into BOTH catalog instances — the dashboard's own
+    // (tiles, picker, overlay) and the store's private one (size validation on
+    // addTile/setTileSize/load). Flag off → everything cleared and NO scan
+    // happens. Returns how many user widgets are registered.
+    function _loadUserWidgets() {
+        if (!dashboard._userWidgetsFlag()) {
+            userCatalog.clear()
+        } else {
+            var raw = dashboard.userWidgetProvider ? dashboard.userWidgetProvider()
+                    : ((typeof configBridge !== "undefined" && configBridge && configBridge.listUserWidgets)
+                       ? configBridge.listUserWidgets() : [])
+            userCatalog.load(raw)
+        }
+        catalog.userItems = userCatalog.items
+        store._catalog.userItems = userCatalog.items
+        return userCatalog.items.length
+    }
+
     // Colour + sizing tokens for the shared ConfigField / WidgetConfigPanel,
     // derived from the theme (re-evaluates when the theme changes) and sized for
     // touch (larger controls than the desktop Manager).
@@ -209,6 +264,10 @@ Item {
     }
 
     Component.onCompleted: {
+        // User widgets FIRST: load() coerces every persisted tile size against
+        // the type's declared sizes, so user types must already be registered
+        // or their tiles would be coerced to the baseline as "unknown".
+        _loadUserWidgets()
         store.load(typeof configBridge !== "undefined" && configBridge ? configBridge.starterLayout() : "")
         applyAppearance()
         // QA: auto-open a widget's expanded config view (XENEON_EXPAND=<type>).
@@ -230,6 +289,10 @@ Item {
     function applyExternalState(json) {
         if (store.applyExternal(json)) {
             applyAppearance()
+            // The pushed appearance may have flipped `enableUserWidgets` (e.g.
+            // a managed config forcing it off): re-run the loader so the flag
+            // takes effect live — off clears the registry without any scan.
+            _loadUserWidgets()
             // A live push may have removed (or replaced) the tile we're currently
             // expanded on. Leaving the overlay open would let its config panel keep
             // writing to an instanceId that no longer exists on any page — an orphan
@@ -756,7 +819,12 @@ Item {
                 onClicked: if (dashboard.host && dashboard.host.depth <= 1) dashboard.host.push("qrc:/qml/Diagnostics.qml", {
                     "metricsJson": Qt.binding(function () { return metricsJson }),
                     "screensData": screensData,
-                    "configJson": (typeof configBridge !== "undefined" && configBridge) ? configBridge.configJson() : ""
+                    "configJson": (typeof configBridge !== "undefined" && configBridge) ? configBridge.configJson() : "",
+                    // User-widget loader report: enabled state + loaded entries
+                    // + every skipped directory with its reason.
+                    "userWidgetsJson": userCatalog.reportJson(dashboard._userWidgetsFlag(),
+                        (typeof configBridge !== "undefined" && configBridge && configBridge.userWidgetsDir)
+                            ? configBridge.userWidgetsDir() : "")
                 })
             }
         }
@@ -843,7 +911,9 @@ Item {
                 spacing: 3
                 Row {
                     spacing: theme.spacingSm
-                    AppIcon { anchors.verticalCenter: parent.verticalCenter; name: dashboard.expandedType
+                    AppIcon { anchors.verticalCenter: parent.verticalCenter
+                        readonly property var ic: catalog.iconFor(dashboard.expandedType)
+                        name: ic.name; iconSource: ic.source
                         size: theme.fontTitle + 10; color: dashboard.expandedColor }
                     Text { text: catalog.title(dashboard.expandedType); font.pixelSize: theme.fontTitle + 8
                         font.bold: true; font.family: theme.fontDisplay; color: theme.textPrimary }
@@ -929,7 +999,12 @@ Item {
             // ── Configuration panel ──
             WidgetConfigPanel {
                 Layout.fillWidth: true; Layout.fillHeight: true
-                schema: cfgSchema.schemaFor(dashboard.expandedType)
+                // User widgets carry their form in the manifest; shipped ones
+                // in WidgetConfigSchema. Both compose the same General/About/
+                // Appearance sections.
+                schema: userCatalog.isUser(dashboard.expandedType)
+                        ? userCatalog.schemaFor(dashboard.expandedType, cfgSchema)
+                        : cfgSchema.schemaFor(dashboard.expandedType)
                 st: store
                 instanceId: dashboard.expandedId
                 col: dashboard.cfgCol
@@ -1015,7 +1090,13 @@ Item {
                                             Behavior on scale { NumberAnimation { duration: theme.motionFast } }
                                             RowLayout {
                                                 anchors.fill: parent; anchors.margins: theme.spacingSm; spacing: theme.spacingSm
-                                                AppIcon { name: modelData.type; size: 24; color: theme.textSecondary }
+                                                // iconFor: shipped types resolve by type; user types
+                                                // carry their own file or the bundled fallback glyph.
+                                                AppIcon {
+                                                    readonly property var ic: catalog.iconFor(modelData.type)
+                                                    name: ic.name; iconSource: ic.source
+                                                    size: 24; color: theme.textSecondary
+                                                }
                                                 Text { text: modelData.title; font.pixelSize: 15; color: theme.textPrimary; Layout.fillWidth: true; elide: Text.ElideRight }
                                                 AppIcon { name: "ui-plus"; size: 20; color: theme.accent }
                                             }

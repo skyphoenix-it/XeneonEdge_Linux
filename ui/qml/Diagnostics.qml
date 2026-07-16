@@ -9,7 +9,30 @@ Item {
     property string metricsJson: ""
     property string configJson: ""
     property string screensData: ""
+    // Tier-0 user-widget loader report (JSON from UserWidgetCatalog.reportJson):
+    // { enabled, dir, loaded: [{type,title,dir}], skipped: [{dir,reason}] }.
+    property string userWidgetsJson: ""
     property int currentPage: 0
+
+    // Human-readable rendering of the loader report — every skipped directory
+    // shows its reason HERE, so a broken manifest is diagnosable on-device.
+    readonly property string userWidgetsText: {
+        var r = null
+        try { r = JSON.parse(diag.userWidgetsJson || "") } catch (e) { r = null }
+        if (!r || r.enabled === undefined)
+            return "No loader report available."
+        if (!r.enabled)
+            return "Disabled (enableUserWidgets is off — the default).\nThe widgets directory is not scanned."
+        var lines = ["Directory: " + (r.dir || "?")]
+        var loaded = r.loaded || [], skipped = r.skipped || []
+        lines.push("Loaded: " + loaded.length)
+        for (var i = 0; i < loaded.length; i++)
+            lines.push("  + " + loaded[i].type + "  (" + loaded[i].title + ")  " + loaded[i].dir)
+        lines.push("Skipped: " + skipped.length)
+        for (var j = 0; j < skipped.length; j++)
+            lines.push("  ! " + skipped[j].dir + "\n      reason: " + skipped[j].reason)
+        return lines.join("\n")
+    }
 
     // Parse the metrics ONCE per push (guarded), instead of re-parsing inside every
     // Overview card's text binding (6× per second, unguarded → a malformed payload
@@ -152,6 +175,16 @@ Item {
                             Text {
                                 id: configText; anchors.fill: parent; anchors.margins: 12
                                 text: diag.configJson || "Loading..."; color: theme.textPrimary
+                                font.family: theme.fontMono; font.pixelSize: 11; wrapMode: Text.Wrap
+                            }
+                        }
+                        Text { text: "User widgets (Tier-0)"; color: theme.textPrimary; font.pixelSize: 16; font.bold: true }
+                        Rectangle {
+                            Layout.fillWidth: true; implicitHeight: uwText.implicitHeight+24; radius: 8
+                            color: theme.backgroundColor; border.color: theme.cardBorder
+                            Text {
+                                id: uwText; anchors.fill: parent; anchors.margins: 12
+                                text: diag.userWidgetsText; color: theme.textPrimary
                                 font.family: theme.fontMono; font.pixelSize: 11; wrapMode: Text.Wrap
                             }
                         }

@@ -1,8 +1,15 @@
 #pragma once
 
 #include <QDebug>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <QUrl>
 #include <QVariantMap>
 
@@ -196,6 +203,64 @@ public:
         if (!m_config) return QString();
         XeneonString s(xeneon_config_to_json(m_config));
         return s.qstring();
+    }
+
+    // --- Tier-0 user widgets (E3) ----------------------------------------------
+    // The stable user-QML load directory. QML cannot enumerate directories or
+    // read arbitrary files, so the hub scans here and hands the RAW material to
+    // QML; all validation (docs/widgets/manifest-spec.md) lives in
+    // ui/qml/UserWidgetCatalog.qml, where it runs in the offscreen test suite.
+    //
+    // SECURITY NOTE: these helpers only LIST and READ. Whether anything is
+    // loaded is decided in QML by the `enableUserWidgets` flag (default OFF) —
+    // callers gate on the flag BEFORE invoking listUserWidgets(), so the
+    // attested default configuration performs no scan at all.
+    static QString userWidgetsRoot() {
+        QString dataHome = qEnvironmentVariable("XDG_DATA_HOME");
+        if (dataHome.isEmpty())
+            dataHome = QDir::homePath() + QStringLiteral("/.local/share");
+        return dataHome + QStringLiteral("/xeneon-edge-hub/widgets");
+    }
+    Q_INVOKABLE QString userWidgetsDir() const { return userWidgetsRoot(); }
+
+    // One compact JSON string per SUBDIRECTORY of the widgets dir (name order):
+    //   { "dir": <abs path>, "dirName": <name>, "files": [top-level file names],
+    //     "manifest": "<raw manifest.json text>" }
+    // or, when the manifest is missing/unreadable/oversized:
+    //   { "dir": ..., "dirName": ..., "files": [...], "error": "<why>" }
+    // Deliberately dumb — no parsing, no validation, no recursion: the
+    // filesystem scan is the only part QML cannot do, so it is the only part
+    // done here. A missing root directory is simply an empty list.
+    Q_INVOKABLE QStringList listUserWidgets() const {
+        QStringList out;
+        QDir root(userWidgetsRoot());
+        if (!root.exists())
+            return out;
+        const QFileInfoList subs =
+            root.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+        for (const QFileInfo& sub : subs) {
+            QJsonObject o;
+            o[QStringLiteral("dir")] = sub.absoluteFilePath();
+            o[QStringLiteral("dirName")] = sub.fileName();
+            QJsonArray files;
+            const QStringList names =
+                QDir(sub.absoluteFilePath()).entryList(QDir::Files, QDir::Name);
+            for (const QString& n : names)
+                files.append(n);
+            o[QStringLiteral("files")] = files;
+            QFile mf(sub.absoluteFilePath() + QStringLiteral("/manifest.json"));
+            if (!mf.exists()) {
+                o[QStringLiteral("error")] = QStringLiteral("missing manifest.json");
+            } else if (mf.size() > 256 * 1024) {
+                o[QStringLiteral("error")] = QStringLiteral("manifest.json larger than 256 KiB");
+            } else if (!mf.open(QIODevice::ReadOnly)) {
+                o[QStringLiteral("error")] = QStringLiteral("manifest.json is not readable");
+            } else {
+                o[QStringLiteral("manifest")] = QString::fromUtf8(mf.readAll());
+            }
+            out << QString::fromUtf8(QJsonDocument(o).toJson(QJsonDocument::Compact));
+        }
+        return out;
     }
 
     // --- Secrets (E7 Phase A) -------------------------------------------------
