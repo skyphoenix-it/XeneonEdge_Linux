@@ -88,10 +88,16 @@ QtObject {
           sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1", "1x1.5"], dflt: "1x1" },
         { type: "notes",    title: "Quick Note",  category: "Focus", source: "qrc:/qml/NotesWidget.qml",    defaults: { text: "" },
           sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1", "1x1.5", "1x2", "1x3"], dflt: "1x1" },
-        // The heatmap is expanded-only and the stored history is pruned to 28 days —
-        // a tile shows a streak number + one button, whatever room it is given.
+        // Was "the heatmap is expanded-only … a tile shows a streak number + one
+        // button, whatever room it is given" — untrue since wave 2b: the 28-day map
+        // is earned by any tile but the 1/12. 1x1.5 (wave 2c) goes further and is a
+        // genuinely different card, not the baseline stretched: it earns the
+        // best-ever record line, and its map transposes to 4x7 to fit the tall
+        // 696x1229 projection (7x4 beside the streak column at 1269x612 landscape).
+        // Not 1x2/1x3: the history is pruned to 28 days, so past a half screen there
+        // is nothing further to grow into and the map would just inflate.
         { type: "habit",    title: "Habit Streak",category: "Focus", source: "qrc:/qml/HabitWidget.qml",     defaults: { checkins: [] },
-          sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1"], dflt: "1x1" },
+          sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1", "1x1.5"], dflt: "1x1" },
         // Today's glasses only — no history is kept, so there is nothing to grow into.
         { type: "hydration",title: "Hydration",   category: "Focus", source: "qrc:/qml/HydrationWidget.qml", defaults: { goal: 8, count: 0, day: "" },
           sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1"], dflt: "1x1" },
