@@ -114,6 +114,8 @@ jobs:
       # just when a dev remembers. Both are plain bash with no deps.
       - name: Egress lint (no raw XHR outside the NetHub gate)
         run: bash scripts/check_no_raw_xhr.sh
+      - name: Enforce that every test actually runs (QtTest '_data' trap)
+        run: bash scripts/check_live_tests.sh
       - name: Icon lint (every widget type has a bundled, registered icon)
         run: bash scripts/check_widget_icons.sh
       - name: Upload uncovered-behavior list

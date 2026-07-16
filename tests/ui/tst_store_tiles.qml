@@ -216,12 +216,12 @@ Item {
         name: "StoreSeeds"
         when: windowShown
 
-        function test_seed_shapes_data() {
+        function test_seed_shapes_the_document() {
             var cases = {
                 "blank":        { pages: ["Home"], firstTileCount: 0 },
                 "minimal":      { pages: ["Home"] },
-                "gaming":       { pages: ["System", "Play"] },
-                "productivity": { pages: ["Focus", "System"] }
+                "gaming":       { pages: ["GPU", "System", "Play"] },
+                "productivity": { pages: ["Focus", "Day", "System"] }
             }
             for (var which in cases) {
                 var doc = store.seed(which)

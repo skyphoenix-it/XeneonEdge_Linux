@@ -474,7 +474,7 @@ Item {
         // `daily` and never `hourly`, so no size may grow an hourly chart — the
         // data to draw one does not exist, and adding it would be new egress.
         // This test guards the URL, which is what bounds every layout below.
-        function test_the_request_never_asks_for_hourly_data() {
+        function test_the_request_never_asks_for_an_hourly_series() {
             var w = hS.item
             var seen = ""
             var realHub = w.netHub

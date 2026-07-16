@@ -110,7 +110,7 @@ Item {
             compare(w.errorText, "Offline", "non-200 → Offline")
         }
 
-        function test_missing_daily_is_no_data() {
+        function test_missing_daily_yields_no_forecast() {
             var w = h.item
             drive(200, Fx.FORECAST_MISSING_DAILY)
             compare(w.loaded, false, "missing daily.time is not a valid render")
