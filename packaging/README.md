@@ -10,7 +10,7 @@ the hicolor icons (scalable SVG + PNG 16–512), the `LICENSE`, and the udev rul
 
 | Format | Location | Status |
 |---|---|---|
-| **AUR** | `packaging/aur/` (`PKGBUILD`, `.SRCINFO`, `.install`) | ✅ build-tested with `makepkg` |
+| **AUR** | `packaging/aur/` (`PKGBUILD`, `.SRCINFO`, `.install`) | ✅ **published** — [aur/xeneon-edge-hub](https://aur.archlinux.org/packages/xeneon-edge-hub) (v1.0.0alpha.2, maintainer SKYPhoenix_IT); builds from the signed release tarball, `validpgpkeys` verified against a cold clone |
 | **CPack .rpm** | `CMakeLists.txt` (CPack block) | ✅ Fedora 43: built, installed on a clean image, launches (CI: `distro.yml`) |
 | **CPack .deb** | `CMakeLists.txt` (CPack block) | ✅ Ubuntu 26.04 LTS: built, installed on a clean image, launches (CI: `distro.yml`) |
 | **CPack .tgz** | `CMakeLists.txt` (CPack block) | ✅ TGZ tested |

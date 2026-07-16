@@ -154,7 +154,13 @@ sha256sum -c SHA256SUMS
 tar -xf xeneon-edge-hub_1.0.0-alpha.2_x86_64.tar.gz
 ```
 
-An AUR package is in preparation. (`v1.0.0-alpha.1` remains available but unsigned — it predates the release key, which is not retroactively fixable.)
+**Arch / CachyOS:**
+
+```sh
+yay -S xeneon-edge-hub
+```
+
+makepkg verifies the release signature automatically (`validpgpkeys`). (`v1.0.0-alpha.1` remains available but unsigned — it predates the release key, which is not retroactively fixable.)
 
 ### Verifying your download
 
