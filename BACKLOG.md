@@ -32,6 +32,20 @@ Status baseline verified 2026-07-16 against the tree, not against the docs.
 
 ## Known gaps (documented, non-blocking)
 
+- **`--reset` destroys `config.toml` with no backup** (`reset_config()`,
+  `core/src/config.rs`). The corruption path always preserves a `.corrupt-*.bak`;
+  reset does not. Its non-destructive neighbour is `--reset-wizard` — one word
+  apart, and what separates them is the user's entire layout. A mistype is
+  unrecoverable. Deliberately NOT pinned by a test: asserting today's behavior
+  would make the obvious fix ("back up before reset") fail CI. **Needs a product
+  decision from Simon**, not a test. Found while building runtime scenario 06.
+- **The Manager half of the single-writer rule is unproven end-to-end.** Runtime
+  07 proves the *hub* keeps its half (a pushed layout is persisted by the hub,
+  survives SIGKILL+restart, and an empty push writes nothing). That the *Manager*
+  does not write `config.toml` while connected is still covered only by
+  `tst_manager_backend_sync.cpp`'s FakeHub. The Manager saves only through GUI
+  interaction and exposes no headless save hook; adding one would be product code
+  written to pass a test. This is the one real gap left in the B5 story.
 - `mpris_bridge.cpp` D-Bus fan-out is uncovered — needs a session bus.
 - AppImage zsync update path has never been exercised end-to-end. It is an
   **RC exit criterion**, so it cannot stay untested forever.
