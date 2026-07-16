@@ -68,6 +68,12 @@ Item {
     property var host: StackView.view
     property bool _applyingAppearance: false
 
+    // The app-global egress gate, exposed for Diagnostics' Network tab (W5
+    // finding 6). One NetHub exists per app and it lives here — main.qml's
+    // bindStackItem finds this property on the stack when Diagnostics is
+    // opened via Ctrl+D / --diagnostics rather than the ⚙ push below.
+    readonly property var netGate: netHub
+
     // ── Managed / org policy (E9) ────────────────────────────────────────────
     // Read ONCE at creation: the policy file is root-owned and static for the
     // life of the process (ConfigBridge caches it too). No bridge (QML test
@@ -1014,6 +1020,8 @@ Item {
                 onClicked: if (dashboard.host && dashboard.host.depth <= 1) dashboard.host.push("qrc:/qml/Diagnostics.qml", {
                     "metricsJson": Qt.binding(function () { return metricsJson }),
                     "screensData": screensData,
+                    // The egress gate for the Network tab (W5 finding 6).
+                    "netHub": netHub,
                     "configJson": (typeof configBridge !== "undefined" && configBridge) ? configBridge.configJson() : "",
                     // User-widget loader report: enabled state + loaded entries
                     // + every skipped directory with its reason.

@@ -418,6 +418,16 @@ Item {
             s.load("blank")
         }
 
+        // ── netGate (W5 finding 6): the egress gate exposed for Diagnostics ──
+        function test_netGate_exposes_the_app_global_nethub() {
+            var d = ld.item
+            verify(d.netGate !== null && d.netGate !== undefined, "netGate is exposed")
+            compare(typeof d.netGate.request, "function", "netGate IS the NetHub (has request())")
+            compare(typeof d.netGate.requests, "number", "…with the sent counter")
+            compare(typeof d.netGate.blocked, "number", "…and the blocked counter")
+            verify(d.netGate.byHost !== undefined, "…and the per-host tally Diagnostics renders")
+        }
+
         function test_tileExists() {
             var d = ld.item
             d.applyExternalState(root.makeDoc([ { id: "t1", type: "clock" }, { id: "t2", type: "cpu" } ]))
