@@ -141,4 +141,130 @@ Item {
             verify(k["invert"] === true, "kpi schema exposes invert")
         }
     }
+
+    // ── Per-sizeClass structure (W1 wave 2b) ────────────────────────────────
+    // Fixed-size hosts at the real projected cell footprints (the panel's short
+    // axis is 720, so a half-cell is ~348x409 portrait / ~423x306 landscape and
+    // the baseline third is ~696x819 / ~846x612).
+    Item { width: 348; height: 409
+        WidgetHarness { id: kMicro; anchors.fill: parent; widgetFile: "KpiWidget.qml"; expanded: false } }
+    Item { width: 696; height: 819
+        WidgetHarness { id: kBase; anchors.fill: parent; widgetFile: "KpiWidget.qml"; expanded: false } }
+    Item { id: kWideWrap; width: 1269; height: 612
+        WidgetHarness { id: kWide; anchors.fill: parent; widgetFile: "KpiWidget.qml"; expanded: false } }
+    // 1x3 portrait — the whole panel.
+    Item { width: 696; height: 2459
+        WidgetHarness { id: kBoard; anchors.fill: parent; widgetFile: "KpiWidget.qml"; expanded: false } }
+
+    TestCase {
+        name: "KpiSizes"
+        when: windowShown
+
+        function configure(host) {
+            host.active = false
+            host.storeCtl.patchSettings(host.instanceId,
+                { source: "http", url: "http://x/y", label: "Error budget", unit: "%" })
+        }
+        // Feed a real series so the trend + stats have something to show.
+        function feed(host) {
+            configure(host)
+            host.item.xhrFactory = function () { return root.makeFake() }
+            var vals = [40, 55, 42, 61, 58]
+            for (var i = 0; i < vals.length; i++) host.item._apply(vals[i])
+        }
+
+        // 0.5x0.5 — a READOUT: the number, and nothing that needs a finger.
+        function test_micro_is_the_number_alone() {
+            tryVerify(function () { return kMicro.ready }, 3000)
+            var k = kMicro.item
+            k.sizeClass = "compact"
+            feed(kMicro)
+            compare(k.micro, true, "a 348x409 compact box is the micro tile")
+            compare(k.showHeader, false, "micro drops the chrome header")
+            compare(k.showLabel, false, "micro drops the label — the number IS the tile")
+            compare(k.showSpark, false, "…and the trend")
+            compare(k.showStats, false, "…and the stats strip")
+            verify(k.valuePx >= 100, "the number still fills the box (" + k.valuePx.toFixed(0) + "px)")
+        }
+
+        // The number is sized off the BOX, not off `expanded` — the wave-2b bug.
+        function test_number_scales_with_the_tile() {
+            tryVerify(function () { return kBase.ready }, 3000)
+            tryVerify(function () { return kMicro.ready }, 3000)
+            kMicro.item.sizeClass = "compact"; feed(kMicro)
+            var k = kBase.item
+            k.sizeClass = "compact"
+            feed(kBase)
+            compare(k.micro, false, "a 696x819 baseline tile is not micro")
+            compare(k.showLabel, true, "the baseline earns the label")
+            compare(k.showSpark, true, "…and the trend")
+            verify(k.valuePx > kMicro.item.valuePx,
+                   "the baseline number is bigger than the micro one ("
+                   + k.valuePx.toFixed(0) + " vs " + kMicro.item.valuePx.toFixed(0) + ")")
+            verify(k.valuePx > 40, "…and far past the old flat 40px (" + k.valuePx.toFixed(0) + ")")
+        }
+
+        // A genuinely wide box puts the trend BESIDE the number.
+        function test_wide_splits_number_and_trend() {
+            tryVerify(function () { return kWide.ready }, 3000)
+            var k = kWide.item
+            k.sizeClass = "wide"
+            feed(kWide)
+            compare(k.split, true, "1269x612 (1x1.5 landscape) splits into two columns")
+            compare(lay_of(kWide).columns, 2, "…which is the GridLayout flipping columns")
+            // Portrait 1x1.5 is 696x1229 — the same size, the other shape.
+            kWideWrap.width = 696; kWideWrap.height = 1229
+            k.sizeClass = "tall"
+            compare(k.split, false, "the portrait projection of the same size stacks")
+            compare(lay_of(kWide).columns, 1, "…back to a single column")
+            kWideWrap.width = 1269; kWideWrap.height = 612
+        }
+
+        // 1x3 — the whole panel. A billboard: the stats strip is real extra
+        // content, and the trend takes the slack instead of leaving air.
+        function test_fullscreen_is_a_billboard() {
+            tryVerify(function () { return kBoard.ready }, 3000)
+            tryVerify(function () { return kBase.ready }, 3000)
+            var k = kBoard.item
+            k.sizeClass = "large"
+            feed(kBoard)
+            kBase.item.sizeClass = "compact"; feed(kBase)
+            compare(k.roomy, true, "1x2/1x3 are the roomy class")
+            compare(k.showStats, true, "the billboard earns a min/avg/max strip")
+            compare(kBase.item.showStats, false, "…which the baseline tile does not")
+            verify(k.valuePx >= kBase.item.valuePx,
+                   "the number is at least as big as the baseline's")
+            verify(k.labelPx > kBase.item.labelPx, "the label grows with the box")
+            // The stats are values on STABLE cells, not a rebuilt model.
+            var minCell = findText(k, "min")
+            verify(minCell !== null, "the min cell exists")
+            k.sizeClass = "full"
+            verify(findText(k, "min") === minCell, "the same cell survives a class flip")
+        }
+
+        // Helper: the content GridLayout (the value Text's grandparent).
+        function lay_of(host) {
+            var t = findValueText(host.item)
+            return t ? t.parent.parent.parent : null   // Text → RowLayout → ColumnLayout → Grid
+        }
+        function findValueText(node) {
+            return findFirst(node, function (n) {
+                return n.hasOwnProperty("font") && n.hasOwnProperty("text")
+                       && String(n.text) === "58" })
+        }
+        function findText(node, s) {
+            return findFirst(node, function (n) {
+                return n.hasOwnProperty("text") && String(n.text) === s })
+        }
+        function findFirst(node, pred) {
+            if (!node) return null
+            if (pred(node)) return node
+            var kids = node.children
+            for (var i = 0; kids && i < kids.length; i++) {
+                var r = findFirst(kids[i], pred)
+                if (r) return r
+            }
+            return null
+        }
+    }
 }
