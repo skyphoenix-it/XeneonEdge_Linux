@@ -292,10 +292,16 @@ Item {
 
         // Coercing DOWN means down: a type whose largest is the baseline gets the
         // baseline, and never something bigger than it declares.
+        // The exemplar is `hydration`, not `habit`: habit grew a 1x1.5 in W1 wave
+        // 2c (it earns the best-ever record line and a transposed map), so it no
+        // longer tops out at the baseline. Hydration still does, and for a reason
+        // that will not drift — it keeps no history, so there is nothing to grow
+        // into. The rule under test is unchanged; only the type that illustrates
+        // it moved.
         function test_coerce_down_stops_at_what_the_type_declares() {
-            verify(!catalog.supports("habit", "1x1.5"), "habit tops out at 1x1")
-            compare(mig([ { id: "h", type: "habit", h: 2 } ], 1)[0].size, "1x1",
-                    "1x2 → the largest habit declares, which IS 1x1")
+            verify(!catalog.supports("hydration", "1x1.5"), "hydration tops out at 1x1")
+            compare(mig([ { id: "h", type: "hydration", h: 2 } ], 1)[0].size, "1x1",
+                    "1x2 → the largest hydration declares, which IS 1x1")
         }
 
         // The unit rule, independent of migration.

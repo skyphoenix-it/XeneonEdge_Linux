@@ -13,10 +13,24 @@ import QtQuick.Layouts
 //                       genuinely too small to read at 348x409, so it stays off.
 //   • 1x1 (baseline)  — streak + the 28-day heatmap + Check in.
 //   • wide            — the streak/button column BESIDE the heatmap.
-//   • tall            — streak, heatmap, button stacked.
+//   • tall            — streak, heatmap, button stacked; the map transposes to
+//                       4x7 so it fits the box instead of sitting as a squat
+//                       block in a column of air (see heatCols).
 //   • full (overlay)  — unchanged: streak + best + heatmap + button.
 // The check-in button is a PillButton (theme.touchSecondary) at every size — it is
 // the whole interaction, so it is never shrunk to make a layout fit.
+//
+// Sizing (W1 wave 2c): 1x1.5 — a half screen, and NOT the baseline stretched. It
+// projects to two genuinely different boxes, and gets a different card in each:
+//   • portrait 696x1229 (tall) — the 4x7 map above the streak, the record and the
+//                                button. Cells reach ~86px vs the baseline's 34.
+//   • landscape 1269x612 (wide) — the 7x4 map BESIDE the streak/record/button
+//                                 column.
+// What it earns over 1x1 is CONTENT, not scale: the best-ever record line, which
+// was `visible: w.expanded` and so appeared in the overlay while a half-screen
+// tile with twice the baseline's room went without it (see showBest).
+// NOT 1x2/1x3: the stored history is pruned to 28 days, so past a half screen
+// there is nothing further to show and the map would only inflate.
 WidgetChrome {
     id: w
     property var metrics: ({})
@@ -94,18 +108,80 @@ WidgetChrome {
 
     // ── Per-size layout (sizeClass injected by Dashboard) ────────────────────
     readonly property bool horiz: sizeClass === "wide"
-    // The heatmap is 7 wide x 4 down; a micro tile cannot show 28 legible cells.
+
+    // ── 1x1.5 (W1 wave 2c) ───────────────────────────────────────────────────
+    // Dashboard injects sizeClass, never the size NAME, so "does this instance
+    // have half-screen room?" has to be answered from the room itself. Among the
+    // sizes this widget declares, 1x1.5 is the only one that is BOTH off-square
+    // and full-short-axis:
+    //   0.5x1  -> tall  348x819  / wide  846x306   (short side <= 423)
+    //   1x0.5  -> wide  696x409  / tall  423x612   (short side <= 423)
+    //   1x1.5  -> tall  696x1229 / wide 1269x612   (short side >= 612)
+    // so the same 480 threshold WidgetChrome uses to tell the half-cell from the
+    // baseline separates them here too, with no size-name special case. `large`
+    // and `full` are roomier still; this widget declares neither as a tile, but
+    // they must not read as cramped if it ever does.
+    readonly property bool roomy: sizeClass === "large" || sizeClass === "full"
+        || ((sizeClass === "tall" || sizeClass === "wide")
+            && Math.min(width, height) >= 480)
+
+    // The heatmap's GRID FOLLOWS THE BOX. 28 days is either 7x4 or 4x7, and both
+    // keep the structure that makes the map readable — cells 7 apart share a
+    // weekday — they just swap which axis carries the week:
+    //   7 cols -> a ROW is a week, a COLUMN is a weekday   (square / wide boxes)
+    //   4 cols -> a COLUMN is a week, a ROW is a weekday   (tall boxes)
+    // Handing a tall box the 7x4 map is precisely the "one layout stretched"
+    // failure: 1x1.5 portrait is 696x1229 (aspect 0.57) and a 4x7 grid is aspect
+    // 0.57, so the transposed map is the one that genuinely fits the box. This is
+    // keyed off the SHAPE, not off 1x1.5, so 0.5x1 portrait and 1x0.5 landscape
+    // (also tall) get the arrangement that suits them for the same reason.
+    readonly property bool tallBox: sizeClass === "tall"
+    readonly property int heatCols: w.tallBox ? 4 : 7
+    readonly property int heatRows: w.tallBox ? 7 : 4
+
+    // The heatmap is 28 cells; a micro tile cannot show them legibly.
     readonly property bool showHeatmap: w.expanded || !w.micro
+
+    // The best-ever line is CONTENT that the ROOM earns, not a mode. It used to be
+    // `visible: w.expanded`, which is the exact size/mode conflation WidgetChrome
+    // warns about: the overlay showed the record while a half-screen tile with far
+    // more room than the baseline did not.
+    readonly property bool showBest: (w.roomy || w.expanded) && w.bestStreak > 0
+
     readonly property real streakPx: w.expanded ? 40
         : w.micro ? Math.max(18, Math.min(width * 0.22, height * 0.20, 64))
         : Math.max(16, Math.min((w.horiz ? width * 0.5 : width) * 0.10,
-                                height * 0.10, 44))
-    // Cell size follows the box. `horiz` measures against its own column, and
-    // gives the 4 rows a real height budget (the shared 0.06 term starved a
-    // 846x306 wide box where the map sits beside the number, not under it).
+                                height * 0.10, w.roomy ? 72 : 44))
+
+    // Cell size follows the box AND the grid shape it just chose. The old terms
+    // baked the 7x4 shape into their /9 and *0.06 divisors, so a 7-row grid sized
+    // with a 4-row budget would run straight off the bottom.
+    //   tall : 4 cols span 4.54c, so width/5 fills ~91% of the width; 7 rows span
+    //          8.08c, so height*0.07 gives the map ~57% of the height and leaves
+    //          the header, streak, record and button theirs (~250px at 1x1.5).
+    //          Tuned against renders, not arithmetic: at 0.085 the cells came out
+    //          bigger than the streak number itself and inverted the hierarchy.
+    //   else : unchanged, so every already-shipped size keeps its exact cell size.
+    // The cap is a guard rail rather than the active term at 1x1.5 — the axis
+    // terms bind first there (86 vs 120 tall, 70.5 vs 120 wide) — and it is what
+    // holds the baseline tile at its current 34.
+    readonly property real heatCellCap: w.roomy ? 120 : 34
     readonly property real heatCell: w.expanded ? 24
+        : w.tallBox ? Math.max(8, Math.min(width / 5, height * 0.07, w.heatCellCap))
         : Math.max(8, Math.min((w.horiz ? width * 0.5 : width) / 9,
-                               height * (w.horiz ? 0.14 : 0.06), 34))
+                               height * (w.horiz ? 0.14 : 0.06), w.heatCellCap))
+
+    // Days-ago for a row-major cell index under the CURRENT grid shape; index 27
+    // is always today. With 7 columns the natural row-major order already runs a
+    // week per row. With 4 columns the week has to run DOWN each column instead —
+    // left as row-major, every row would be 4 consecutive days and the weekday
+    // alignment (the entire point of a habit heatmap) would be lost.
+    function daysAgoFor(index) {
+        if (w.heatCols === 7) return 27 - index
+        var r = Math.floor(index / w.heatCols)
+        var c = index % w.heatCols
+        return (w.heatCols - 1 - c) * 7 + (w.heatRows - 1 - r)
+    }
 
     readonly property var milestones: [7, 14, 30, 60, 100, 200, 365]
     function milestoneMsg(n) {
@@ -200,10 +276,11 @@ WidgetChrome {
 
         // 28-day heatmap. Was expanded-only "because the grid can't fit"; at
         // 7x4 cells it fits every size but the 1/12 tile, so it is now earned by
-        // room rather than by mode.
+        // room rather than by mode — and its grid transposes to 4x7 for a tall
+        // box rather than sitting as a squat block in a column of air.
         GridLayout {
             Layout.alignment: Qt.AlignCenter
-            columns: 7
+            columns: w.heatCols
             visible: w.showHeatmap
             rowSpacing: Math.max(2, w.heatCell * 0.18)
             columnSpacing: Math.max(2, w.heatCell * 0.18)
@@ -217,12 +294,13 @@ WidgetChrome {
                     Layout.preferredWidth: Math.round(w.heatCell)
                     Layout.preferredHeight: Math.round(w.heatCell)
                     radius: Math.max(2, Math.round(w.heatCell) * 0.17)
-                    // index 27 = today, going back. Calendar-date stepping (S6)
-                    // so cells never collide across a DST boundary.
+                    // Calendar-date stepping (S6) so cells never collide across a
+                    // DST boundary. The index -> days-ago mapping follows the grid
+                    // shape (see daysAgoFor); today is the last cell either way.
                     property string dk: {
                         w.tick
                         var d = new Date(); d.setHours(12, 0, 0, 0)
-                        d.setDate(d.getDate() - (27 - index))
+                        d.setDate(d.getDate() - w.daysAgoFor(index))
                         return w.key(d)
                     }
                     property bool on: w.checkins.indexOf(dk) >= 0
@@ -244,12 +322,21 @@ WidgetChrome {
                 font.pixelSize: Math.round(w.streakPx); font.bold: true; color: w.effAccent
                 horizontalAlignment: Text.AlignHCenter; elide: Text.ElideRight
             }
-            // Best streak — a record to beat (expanded).
+            // Best streak — a record to beat. Shown wherever the ROOM earns it
+            // (see showBest), which is what lets 1x1.5 carry something the
+            // baseline third does not, rather than the same tile stretched.
             Text {
-                Layout.alignment: Qt.AlignHCenter; visible: w.expanded && w.bestStreak > 0
+                Layout.alignment: Qt.AlignHCenter; Layout.fillWidth: true
+                visible: w.showBest
                 text: "Best: " + w.bestStreak + (w.bestStreak === 1 ? " day" : " days")
                       + (w.streak >= w.bestStreak && w.streak > 0 ? "  ·  personal best! 🏆" : "")
-                font.pixelSize: 14; color: theme.textSecondary
+                // Tied to the streak readout rather than left at the caption
+                // token: at 1x1.5 the number is ~70px and a 13px record line
+                // beside it reads as a rendering artefact rather than a stat.
+                font.pixelSize: w.expanded ? 14
+                    : Math.round(Math.max(theme.fontCaption, w.streakPx * 0.3))
+                color: theme.textSecondary
+                horizontalAlignment: Text.AlignHCenter; elide: Text.ElideRight
             }
             // Check in from every size — a PillButton is theme.touchSecondary (60),
             // above the 52 minimum, and this is the widget's whole interaction.

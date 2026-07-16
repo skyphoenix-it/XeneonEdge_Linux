@@ -516,6 +516,11 @@ Item {
         WidgetHarness { id: bBase; anchors.fill: parent; widgetFile: "HabitWidget.qml"; expanded: false } }
     Item { id: bWideWrap; width: 696; height: 409
         WidgetHarness { id: bWide; anchors.fill: parent; widgetFile: "HabitWidget.qml"; expanded: false } }
+    // 1x1.5 — a half screen, at BOTH of its real projections.
+    Item { width: 696; height: 1229
+        WidgetHarness { id: bRoomyP; anchors.fill: parent; widgetFile: "HabitWidget.qml"; expanded: false } }
+    Item { width: 1269; height: 612
+        WidgetHarness { id: bRoomyL; anchors.fill: parent; widgetFile: "HabitWidget.qml"; expanded: false } }
 
     TestCase {
         name: "HabitSizes"
@@ -603,6 +608,207 @@ Item {
             verify(cellAfter === cellBefore,
                    "the same heatmap cell survives the class flip (no rebuild)")
             b.sizeClass = "compact"
+        }
+    }
+
+    // ── 1x1.5 (W1 wave 2c) ─────────────────────────────────────────────────
+    // A half screen. It projects to 696x1229 "tall" in portrait and 1269x612
+    // "wide" in landscape, and the bar is that BOTH are designed — not one
+    // layout stretched to fill whichever box turns up.
+    TestCase {
+        name: "HabitRoomy"
+        when: windowShown
+
+        function seed(host) {
+            var d = new Date(); d.setHours(12, 0, 0, 0)
+            var arr = []
+            for (var i = 0; i < 5; i++) {
+                var x = new Date(d); x.setDate(x.getDate() - i)
+                arr.push(Qt.formatDate(x, "yyyy-MM-dd"))
+            }
+            host.storeCtl.patchSettings(host.instanceId,
+                { checkins: arr, streak: 5, lastCheckinDay: arr[0], bestStreak: 9 })
+        }
+        // The INNER grid — the one whose DIRECT children are the day cells. The
+        // outer grid also has columns/rowSpacing and also contains all 28 cells
+        // (via the inner one), so a descendant-based predicate matches it first
+        // and silently reads the wrong `columns`. The sibling helper above gets
+        // away with `columns === 7` only because the map no longer always is.
+        function heat(host) {
+            return root.findAll(host.item, function (n) {
+                if (!n.hasOwnProperty("columns") || !n.hasOwnProperty("rowSpacing")) return false
+                var kids = n.children || []
+                for (var i = 0; i < kids.length; i++)
+                    if (kids[i].hasOwnProperty("dk")) return true
+                return false
+            }, [])[0]
+        }
+        function pill(host) { return root.findPill(host.item) }
+        function bestLine(host) {
+            return root.findAll(host.item, function (n) {
+                return n.hasOwnProperty("text") && String(n.text).indexOf("Best:") === 0
+            }, [])[0]
+        }
+        function init() {
+            tryVerify(function () { return bRoomyP.ready && bRoomyL.ready && bBase.ready }, 3000)
+        }
+
+        // The size is offered at all — a widget that renders it but never declares
+        // it is unreachable, and one that declares it without rendering it is the
+        // W1 failure.
+        function test_catalog_offers_1x1_5_for_habit() {
+            var cat = Qt.createQmlObject('import QtQuick; import "../../ui/qml"; WidgetCatalog {}', root)
+            var sizes = cat.sizesFor("habit")
+            verify(sizes.indexOf("1x1.5") >= 0,
+                   "habit declares 1x1.5 (got " + JSON.stringify(sizes) + ")")
+            verify(sizes.indexOf("1x2") < 0 && sizes.indexOf("1x3") < 0,
+                   "…and stops there — the history is pruned to 28 days, so a bigger "
+                   + "tile would only inflate the map (got " + JSON.stringify(sizes) + ")")
+            cat.destroy()
+        }
+
+        // Portrait: the map TRANSPOSES to fit a 0.57-aspect box.
+        function test_roomy_portrait_transposes_the_map() {
+            var b = bRoomyP.item
+            b.sizeClass = "tall"
+            seed(bRoomyP)
+            wait(0)
+            compare(b.roomy, true, "696x1229 is a half-screen tile, not a half-cell")
+            compare(b.tallBox, true, "…and it is the tall projection")
+            var g = heat(bRoomyP)
+            compare(g.columns, 4, "the map runs 4 wide x 7 down for a tall box")
+            compare(b.heatRows, 7, "…7 rows")
+            var cells = root.findAll(g, function (n) { return n.hasOwnProperty("dk") }, [])
+            compare(cells.length, 28, "still all 28 days")
+        }
+
+        // Landscape: the SAME size is a different card — the wide one.
+        function test_roomy_landscape_is_the_wide_card() {
+            var b = bRoomyL.item
+            b.sizeClass = "wide"
+            seed(bRoomyL)
+            wait(0)
+            compare(b.roomy, true, "1269x612 is a half-screen tile")
+            compare(b.horiz, true, "…and it is the wide projection")
+            compare(b.tallBox, false, "…so it is NOT the tall layout")
+            var g = heat(bRoomyL)
+            compare(g.columns, 7, "the map stays 7 wide beside the streak column")
+            compare(g.parent.columns, 2, "the streak column sits BESIDE the map")
+        }
+
+        // The record is earned by ROOM. This is the assertion that would have
+        // caught the original `visible: w.expanded`.
+        function test_record_line_is_earned_by_room_not_by_expanded() {
+            var roomy = bRoomyP.item
+            roomy.sizeClass = "tall"
+            seed(bRoomyP)
+            wait(0)
+            compare(roomy.expanded, false, "the 1x1.5 tile is NOT the overlay")
+            compare(roomy.showBest, true, "…yet it shows the best-ever record")
+            var line = bestLine(bRoomyP)
+            verify(line && line.visible,
+                   "the record line actually renders on a 1x1.5 tile")
+
+            // …and the baseline third, with genuinely less room, does not — so the
+            // line is a size difference rather than something shown everywhere.
+            var base = bBase.item
+            base.sizeClass = "compact"
+            seed(bBase)
+            wait(0)
+            compare(base.showBest, false,
+                    "the 1x1 baseline does not claim the record line")
+            var baseLine = bestLine(bBase)
+            verify(!baseLine || !baseLine.visible,
+                   "…and does not render it")
+        }
+
+        // 1x1.5 must differ from 1x1 in more than pixels: the map is genuinely
+        // bigger AND the card carries content the baseline does not.
+        function test_roomy_is_not_the_baseline_stretched() {
+            var roomy = bRoomyP.item; roomy.sizeClass = "tall"
+            var base = bBase.item;    base.sizeClass = "compact"
+            seed(bRoomyP); seed(bBase)
+            wait(0)
+            verify(roomy.heatCell > base.heatCell * 1.5,
+                   "the map is genuinely bigger, not the same 34px cells in a taller box ("
+                   + roomy.heatCell.toFixed(0) + " vs " + base.heatCell.toFixed(0) + ")")
+            verify(roomy.heatCols !== base.heatCols,
+                   "…and it is a different arrangement, not the same grid scaled ("
+                   + roomy.heatCols + " vs " + base.heatCols + " columns)")
+            verify(roomy.showBest && !base.showBest,
+                   "…and it carries content the baseline does not")
+        }
+
+        // Whatever the arrangement, the map still has to mean something: 28
+        // distinct consecutive days, today last, and cells a week apart sharing a
+        // weekday (the structure that makes a habit map readable at a glance).
+        function test_transposed_map_keeps_28_distinct_days_and_weekday_structure() {
+            var b = bRoomyP.item
+            b.sizeClass = "tall"
+            seed(bRoomyP)
+            wait(0)
+            compare(b.heatCols, 4, "precondition: the transposed grid")
+
+            var seen = {}, n = 0
+            for (var i = 0; i < 28; i++) {
+                var da = b.daysAgoFor(i)
+                verify(da >= 0 && da <= 27, "cell " + i + " maps inside the window (" + da + ")")
+                if (!seen[da]) { seen[da] = true; n++ }
+            }
+            compare(n, 28, "all 28 cells map to distinct days")
+
+            // Today is the LAST cell in reading order either way.
+            compare(b.daysAgoFor(27), 0, "the final cell is today")
+
+            // A week runs DOWN a column: consecutive rows in one column are
+            // consecutive days.
+            for (var c = 0; c < 4; c++)
+                for (var r = 0; r < 6; r++)
+                    compare(b.daysAgoFor((r + 1) * 4 + c) + 1, b.daysAgoFor(r * 4 + c),
+                            "col " + c + ": row " + (r + 1) + " is the day after row " + r)
+
+            // …so a ROW is a weekday: neighbours across a row are 7 days apart.
+            for (var rr = 0; rr < 7; rr++)
+                for (var cc = 0; cc < 3; cc++)
+                    compare(b.daysAgoFor(rr * 4 + cc) - b.daysAgoFor(rr * 4 + cc + 1), 7,
+                            "row " + rr + " keeps one weekday across its 4 weeks")
+        }
+
+        // The 7-col arrangement's own structure, for contrast: there the WEEK runs
+        // across a row and the COLUMN is the weekday.
+        function test_square_map_keeps_the_original_mapping() {
+            var b = bBase.item
+            b.sizeClass = "compact"
+            wait(0)
+            compare(b.heatCols, 7, "precondition: the 7-wide grid")
+            compare(b.daysAgoFor(27), 0, "the final cell is today")
+            compare(b.daysAgoFor(0), 27, "the first cell is 27 days ago")
+            for (var i = 0; i < 21; i++)
+                compare(b.daysAgoFor(i) - b.daysAgoFor(i + 7), 7,
+                        "column " + (i % 7) + " keeps one weekday down the weeks")
+        }
+
+        // The interaction survives the new size, at both projections.
+        function test_checkin_button_stays_touch_sized_and_inside_both_projections() {
+            var cases = [ { h: bRoomyP, sc: "tall", n: "1x1.5 portrait" },
+                          { h: bRoomyL, sc: "wide", n: "1x1.5 landscape" } ]
+            for (var i = 0; i < cases.length; i++) {
+                var host = cases[i].h
+                host.item.sizeClass = cases[i].sc
+                seed(host)
+                wait(0)
+                var p = pill(host)
+                verify(p && p.visible, cases[i].n + ": the check-in pill is present")
+                verify(p.height >= host.theme.touchTertiary,
+                       cases[i].n + ": …and touch-sized (" + p.height + ")")
+                var pos = p.mapToItem(host.item, 0, 0)
+                verify(pos.x >= 0 && pos.y >= 0
+                       && pos.x + p.width <= host.item.width + 0.5
+                       && pos.y + p.height <= host.item.height + 0.5,
+                       cases[i].n + ": …and fully inside the tile (x=" + pos.x.toFixed(0)
+                       + " y=" + pos.y.toFixed(0) + " in " + host.item.width
+                       + "x" + host.item.height + ")")
+            }
         }
     }
 }
