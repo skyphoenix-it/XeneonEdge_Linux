@@ -8,19 +8,38 @@
 # those sandboxes (a raw `./tests/cpp/<test>` run once ate a developer's real
 # config — see that header).
 #
-# WARNING — the IPC socket is NOT hermetic, despite the per-test XDG_RUNTIME_DIR.
-# ControlServer/ManagerBackend name the socket "xeneon-edge-hub-ctl" (a bare name,
-# no '/'), and Qt resolves a bare QLocalServer name via QDir::tempPath() — i.e.
-# /tmp — IGNORING XDG_RUNTIME_DIR. So control_server, manager_backend_sync and
-# rx_cap all bind, and removeServer(), the REAL /tmp/xeneon-edge-hub-ctl. Running
-# them while a hub is live UNLINKS that hub's socket: the hub keeps its listening
-# fd and logs nothing, but no client can ever reach it again until it restarts.
-# Fixing this needs the socket to resolve to an absolute path under
-# XDG_RUNTIME_DIR on BOTH sides (app/src/control_server.cpp + the Manager's
-# client in manager/src/manager_backend.h) — an IPC-contract change, not done here.
+# The IPC socket IS hermetic, and the per-test XDG_RUNTIME_DIR below is what makes
+# it so: both ends resolve the socket through app/src/control_socket_path.h, which
+# returns $XDG_RUNTIME_DIR/xeneon-edge-hub-ctl. Until that landed, the socket was a
+# bare QLocalServer name, which Qt resolves via QDir::tempPath() — so control_server,
+# manager_backend_sync and rx_cap bound, and removeServer()'d, the REAL shared
+# /tmp/xeneon-edge-hub-ctl, unlinking a live hub's socket (it keeps its listening fd
+# and logs nothing, so it looks healthy while no client can reach it again). If you
+# add a test that touches the socket, resolve the path through that header — never
+# name it literally. tst_control_server.cpp's socketIsConfinedToRuntimeDir and
+# startDoesNotTouchSharedTmpSocket guard this.
 
 set(APP_SRC "${CMAKE_SOURCE_DIR}/app/src")
 set(MGR_SRC "${CMAKE_SOURCE_DIR}/manager/src")
+
+# Where each test's XDG_RUNTIME_DIR goes. NOT the build tree, unlike its HOME /
+# XDG_CONFIG_HOME: a Unix socket path must fit sockaddr_un::sun_path (108 bytes
+# incl. NUL), and "<build>/tests/cpp/tmp/<test>/run/xeneon-edge-hub-ctl" busts
+# that on any normally-nested checkout — listen() then fails with the famously
+# unhelpful "QLocalServer::listen: Name error". So runtime dirs live in a short
+# temp path instead. This is NOT a return to the old shared /tmp socket: each
+# test gets its OWN directory, keyed by a hash of this build dir (so parallel
+# checkouts and other users never collide), and nothing binds the shared name.
+# hermetic.h accepts a temp-rooted sandbox — mirror its $TMPDIR-else-/tmp rule
+# here, or the gate would reject what we hand out.
+if(DEFINED ENV{TMPDIR})
+    set(_tmp_root "$ENV{TMPDIR}")
+else()
+    set(_tmp_root "/tmp")
+endif()
+string(MD5 _build_hash "${CMAKE_CURRENT_BINARY_DIR}")
+string(SUBSTRING "${_build_hash}" 0 8 _build_hash)
+set(SOCK_ROOT "${_tmp_root}/xe-ctest-${_build_hash}")
 
 # add_qt_test(<name>
 #     SOURCES  <extra .cpp/.h compiled into the test, beyond tst_<name>.cpp>
@@ -49,13 +68,16 @@ function(add_qt_test name)
         target_link_options(${name} PRIVATE --coverage)
     endif()
 
-    # Per-test hermetic dirs (config round-trips + the IPC socket live here).
+    # Per-test hermetic dirs. Config round-trips stay in the build tree; the
+    # runtime dir (and so the IPC socket) goes in the short temp root — see the
+    # sun_path note at the top of this file.
     set(_tmp "${CMAKE_CURRENT_BINARY_DIR}/tmp/${name}")
-    file(MAKE_DIRECTORY "${_tmp}/config" "${_tmp}/run")
+    set(_run "${SOCK_ROOT}/${name}")
+    file(MAKE_DIRECTORY "${_tmp}/config" "${_run}")
 
     add_test(NAME ${name} COMMAND ${name})
     set_tests_properties(${name} PROPERTIES
-        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;XDG_CONFIG_HOME=${_tmp}/config;XDG_RUNTIME_DIR=${_tmp}/run;HOME=${_tmp}")
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;XDG_CONFIG_HOME=${_tmp}/config;XDG_RUNTIME_DIR=${_run};HOME=${_tmp}")
 endfunction()
 
 # ── Unit (pure logic) ──
@@ -105,11 +127,10 @@ target_compile_definitions(smoke_hub PRIVATE
     QA_HOOKS_BUILD=$<BOOL:${XENEON_QA_HOOKS}>
     XENEON_TEST_SANDBOX_ROOT="${CMAKE_CURRENT_BINARY_DIR}/tmp")
 add_dependencies(smoke_hub xeneon-edge-hub)
-file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/tmp/smoke_hub/config"
-                    "${CMAKE_CURRENT_BINARY_DIR}/tmp/smoke_hub/run")
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/tmp/smoke_hub/config" "${SOCK_ROOT}/smoke_hub")
 add_test(NAME smoke_hub COMMAND smoke_hub)
 set_tests_properties(smoke_hub PROPERTIES
-    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;XDG_CONFIG_HOME=${CMAKE_CURRENT_BINARY_DIR}/tmp/smoke_hub/config;XDG_RUNTIME_DIR=${CMAKE_CURRENT_BINARY_DIR}/tmp/smoke_hub/run;HOME=${CMAKE_CURRENT_BINARY_DIR}/tmp/smoke_hub"
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;XDG_CONFIG_HOME=${CMAKE_CURRENT_BINARY_DIR}/tmp/smoke_hub/config;XDG_RUNTIME_DIR=${SOCK_ROOT}/smoke_hub;HOME=${CMAKE_CURRENT_BINARY_DIR}/tmp/smoke_hub"
     TIMEOUT 60)
 
 add_executable(smoke_manager tst_smoke_manager.cpp)
@@ -120,9 +141,8 @@ target_compile_definitions(smoke_manager PRIVATE
     QA_HOOKS_BUILD=$<BOOL:${XENEON_QA_HOOKS}>
     XENEON_TEST_SANDBOX_ROOT="${CMAKE_CURRENT_BINARY_DIR}/tmp")
 add_dependencies(smoke_manager xeneon-edge-manager)
-file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/tmp/smoke_manager/config"
-                    "${CMAKE_CURRENT_BINARY_DIR}/tmp/smoke_manager/run")
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/tmp/smoke_manager/config" "${SOCK_ROOT}/smoke_manager")
 add_test(NAME smoke_manager COMMAND smoke_manager)
 set_tests_properties(smoke_manager PROPERTIES
-    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;XDG_CONFIG_HOME=${CMAKE_CURRENT_BINARY_DIR}/tmp/smoke_manager/config;XDG_RUNTIME_DIR=${CMAKE_CURRENT_BINARY_DIR}/tmp/smoke_manager/run;HOME=${CMAKE_CURRENT_BINARY_DIR}/tmp/smoke_manager"
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;XDG_CONFIG_HOME=${CMAKE_CURRENT_BINARY_DIR}/tmp/smoke_manager/config;XDG_RUNTIME_DIR=${SOCK_ROOT}/smoke_manager;HOME=${CMAKE_CURRENT_BINARY_DIR}/tmp/smoke_manager"
     TIMEOUT 60)

@@ -19,7 +19,11 @@
 #include "hermetic.h"
 XENEON_REQUIRE_HERMETIC_ENV();
 
-static const char* kSock = "xeneon-edge-hub-ctl";
+// Bind exactly where production resolves it (manager_backend.h pulls in the
+// same header), so the fake hub and the ManagerBackend under test cannot
+// drift apart — and so this never binds the shared /tmp node a live hub used
+// to own. See app/src/control_socket_path.h.
+static QString kSock() { return xeneon::controlSocketPath(); }
 
 // Minimal server that hands us the connected socket so the test can write raw
 // bytes (well-formed or not) straight at the Manager's read slot.
@@ -29,11 +33,11 @@ public:
     QLocalServer server;
     QLocalSocket* client = nullptr;
     bool start() {
-        QLocalServer::removeServer(kSock);
+        QLocalServer::removeServer(kSock());
         connect(&server, &QLocalServer::newConnection, this, [this] {
             client = server.nextPendingConnection();
         });
-        return server.listen(kSock);
+        return server.listen(kSock());
     }
     void sendUiState(const QString& state) {
         client->write(QJsonDocument(QJsonObject{{"type", "uiState"}, {"state", state}})

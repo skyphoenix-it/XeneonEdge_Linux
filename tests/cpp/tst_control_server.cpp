@@ -1,7 +1,8 @@
 // Integration tests for ControlServer over a REAL QLocalSocket. Covers the full
 // newline-delimited JSON protocol: ping, getUiState, setUiState (honest ok/fail
-// ack), empty/malformed/unknown, shutdown ordering, the 8 MiB buffer cap, and
-// re-entrancy (multiple lines + a handler that re-enters the event loop).
+// ack), empty/malformed/unknown, shutdown ordering, the 8 MiB buffer cap,
+// re-entrancy (multiple lines + a handler that re-enters the event loop), and
+// that the socket is confined to $XDG_RUNTIME_DIR.
 #include <QtTest>
 #include <QLocalServer>
 #include <QLocalSocket>
@@ -9,16 +10,57 @@
 #include <QJsonObject>
 #include <QSignalSpy>
 #include <QElapsedTimer>
+#include <QFileInfo>
+#include <QDir>
+#include <QFile>
 #include <QCoreApplication>
 
+#include <sys/stat.h>
+#include <unistd.h>
+
 #include "control_server.h"
+#include "control_socket_path.h"
 
 // Refuse to run outside a sandbox: this test would otherwise clobber the
 // developer's real config / running hub. See hermetic.h.
 #include "hermetic.h"
 XENEON_REQUIRE_HERMETIC_ENV();
 
-static const char* kSock = "xeneon-edge-hub-ctl";
+// Resolved the same way production does — the point of the shared header.
+static QString sockPath() { return xeneon::controlSocketPath(); }
+
+// The path the socket must NEVER land on: what a bare QLocalServer name resolves
+// to via QDir::tempPath(). A live hub's node sits here on a developer machine.
+static QString legacyTmpPath() {
+    return QDir::tempPath() + QStringLiteral("/xeneon-edge-hub-ctl");
+}
+
+// Simulates a session with no XDG_RUNTIME_DIR, with TMPDIR aimed at `tmpRoot` so
+// the fallback stays inside the test's sandbox. Restores both on scope exit —
+// including when a QVERIFY bails out early, which is why this is a guard object
+// and not a pair of calls: a leaked unset XDG_RUNTIME_DIR would trash every slot
+// that runs afterwards.
+class EnvSwap {
+public:
+    explicit EnvSwap(const QString& tmpRoot)
+        : savedRuntime_(qgetenv("XDG_RUNTIME_DIR")), savedTmpdir_(qgetenv("TMPDIR")),
+          hadTmpdir_(qEnvironmentVariableIsSet("TMPDIR")) {
+        qputenv("TMPDIR", QFile::encodeName(tmpRoot));
+        qunsetenv("XDG_RUNTIME_DIR");
+    }
+    ~EnvSwap() {
+        qputenv("XDG_RUNTIME_DIR", savedRuntime_);
+        if (hadTmpdir_)
+            qputenv("TMPDIR", savedTmpdir_);
+        else
+            qunsetenv("TMPDIR");
+    }
+    Q_DISABLE_COPY_MOVE(EnvSwap)
+private:
+    QByteArray savedRuntime_;
+    QByteArray savedTmpdir_;
+    bool hadTmpdir_;
+};
 
 class TstControlServer : public QObject {
     Q_OBJECT
@@ -32,7 +74,7 @@ class TstControlServer : public QObject {
     // than block on the client fd) — otherwise the server never accepts/replies.
     QList<QJsonObject> exchange(const QByteArray& req, int nLines = 1) {
         QLocalSocket c;
-        c.connectToServer(kSock);
+        c.connectToServer(sockPath());
         QElapsedTimer t; t.start();
         while (c.state() != QLocalSocket::ConnectedState && t.elapsed() < 3000)
             QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
@@ -69,7 +111,7 @@ private slots:
     void cleanup() {
         delete srv_;
         srv_ = nullptr;
-        QLocalServer::removeServer(kSock);
+        QLocalServer::removeServer(sockPath());
     }
 
     void ping() {
@@ -148,7 +190,7 @@ private slots:
     // connection dropped rather than growing the buffer unbounded.
     void oversizedMessageDropsConnection() {
         QLocalSocket c;
-        c.connectToServer(kSock);
+        c.connectToServer(sockPath());
         QElapsedTimer t; t.start();
         while (c.state() != QLocalSocket::ConnectedState && t.elapsed() < 3000)
             QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
@@ -192,6 +234,124 @@ private slots:
         QCOMPARE(r.size(), 2);
         QCOMPARE(r[0].value("type").toString(), QStringLiteral("ok"));
         QCOMPARE(r[1].value("type").toString(), QStringLiteral("ok"));
+    }
+
+    // ── The socket is confined to $XDG_RUNTIME_DIR ──
+    //
+    // REGRESSION. The socket used to be a BARE QLocalServer name, and Qt resolves
+    // a bare name via QDir::tempPath() — so the hub, and every run of this test,
+    // bound the single shared /tmp/xeneon-edge-hub-ctl. Two things followed, both
+    // observed on a real machine:
+    //   * start()'s removeServer() UNLINKED a live hub's socket. That hub keeps
+    //     its listening fd and logs nothing, so it looks healthy while no client
+    //     can reach it again until it restarts. Sandboxing XDG_RUNTIME_DIR (see
+    //     hermetic.h) did not help — the path was never inside the sandbox.
+    //   * /tmp is world-writable, so any local user could squat the node.
+    void socketIsConfinedToRuntimeDir() {
+        const QString runtimeDir = qEnvironmentVariable("XDG_RUNTIME_DIR");
+        QVERIFY2(!runtimeDir.isEmpty(), "hermetic.h should guarantee a sandboxed XDG_RUNTIME_DIR");
+
+        // init() already start()ed srv_ on the production-resolved path.
+        const QString path = sockPath();
+        QVERIFY2(QFileInfo::exists(path),
+                 qPrintable(QStringLiteral("no socket node at %1").arg(path)));
+        QCOMPARE(QFileInfo(path).canonicalPath(), QFileInfo(runtimeDir).canonicalFilePath());
+
+        // …and it is a real, serving endpoint there, not just a leftover node.
+        const auto r = exchange("{\"type\":\"ping\"}");
+        QCOMPARE(r.size(), 1);
+        QCOMPARE(r[0].value("type").toString(), QStringLiteral("pong"));
+    }
+
+    // Starting a server must leave the shared /tmp node completely alone.
+    //
+    // This deliberately asserts against the REAL shared path rather than a
+    // fixture: the whole failure mode was production ESCAPING the sandbox, which
+    // a sandboxed stand-in cannot observe. The test only ever READS that path —
+    // it is the old production code that wrote to it.
+    void startDoesNotTouchSharedTmpSocket() {
+        const QString shared = legacyTmpPath();
+        // Identify by inode, so a same-path replacement (unlink + rebind, which is
+        // exactly what removeServer() + listen() did) is caught, not just deletion.
+        const auto snapshot = [&shared]() -> QString {
+            struct stat st {};
+            if (::lstat(QFile::encodeName(shared).constData(), &st) != 0)
+                return QStringLiteral("<absent>");
+            return QStringLiteral("ino=%1").arg(st.st_ino);
+        };
+
+        const QString before = snapshot();
+        delete srv_;                        // the instance init() started
+        srv_ = new ControlServer(this);
+        QVERIFY(srv_->start());             // start()'s removeServer() used to unlink `shared`
+
+        QCOMPARE(snapshot(), before);
+    }
+
+    // ── No XDG_RUNTIME_DIR (headless / su / some systemd contexts) ──
+    //
+    // The socket must still land in a PRIVATE per-uid directory. The old bare name
+    // effectively fell back to the world-writable temp root itself, which is the
+    // squattable arrangement this change exists to remove — so "no runtime dir" may
+    // not mean "shared path".
+    //
+    // The fallback is kept inside this test's sandbox by pointing TMPDIR at it:
+    // QDir::tempPath() follows TMPDIR, and so, transitively, does the header.
+    void fallbackWithoutRuntimeDirIsPrivate() {
+        const QString sandbox = qEnvironmentVariable("XDG_RUNTIME_DIR");
+        QVERIFY(!sandbox.isEmpty());
+        EnvSwap swap(sandbox);              // TMPDIR=sandbox, XDG_RUNTIME_DIR unset
+
+        const QString dir = sandbox + QStringLiteral("/xeneon-edge-hub-") +
+                            QString::number(static_cast<uint>(::getuid()));
+        const QString path = xeneon::controlSocketPath();
+        QCOMPARE(path, dir + QStringLiteral("/xeneon-edge-hub-ctl"));
+
+        // Private: 0700 and owned by us — not the temp root, and not group/other
+        // accessible.
+        struct stat st {};
+        QCOMPARE(::lstat(QFile::encodeName(dir).constData(), &st), 0);
+        QVERIFY(S_ISDIR(st.st_mode));
+        QCOMPARE(st.st_uid, ::getuid());
+        QCOMPARE(st.st_mode & 0777, 0700u);
+
+        // And it is a working endpoint, not merely a well-named directory.
+        delete srv_;
+        srv_ = new ControlServer(this);
+        srv_->setStateProvider([this] { return providerState_; });
+        QVERIFY(srv_->start());
+        const auto r = exchange("{\"type\":\"ping\"}");
+        QCOMPARE(r.size(), 1);
+        QCOMPARE(r[0].value("type").toString(), QStringLiteral("pong"));
+
+        delete srv_;                        // unbind before EnvSwap restores the env
+        srv_ = nullptr;
+    }
+
+    // A fallback dir that someone else can write to is a hijack of the live-push
+    // channel, so it is REFUSED rather than used: no path, and start() fails
+    // closed (the hub simply runs without live control) instead of binding it.
+    void fallbackRefusesGroupWritableDir() {
+        const QString sandbox = qEnvironmentVariable("XDG_RUNTIME_DIR");
+        QVERIFY(!sandbox.isEmpty());
+        EnvSwap swap(sandbox);
+
+        const QString dir = sandbox + QStringLiteral("/xeneon-edge-hub-") +
+                            QString::number(static_cast<uint>(::getuid()));
+        QVERIFY(QDir().mkpath(dir));
+        const QByteArray raw = QFile::encodeName(dir);
+        QCOMPARE(::chmod(raw.constData(), 0777), 0);   // squatted: anyone may write
+
+        QVERIFY2(xeneon::controlSocketPath().isEmpty(),
+                 "a world-writable fallback dir must yield no socket path");
+
+        delete srv_;
+        srv_ = new ControlServer(this);
+        QVERIFY2(!srv_->start(), "start() must fail closed rather than bind a shared dir");
+        delete srv_;
+        srv_ = nullptr;
+
+        ::chmod(raw.constData(), 0700);   // leave the sandbox tidy for later slots
     }
 };
 

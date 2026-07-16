@@ -18,8 +18,10 @@ Added mid-2026 (same effort that hardened the widgets):
   (`uiState/saveUiState/starterLayout/configJson`), exposed as context prop
   `configBridge`. So every edit flows through the shared, already-tested store.
 - **Live IPC**: hub runs `ControlServer` (`app/src/control_server.{h,cpp}`), a
-  `QLocalServer` on socket `xeneon-edge-hub-ctl` (filesystem path `/tmp/xeneon-edge-hub-ctl`
-  on this box), newline-delimited JSON (`getUiState`/`setUiState`/`ping`). Manager's
+  `QLocalServer` on socket `$XDG_RUNTIME_DIR/xeneon-edge-hub-ctl` (resolved by
+  `app/src/control_socket_path.h`, which the Manager's client includes too — it was a bare
+  name landing in `/tmp` until 2026-07, which let any test run unlink a live hub's socket),
+  newline-delimited JSON (`getUiState`/`setUiState`/`ping`). Manager's
   `saveUiState` persists via the Rust config AND pushes `setUiState` over the socket.
   ⚠️ CRITICAL FOR TESTING: on the hub, `setUiState` **PERSISTS TO DISK** — C++
   `ConfigBridge::applyExternalUiState` (main.cpp) calls `xeneon_config_set_ui_state` +
@@ -79,7 +81,7 @@ REAL-EDGE E2E TESTING (2026-07, works headless as a bg agent, no sudo):
   cfg.preset exactly, confirmed via IPC getUiState). Swipes = press+incremental moves+release.
 - **VERIFY touch via IPC, not just screenshots**: drive the control socket (`getUiState`) to
   confirm a tap's effect on ui_state (e.g. preset/dailyGoal/running changes) — the strongest
-  proof. Socket path: `/tmp/xeneon-edge-hub-ctl`. ALWAYS back up + restore config.toml around
+  proof. Socket path: `$XDG_RUNTIME_DIR/xeneon-edge-hub-ctl`. ALWAYS back up + restore config.toml around
   touch/IPC tests (setUiState persists to disk).
 - **Measured baselines (real Edge, 2026-07)**: IPC getUiState p50 0.02ms / p99 0.08ms over 300
   round-trips, 0 fails; 25 concurrent conns all answered; 500 connect/disconnect cycles clean;
