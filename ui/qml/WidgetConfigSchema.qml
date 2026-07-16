@@ -402,7 +402,8 @@ QtObject {
                 { key: "url", label: "ICS calendar URL", type: "text", placeholder: "https://…/basic.ics" },
                 { type: "info", text: "Paste the secret iCal/ICS URL from Google, Outlook or Nextcloud." } ] },
             { title: "Display", cols: 1, fields: [
-                { key: "maxEvents", label: "Events to show", type: "number", min: 1, max: 12, step: 1, dflt: 5 } ] },
+                { key: "maxEvents", label: "Events to show", type: "number", min: 1, max: 12, step: 1, dflt: 5,
+                  help: "At most this many. A smaller tile shows fewer — it never overflows, and never shows more than you ask for." } ] },
             titleSection("Calendar"),
             about("Upcoming events from a calendar you subscribe to.") ] }
 
