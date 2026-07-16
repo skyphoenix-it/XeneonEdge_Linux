@@ -66,8 +66,10 @@ QtObject {
           sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1", "1x1.5"], dflt: "1x1" },
         { type: "analog",  title: "Analog Clock",category: "Time", source: "qrc:/qml/AnalogClockWidget.qml", defaults: {},
           sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1", "1x1.5"], dflt: "1x1" },
-        // A glyph + the phase name; illumination/next-new/next-full are expanded-only,
-        // so a larger tile would just scale the emoji.
+        // Was "illumination/next-new/next-full are expanded-only, so a larger tile
+        // would just scale the emoji" — no longer true since wave 2a: a tall tile
+        // earns the illumination and the next-new/next-full dates, so the size
+        // list is honest rather than a shrug. It could now justify 1x1.5 too.
         { type: "moon",    title: "Moon Phase",  category: "Time", source: "qrc:/qml/MoonWidget.qml",    defaults: {},
           sizes: ["0.5x0.5", "0.5x1", "1x0.5", "1x1"], dflt: "1x1" },
 
