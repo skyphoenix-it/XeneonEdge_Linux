@@ -13,7 +13,9 @@ class QLocalSocket;
 
 // ControlServer — a local IPC endpoint that lets the companion "Xeneon Edge
 // Manager" app drive the running hub live. It listens on a QLocalServer (a Unix
-// domain socket under $XDG_RUNTIME_DIR) and speaks newline-delimited JSON:
+// domain socket whose path comes from app/src/control_socket_path.h — shared
+// with the Manager's client, since the two must agree) and speaks
+// newline-delimited JSON:
 //
 //   → {"type":"getUiState"}                      (client asks for current layout)
 //   ← {"type":"uiState","state":"<ui_state json>"}

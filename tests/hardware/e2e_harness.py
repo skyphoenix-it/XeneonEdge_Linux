@@ -19,7 +19,15 @@ import uinput_touch as u  # noqa: E402
 
 HUB = os.path.join(REPO, "build", "xeneon-edge-hub")
 MANAGER = os.path.join(REPO, "build", "xeneon-edge-manager")
-SOCK = "/tmp/xeneon-edge-hub-ctl"
+
+# Must match app/src/control_socket_path.h — the hub resolves its control socket
+# to $XDG_RUNTIME_DIR/xeneon-edge-hub-ctl. This harness deliberately keeps the
+# real XDG_RUNTIME_DIR (Wayland's socket lives there too), so the path below is
+# the real one: launch_hub()/stop_hub() will remove it. Don't run this suite
+# against a session with a hub you care about — it will strand it. The old
+# hardcoded /tmp path had exactly the same hazard, and stopped resolving at all
+# once the socket moved out of /tmp.
+SOCK = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or "/tmp", "xeneon-edge-hub-ctl")
 
 
 class E2E:

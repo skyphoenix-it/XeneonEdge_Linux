@@ -38,12 +38,17 @@ Exit: `0` pass, `1` fail, `77` skip (no hub binary found). Hub binary resolution
 - Each run gets its own `XDG_RUNTIME_DIR` so the single-instance **lock** never
   collides with another run or a live instance. `QLockFile` honours
   `XDG_RUNTIME_DIR`, so that isolation is real.
-- **The control socket is NOT isolated by `XDG_RUNTIME_DIR`** (this line used to
-  claim it was — it is wrong). The hub names the socket `xeneon-edge-hub-ctl`, a
-  bare name, and Qt resolves a bare `QLocalServer` name via `QDir::tempPath()`,
-  i.e. `/tmp` — `XDG_RUNTIME_DIR` is ignored. Every hub launched here therefore
-  binds the REAL `/tmp/xeneon-edge-hub-ctl`, and `ControlServer::start()`'s
-  `removeServer()` unlinks it first. Consequences: (a) running this while a hub
-  is live silently strands that hub's Manager connection until it restarts, and
-  (b) a `timeout -s KILL`'d run leaves a stale socket file behind (harmless — the
-  next hub's `removeServer()` clears it).
+- **The control socket IS isolated by `XDG_RUNTIME_DIR`.** Both ends resolve it
+  through `app/src/control_socket_path.h` to
+  `$XDG_RUNTIME_DIR/xeneon-edge-hub-ctl`, so each run's socket is as private as
+  its lock. This was NOT always true, and the failure was nasty: the socket used
+  to be a bare name, which Qt resolves via `QDir::tempPath()` — so every hub
+  launched here bound the REAL `/tmp/xeneon-edge-hub-ctl` and
+  `ControlServer::start()`'s `removeServer()` unlinked it, silently stranding a
+  live hub's Manager connection (the hub keeps its listening fd, so it looks
+  healthy) until it restarted. Keep the isolation: give each run its own
+  `XDG_RUNTIME_DIR`, and note that a path over ~107 bytes won't fit
+  `sockaddr_un` — keep run dirs short.
+- A `timeout -s KILL`'d run leaves a stale socket file in its own run dir
+  (harmless — it dies with the dir, and the next hub's `removeServer()` clears
+  any leftover of its own).

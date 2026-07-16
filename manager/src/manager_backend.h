@@ -26,6 +26,10 @@
 #include "path_sanitize.h"
 #include "reconcile.h"
 #include "xeneon_core.h"
+// The hub owns the socket-path contract; both ends must resolve it identically,
+// so this is included rather than restated. (Same relative-include shape the
+// Manager's main.cpp already uses for single_instance.h / timezone_bridge.h.)
+#include "../../app/src/control_socket_path.h"
 
 // --- RAII string wrapper (mirrors the hub's) ---
 class XeneonString {
@@ -150,7 +154,7 @@ public:
         // Manager just started). Probe synchronously before spawning a duplicate.
         {
             QLocalSocket probe;
-            probe.connectToServer(QStringLiteral("xeneon-edge-hub-ctl"));
+            probe.connectToServer(xeneon::controlSocketPath());
             if (probe.waitForConnected(250)) {
                 probe.disconnectFromServer();
                 tryConnectHub();
@@ -492,7 +496,7 @@ private:
     void markSelfWrite() { m_ignoreWatchUntilMs = m_nowMs() + 900; }
     void tryConnectHub() {
         if (m_sock->state() == QLocalSocket::UnconnectedState)
-            m_sock->connectToServer(QStringLiteral("xeneon-edge-hub-ctl"));
+            m_sock->connectToServer(xeneon::controlSocketPath());
     }
     void writeMsg(const QJsonObject& o) {
         m_sock->write(QJsonDocument(o).toJson(QJsonDocument::Compact));

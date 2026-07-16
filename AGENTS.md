@@ -42,7 +42,7 @@ with `-DXENEON_COVERAGE=ON`) and gates ≥95%. QML uses a behavior matrix
 |-----|------|------|
 | `core/` | Rust | Core library (config, metrics, display, FFI) — compiles to `libxeneon_core.a` |
 | `app/src/main.cpp` | C++17 | Qt6 entry point, display matching, QML context properties |
-| `app/src/control_server.{h,cpp}` | C++17 | `QLocalServer` IPC (socket `xeneon-edge-hub-ctl`) — lets the companion Manager push a live layout to a running hub |
+| `app/src/control_server.{h,cpp}` | C++17 | `QLocalServer` IPC (socket `$XDG_RUNTIME_DIR/xeneon-edge-hub-ctl`, resolved by `app/src/control_socket_path.h` — the Manager's client includes the SAME header; never name the socket literally on either side) — lets the companion Manager push a live layout to a running hub |
 | `ui/qml/` | QML | All UI: `main.qml`, `Dashboard.qml`, `FirstRunWizard.qml`, 39 widget files in `widgets/` |
 | `ui/qml.qrc` | Qt resource | **Must be updated** when adding/removing QML files |
 | `manager/` | C++/QML | **Xeneon Edge Manager** — standalone companion app (`xeneon-edge-manager`) to manage layout/appearance/images/display. Reuses `DashboardStore.qml` + `WidgetCatalog.qml` via `manager/manager.qrc`; C++ `ManagerBackend` presents a `configBridge`-compatible surface + a live-push socket client |
