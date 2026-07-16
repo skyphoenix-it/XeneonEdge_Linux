@@ -2,6 +2,7 @@ pub mod config;
 pub mod display;
 pub mod distro;
 pub mod ffi;
+pub mod license;
 pub mod logging;
 pub mod metrics;
 pub mod secrets;

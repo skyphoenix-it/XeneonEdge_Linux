@@ -131,6 +131,34 @@ int xeneon_secret_is_plaintext(const char* raw);
 // it OFF the GUI thread.
 char* xeneon_distro_probe_json(const char* root);
 
+// === Licensing (E11) ===
+// Verify an offline licence key. OFFLINE: the public key is compiled in, so
+// this opens no socket, reads no file and uses no hardware fingerprint — the
+// answer is identical under `unshare -n`.
+//
+// Returns owned JSON — free with xeneon_string_free:
+//   { "state": "licensed", "tier": "pro", "reason": null,
+//     "issuedTo": "Ada Lovelace", "id": "XE-0001", "expires": 1798761600 }
+//
+//   state    "licensed" | "expired" | "unlicensed".
+//            "expired" is NOT "unlicensed": the signature is genuine, so the
+//            user is asked to renew rather than told the key is bad.
+//   tier     "free" | "pro" — what to actually unlock. Always "free" unless
+//            state is "licensed". GATE ON THIS; use `state` only for wording.
+//   reason   short failure description when unlicensed, else null. Names the
+//            failure mode; NEVER echoes the key.
+//   issuedTo holder name — for DISPLAY ONLY, never log it. null unless verified.
+//   id       licence id (support/revocation). null unless verified.
+//   expires  Unix epoch seconds, or null for perpetual / not verified.
+//
+// Fails soft: a null, empty, truncated, garbage or forged key yields the free
+// tier. Never returns NULL for a bad key and never panics.
+//
+// NOTE: the issuer public key is currently an all-zero PLACEHOLDER — no licence
+// keypair has been issued — so this returns free for every input until the real
+// key is embedded in core/src/license.rs.
+char* xeneon_license_verify_json(const char* key);
+
 // === String Utilities ===
 void xeneon_string_free(char* s);
 

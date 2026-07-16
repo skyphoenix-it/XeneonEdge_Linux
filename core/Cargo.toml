@@ -19,6 +19,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 thiserror = "2"
 uuid = { version = "1", features = ["v4"] }
 libc = "0.2"
+ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
 
 [dev-dependencies]
 tempfile = "3"
