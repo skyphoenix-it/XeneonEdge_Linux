@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Comprehensive real-hardware E2E suite for EdgeHub (hub on the Xeneon Edge + Manager).
 
-Covers: widget lifecycle (add/render/resize/remove for all 22 types), theming
-(all themes + backgrounds + accents + per-widget style), synthetic-touch
+Covers: widget lifecycle (add/render/resize/remove for every WidgetCatalog
+type), theming (all themes + backgrounds + accents + per-widget style,
+lists derived-and-drift-checked against Theme.qml / BackgroundCatalog.qml),
+synthetic-touch
 interaction (compact controls start/stop, page swipe), IPC robustness &
 performance, and Manager chrome rendering.
 
@@ -87,8 +89,15 @@ def soak(h, seconds=120):
     a realistic churn that stresses every path for the full duration. Catches
     leaks, races, and crashes that only surface over time."""
     section("Soak (%ds sustained mixed operations)" % seconds)
-    themes = ["midnight", "nebula", "synthwave", "nord", "aurora", "gruvbox", "light", "oled", "matrix"]
-    bgs = ["orbs", "waves", "stars", "mesh", "bokeh", "grid", "aurora", "none"]
+    # Rotate through the FULL catalogs, derived from the same drift-checked
+    # lists the theming suite asserts against Theme.qml / BackgroundCatalog.qml
+    # — a new theme or background style is soak-tested automatically. The
+    # fallback only exists because e2e_theming is an optional import above.
+    if e2e_theming is not None:
+        themes, bgs = list(e2e_theming.THEMES), list(e2e_theming.BG_STYLES)
+    else:
+        themes = ["midnight", "nebula", "synthwave", "nord", "aurora", "gruvbox", "light", "oled", "matrix"]
+        bgs = ["orbs", "waves", "stars", "mesh", "bokeh", "grid", "aurora", "none"]
     types = ["cpu", "gpu", "ram", "clock", "focus", "weather", "moon", "quote", "habit", "media"]
     end = time.time() + seconds
     n, crashed, err = 0, False, ""
