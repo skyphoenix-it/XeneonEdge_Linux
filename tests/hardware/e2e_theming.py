@@ -12,20 +12,76 @@ hub is already up. Appearance changes are applied by reading the live state,
 mutating appearance/settings, and pushing it back (preserving pages+settings).
 """
 import os
+import re
 from e2e_harness import doc, page, tile
 
-# 21 explicitly-named themes plus the "dark" default (Theme.qml applyTheme()).
-# NOTE: the source has 21 named cases + a default that resolves to "dark",
-# i.e. 22 distinct theme values in total (the brief's "23" over-counts by one).
+# 28 explicitly-named themes plus the "dark" default (Theme.qml applyTheme()):
+# the 21 classics and the 7 distro-evoking palettes (arch..crimson) — 29 values.
+# MUST stay in step with ui/qml/Theme.qml — test_style_drift() below fails the
+# run if it doesn't, because a theme missing here is simply never exercised on
+# the panel and the omission is otherwise silent (that is how the 7 distro
+# palettes went untested after they landed). Same contract as e2e_widgets.WIDGETS.
 THEMES = [
     "dark", "light", "oled", "high_contrast", "midnight", "aurora", "sunset",
     "nebula", "synthwave", "cyberpunk", "deep_forest", "deep_ocean", "ember",
     "vaporwave", "rose_gold", "matrix", "nord", "dracula", "solarized",
     "gruvbox", "catppuccin", "tokyonight",
+    "arch", "cachyos", "debian", "fedora", "popos", "aubergine", "crimson",
 ]
 
-# 7 catalogued animated backgrounds plus "none" (no animated background).
-BG_STYLES = ["orbs", "aurora", "waves", "stars", "mesh", "bokeh", "grid", "none"]
+# All catalogued background styles, including "none" (static gradient) and the
+# character styles (arch/fedora/aubergine). MUST stay in step with
+# ui/qml/BackgroundCatalog.qml — asserted by test_style_drift() below.
+BG_STYLES = ["none", "orbs", "mesh", "aurora", "waves", "stars", "bokeh",
+             "grid", "arch", "fedora", "aubergine"]
+
+_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_THEME_QML = os.path.join(_REPO, "ui", "qml", "Theme.qml")
+_BG_QML = os.path.join(_REPO, "ui", "qml", "BackgroundCatalog.qml")
+
+
+def theme_modes():
+    """The theme values declared in Theme.qml (the product's source of truth):
+    every `case "<mode>":` of applyTheme() — its only switch — plus the "dark"
+    default the fall-through resolves to."""
+    with open(_THEME_QML, "r", errors="replace") as f:
+        cases = re.findall(r'case\s+"([a-z0-9_]+)"\s*:', f.read())
+    return set(cases) | {"dark"}
+
+
+def bg_styles():
+    """The style keys declared in BackgroundCatalog.qml ({ v: "<key>", ... })."""
+    with open(_BG_QML, "r", errors="replace") as f:
+        return set(re.findall(r'\{\s*v:\s*"([a-z0-9_]+)"', f.read()))
+
+
+def test_style_drift(h):
+    """THEMES/BG_STYLES must cover the QML catalogs exactly — no untested
+    value, no ghost. Mirrors e2e_widgets.test_catalog_drift()."""
+    try:
+        themes = theme_modes()
+        h.check("theme_list_parsed", len(themes) > 1,
+                "%d theme modes in Theme.qml" % len(themes))
+        missing = sorted(themes - set(THEMES))
+        extra = sorted(set(THEMES) - themes)
+        h.check("themes_no_untested", not missing,
+                "not exercised on hardware: %r" % missing if missing else "all covered")
+        h.check("themes_no_stale", not extra,
+                "in THEMES but not in Theme.qml: %r" % extra if extra else "none stale")
+    except Exception as e:
+        h.check("theme_drift", False, "exc: %r" % e)
+    try:
+        styles = bg_styles()
+        h.check("bg_list_parsed", len(styles) > 1,
+                "%d bg styles in BackgroundCatalog.qml" % len(styles))
+        missing = sorted(styles - set(BG_STYLES))
+        extra = sorted(set(BG_STYLES) - styles)
+        h.check("bgs_no_untested", not missing,
+                "not exercised on hardware: %r" % missing if missing else "all covered")
+        h.check("bgs_no_stale", not extra,
+                "in BG_STYLES but not in the catalog: %r" % extra if extra else "none stale")
+    except Exception as e:
+        h.check("bg_drift", False, "exc: %r" % e)
 
 
 def _seed_doc(today):
@@ -46,6 +102,9 @@ def _seed_doc(today):
 
 
 def run(h):
+    # The lists above must match the QML catalogs before anything is exercised.
+    test_style_drift(h)
+
     # Seed the representative page once.
     try:
         h.set_state(_seed_doc(h.today))

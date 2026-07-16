@@ -68,12 +68,16 @@ E2E_SOAK_SECONDS=5 python3 tests/hardware/edge_e2e.py   # quick smoke (~2 min)
 
 **Coverage (~199 checks):**
 - **Widget lifecycle** — add / render / no-error / resize (1↔2) / remove for **every
-  type in `WidgetCatalog.qml`** (24 today) via IPC `setUiState`/`getUiState` + Edge
+  type in `WidgetCatalog.qml`** (30 today) via IPC `setUiState`/`getUiState` + Edge
   screenshots. The list is asserted against the catalog first, so a new widget can't
   go silently unexercised. `httpjson` is seeded with **no URL** (the shipping preset
   state, and it keeps the run offline); `kpi` uses its **local-file** source.
-- **Theming** — every theme, every background style, per-widget accent override,
-  glass/glow, each verified in state + grabbed.
+- **Theming** — every theme (29: 21 classics + 7 distro palettes + default dark),
+  every background style (11, incl. the arch/fedora/aubergine character styles),
+  per-widget accent override, glass/glow, each verified in state + grabbed. The
+  `THEMES`/`BG_STYLES` lists are drift-checked against `ui/qml/Theme.qml` and
+  `ui/qml/BackgroundCatalog.qml` first (same contract as the widget list), and the
+  soak rotation reuses them, so a new theme or style can't go silently unexercised.
 - **Interaction (synthetic touch)** — compact widget controls (Focus Start/Pause,
   Hydration ±, Task toggle) verified over IPC; **page-swipe navigation** verified
   by distinct per-page wallpapers (average-colour distance).
