@@ -2,6 +2,20 @@ import QtQuick
 import QtQuick.Layouts
 
 // Hydration — count glasses toward a daily goal. Persisted; auto-resets daily.
+//
+// Sizing (W1 wave 2b): the tile is a CONTROL surface — logging a glass has to be
+// one tap — so the +1 target is never shrunk to make a layout fit. Every declared
+// size can hold it at >= theme.touchTertiary, so every size keeps it; what changes
+// is how much context surrounds it.
+//   • 0.5x0.5 (micro) — headerless: the count as a big number, and +1. The glass
+//                       grid is dropped (8 droplets at 16px in a 348x409 tile is
+//                       mush, not a readout) along with the streak line.
+//   • 1x1 (baseline)  — the glass grid + count + streak + −/+1, all scaled to the
+//                       box instead of the old fixed 16px/12px in a 696x819 tile.
+//   • wide            — the grid BESIDE the count/controls column (1x0.5 portrait
+//                       is 696x409; stacked, that is three cramped bands).
+//   • tall            — the grid above a comfortable count + controls.
+//   • full (overlay)  — unchanged: the big block with tappable glasses.
 WidgetChrome {
     id: w
     property var metrics: ({})
@@ -15,6 +29,7 @@ WidgetChrome {
     // recolours to `success` when the goal is reached, so the resting accent must
     // differ or that reward is invisible (catInfo happens to equal success).
     title: "Hydration"; iconName: "hydration"; accentColor: theme.catServices
+    showHeader: !micro
 
     readonly property var cfg: {
         var _ = store ? store.revision : 0
@@ -72,6 +87,32 @@ WidgetChrome {
         store.patchSettings(instanceId, patch)
     }
 
+    // ── Per-size layout (sizeClass injected by Dashboard) ────────────────────
+    readonly property bool horiz: sizeClass === "wide"
+    // Micro leads with the number; every other size leads with the glass grid.
+    readonly property bool showGrid: !w.micro
+    readonly property bool showStreak: !w.micro && w.streakDisplay > 1
+    // The count line is the readout micro is built around, so it scales to the
+    // box there and stays a caption everywhere else. The caption measures against
+    // its own COLUMN (wide puts it beside the grid, so the full width would
+    // over-read) and only gently against height — keying it to height alone
+    // collapsed it to 12px in a 846x306 wide box that had room to spare.
+    readonly property real countPx: w.micro
+        ? Math.max(20, Math.min(width * 0.30, height * 0.26, 76))
+        : Math.max(13, Math.min((w.horiz ? width * 0.5 : width) * 0.055,
+                                height * 0.075, 26))
+    // Droplet size follows the box AND the goal — 20 glasses in a half tile are
+    // not the same glyph as 6 in a baseline one.
+    readonly property real glassPx: w.expanded ? 42
+        : Math.max(11, Math.min((w.horiz ? width * 0.5 : width) * 0.9 / Math.max(4, Math.ceil(Math.sqrt(w.goal) * 1.6)),
+                                height * 0.16, 56))
+    // The grid is a real Grid (not a Flow): a Flow reports NO implicit width, so
+    // Layout.alignment collapsed it to zero and the droplets spilled out of the
+    // left edge in one unwrapped row. Columns are computed so they wrap honestly.
+    readonly property real glassCell: w.glassPx * 1.25
+    readonly property int glassCols: Math.max(1, Math.min(w.goal,
+        Math.floor(((w.horiz ? width * 0.5 : width) - 16) / Math.max(1, w.glassCell))))
+
     // Celebration pop (mirrors FocusWidget).
     property string celebrateMsg: ""
     function celebrateNow(msg) { celebrateMsg = msg; celebrateAnim.restart(); flash.restart() }
@@ -101,38 +142,76 @@ WidgetChrome {
         }
     }
 
-    // ── Compact tile ──
-    ColumnLayout {
-        anchors.centerIn: parent; visible: !w.expanded; width: parent.width * 0.92; spacing: 6
-        Flow {
-            Layout.alignment: Qt.AlignHCenter; Layout.fillWidth: true; spacing: 4
+    // ── Tile (every non-overlay size) ──
+    // `columns` flips for a wide box; that only RESHAPES — the glass delegates
+    // are not rebuilt (their model is the goal COUNT, an int, so a tap moves the
+    // bound values and nothing is recreated).
+    GridLayout {
+        // centerIn + an explicit width (the wave-2a MoonWidget shape): the group
+        // reads as ONE centred block instead of a top-anchored grid with the
+        // controls stranded in the middle.
+        anchors.centerIn: parent
+        width: parent.width
+        visible: !w.expanded
+        columns: w.horiz ? 2 : 1
+        rowSpacing: 6
+        columnSpacing: theme.spacingLg
+
+        Grid {
+            visible: w.showGrid
+            Layout.alignment: Qt.AlignHCenter
+            columns: w.glassCols
+            spacing: Math.max(3, w.glassPx * 0.22)
+            horizontalItemAlignment: Grid.AlignHCenter
+            verticalItemAlignment: Grid.AlignVCenter
             Repeater {
+                // The model is the goal COUNT (an int), so a tap moves the bound
+                // values in long-lived delegates rather than rebuilding the grid.
                 model: w.goal
                 delegate: Text { required property int index
                     text: index < w.count ? "💧" : "○"
-                    opacity: index < w.count ? 1 : 0.35; font.pixelSize: 16 }
+                    opacity: index < w.count ? 1 : 0.35
+                    font.pixelSize: Math.round(w.glassPx) }
             }
         }
-        Text { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter
-            text: w.count + " of " + w.goal + " glasses"; elide: Text.ElideRight
-            font.pixelSize: 12; color: theme.textSecondary }
-        Text { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter
-            visible: w.streakDisplay > 1; elide: Text.ElideRight
-            text: "🔥 " + w.streakDisplay + "-day streak"; font.pixelSize: 11; color: theme.textTertiary }
-        // Compact −1 / +1 — bounded touch targets (each ≥44px via PillButton) so
-        // quick logging works right in the tile. Both call the existing set();
-        // the pair stays narrow (~128px) to fit even a 1x1 tile.
-        RowLayout {
-            Layout.alignment: Qt.AlignHCenter
-            spacing: theme.spacingSm
-            PillButton {
-                label: "−"; tint: w.effAccent
-                enabledState: w.count > 0
-                onClicked: w.set(w.count - 1)
-            }
-            PillButton {
-                label: "+1"; glyph: "💧"; primary: true; tint: w.effAccent
-                onClicked: w.set(w.count + 1)
+
+        ColumnLayout {
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignCenter
+            spacing: 6
+
+            Text { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter
+                // Micro has no room for a sentence, and the number IS the readout.
+                text: w.micro ? (w.count + "/" + w.goal)
+                              : (w.count + " of " + w.goal + " glasses")
+                elide: Text.ElideRight
+                font.pixelSize: Math.round(w.countPx)
+                font.bold: w.micro
+                font.family: w.micro ? theme.fontMono : theme.fontDisplay
+                color: w.micro && w.count >= w.goal ? theme.success
+                       : w.micro ? w.effAccent : theme.textSecondary }
+            Text { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter
+                visible: w.showStreak; elide: Text.ElideRight
+                text: "🔥 " + w.streakDisplay + "-day streak"
+                font.pixelSize: Math.max(10, Math.round(w.countPx * 0.85))
+                color: theme.textTertiary }
+            // −1 / +1 — PillButton is theme.touchSecondary (60) tall, above the
+            // 52 minimum, and it is kept at EVERY size: logging a glass in one tap
+            // is what this widget is for. Micro drops the −1 (it is the undo, not
+            // the job) rather than shrinking either target to fit.
+            RowLayout {
+                Layout.alignment: Qt.AlignHCenter
+                spacing: theme.spacingSm
+                PillButton {
+                    visible: !w.micro
+                    label: "−"; tint: w.effAccent
+                    enabledState: w.count > 0
+                    onClicked: w.set(w.count - 1)
+                }
+                PillButton {
+                    label: "+1"; glyph: "💧"; primary: true; tint: w.effAccent
+                    onClicked: w.set(w.count + 1)
+                }
             }
         }
     }
