@@ -16,14 +16,16 @@ name: Distro Packages
 
 on:
   push:
-    branches: [main, master, v1.0-alpha]
-  pull_request:
-    branches: [main, master, v1.0-alpha]
+    branches: [master]
+    paths:
+      - 'packaging/**'
+      - 'CMakeLists.txt'
+      - '.github/workflows/distro.yml'
+  schedule:
+    - cron: '17 5 * * 1'   # weekly drift check (Mon 05:17 UTC)
+  # Before tagging a release: run this manually (workflow_dispatch) — a release
+  # must never ship an unproven matrix, and scripts/release.sh's checklist says so.
   workflow_dispatch:
-
-concurrency:
-  group: distro-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   fedora:

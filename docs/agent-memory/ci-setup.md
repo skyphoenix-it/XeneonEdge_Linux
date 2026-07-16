@@ -87,3 +87,16 @@ parser/layout/coverage-tool differences the local suite can't. When a CI-only QM
 appears, suspect (in order) missing Qt module → reserved-word/parser strictness → Layout
 cap-vs-preferred → font/offscreen metrics → gcovr version → stale local cmake cache (#5).
 [[packaging]] covers the runtime Qt deps; [[dashboard-architecture]] the widget contract.
+
+## Quota optimization (2026-07-16) — the shape changed
+Owner hit the free-Actions limit. Root cause: master and v1.0-alpha are pushed in
+ff-only LOCKSTEP (same SHA), and all three workflows triggered on both — every
+merge ran all 18 jobs TWICE for zero information. Now: workflows trigger on
+master only (re-add v1.0-alpha ONLY if it ever truly diverges again); ci.yml is 5
+jobs (fmt+clippy+test folded into one `rust` job — three toolchain setups
+wrapped ~90s of work; Security Audit DELETED as fully redundant with cargo-deny's
+advisory check in supply-chain; Docs & Links moved to paths-filtered docs.yml);
+ci ignores docs/**+*.md; distro.yml runs on packaging paths + weekly cron +
+manual dispatch (RELEASE CHECKLIST: dispatch it before tagging); supply-chain
+runs on code paths + weekly cron (advisories arrive without pushes).
+Per-merge cost: ~36 job-runs → ~5-8; docs-only → 1.

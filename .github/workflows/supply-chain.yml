@@ -10,19 +10,17 @@ name: Supply Chain
 
 on:
   push:
-    branches: [main, master, v1.0-alpha]
-    tags: ['v*']
-  pull_request:
-    branches: [main, master, v1.0-alpha]
+    branches: [master]
+    paths:
+      - 'core/**'
+      - 'app/**'
+      - 'manager/**'
+      - 'ui/**'
+      - 'packaging/ci/**'
+      - '.github/workflows/supply-chain.yml'
+  schedule:
+    - cron: '43 5 * * 1'   # weekly: new RUSTSEC advisories arrive without pushes
   workflow_dispatch:
-
-concurrency:
-  group: supply-chain-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-env:
-  CARGO_TERM_COLOR: always
-  RUST_BACKTRACE: 1
 
 jobs:
   # ── What is in the binary ──────────────────────────────────────────────────

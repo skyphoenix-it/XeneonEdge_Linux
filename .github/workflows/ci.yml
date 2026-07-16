@@ -1,13 +1,20 @@
 name: CI
 
-# v1.0-alpha is a long-lived release track (epics E4-E9 land there before master).
-# Without it here the whole alpha branch went unverified for 8 commits and a real
-# break — smoke tests vs the XENEON_QA_HOOKS guard — only surfaced when it merged.
+# master ONLY. v1.0-alpha is kept in ff-only lockstep with master (same SHA), so
+# triggering on it ran EVERY job twice per merge for zero information — that
+# double-run is what ate the Actions quota. If the alpha branch ever genuinely
+# diverges again (it did once, and a real break hid there for 8 commits), re-add
+# it — the lockstep is the precondition for this optimization.
 on:
   push:
-    branches: [main, master, v1.0-alpha]
+    branches: [main, master]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - 'LICENSE*'
   pull_request:
-    branches: [main, master, v1.0-alpha]
+    branches: [main, master]
+  workflow_dispatch:
 
 # Cancel superseded runs on the same ref (e.g. rapid pushes to a PR branch).
 concurrency:
@@ -20,57 +27,28 @@ env:
 
 jobs:
   # --- Rust Core ---
-  format:
-    name: Rust Format Check
-    runs-on: ubuntu-24.04
-    defaults:
-      run:
-        working-directory: core
+  # One job, one toolchain setup: fmt + clippy(--all-targets) + test previously ran
+  # as THREE jobs — three checkouts and toolchain installs wrapping ~90s of real
+  # work. Sequential; a failure still names its step. Security Audit moved to the
+  # scheduled supply-chain workflow (an advisory feed does not change per push);
+  # Docs & Links moved to docs.yml (runs only when docs change).
+  rust:
+    name: Rust (fmt + clippy + test)
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt
-      - run: cargo fmt --all -- --check
-
-  lint:
-    name: Rust Clippy
-    runs-on: ubuntu-24.04
-    defaults:
-      run:
+          components: rustfmt, clippy
+      - name: Format check
         working-directory: core
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-      - run: cargo clippy --all-targets -- -D warnings
-
-  test:
-    name: Rust Tests
-    runs-on: ubuntu-24.04
-    defaults:
-      run:
+        run: cargo fmt --check
+      - name: Clippy (--all-targets — --lib misses test-code lints)
         working-directory: core
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test
-
-  audit:
-    name: Security Audit
-    runs-on: ubuntu-24.04
-    defaults:
-      run:
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Tests
         working-directory: core
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Install cargo-audit
-        run: cargo install cargo-audit --locked
-      - run: cargo audit
-
-  # --- Full Build ---
+        run: cargo test
   build:
     name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -103,18 +81,6 @@ jobs:
       - name: Verify binary
         run: test -f build/xeneon-edge-hub || echo "Binary not found, check build logs"
 
-  docs:
-    name: Docs & Links
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - name: Check markdown links
-        uses: gaurav-nelson/github-action-markdown-link-check@v1
-        continue-on-error: true
-        with:
-          use-quiet-mode: 'yes'
-
-  # --- QML behavior matrix ---
   qml-test:
     name: QML Tests + Behavior Matrix
     runs-on: ubuntu-24.04
@@ -212,7 +178,7 @@ jobs:
   coverage:
     name: Coverage Gate (Rust + C++ >= 95%)
     runs-on: ubuntu-24.04
-    needs: [test, cpp-test]
+    needs: [rust, cpp-test]
     defaults:
       run:
         working-directory: .
