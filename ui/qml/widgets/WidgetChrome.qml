@@ -95,7 +95,9 @@ Item {
             visible: chrome.cardBackdrop !== "none" && chrome.cardBackdrop !== "" && theme.decorative
             style: chrome.cardBackdrop
             accent: chrome.effAccent
-            running: !theme.reduceMotion
+            // effectiveReduceMotion (not the raw persisted flag) so the OS
+            // reduce-motion signal / explicit preference stops card backdrops too.
+            running: !theme.effectiveReduceMotion
         }
 
         // Diagonal glass gradient

@@ -283,8 +283,10 @@ Item {
             var g = findGauge()
             verify(g !== null, "found the MetricGauge")
             feed(50, 50 * gib, 100 * gib)
-            verify(Qt.colorEqual(g.color, h.theme.accentPresets["purple"].a),
-                   "the gauge itself paints with the new accent")
+            // The shared MetricGauge cross-fades colour changes (W3) — wait for
+            // the fade to land on the accent rather than sampling mid-transition.
+            tryVerify(function () { return Qt.colorEqual(g.color, h.theme.accentPresets["purple"].a) },
+                      2000, "the gauge itself paints with the new accent")
         }
 
         // Custom title from config is honoured by WidgetChrome.
@@ -325,7 +327,9 @@ Item {
             verify(g !== null, "found the MetricGauge")
             compare(g.big, "100%", "centre label shows 100%")
             verify(Qt.colorEqual(w.col(w.v), h.theme.error), "a full disk is red")
-            verify(Qt.colorEqual(g.color, h.theme.error), "the gauge paints red")
+            // Shared MetricGauge colour now cross-fades (W3): assert the landed tone.
+            tryVerify(function () { return Qt.colorEqual(g.color, h.theme.error) }, 2000,
+                      "the gauge paints red")
             compare(w.human(8 * tib), "8.00 TiB", "human() renders TiB for an 8 tib disk")
         }
 

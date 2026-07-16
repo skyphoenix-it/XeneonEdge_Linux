@@ -9,6 +9,16 @@ Item {
     property color progressColor: theme.accent
     property color progressColor2: theme.accent2
     property bool glow: theme.glow
+    // Opt-in smoothing for DATA-driven rings (metric gauges): a new sample eases
+    // the sweep instead of hard-cutting it. Deliberately OFF by default so
+    // second-hand timer rings (focus/break/countdown) keep their honest 1Hz step
+    // — and don't pay ~24 extra Canvas repaints per second. The token already
+    // collapses to 0 under reduce-motion.
+    property bool animateValue: false
+    Behavior on value {
+        enabled: ring.animateValue
+        NumberAnimation { duration: theme.motionValue; easing.type: Easing.OutCubic }
+    }
 
     Canvas {
         id: cv
