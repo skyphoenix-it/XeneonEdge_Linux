@@ -22,9 +22,13 @@ Status baseline verified 2026-07-16 against the tree, not against the docs.
   declaration in `ui/qml/WidgetCatalog.qml`. Open: `habit` should gain `1x1.5`.
 - **W2 — Manager UX clarity.** Owner: *"not 100% clear … which setting is
   changing which behavior"*, esp. Design/Layout/Appearance. Audit → restructure.
-- **W3 — widget smoothness.** Sensors delegate-churn fixed. Open: structure
-  edits rebuild the page so a reorder **teleports** instead of animating;
-  `PillButton` clips emoji.
+- **W3 — widget smoothness.** Sensors delegate-churn, the Dashboard reorder
+  teleport, the EdgeClone reorder teleport, and PillButton's glyph scaling are
+  all fixed. Open: no exit fade when a tile is removed (it pops while its
+  neighbours glide; `motionRemove` exists and is unused), no entrance for an
+  added tile, and the edit-mode "Add widget" slot still jumps. None verified
+  on the real device — the offscreen harness cannot instantiate `qrc:` widgets,
+  so delegate survival is asserted via the Loader, not the widget.
 - **W4 — test growth.** Runtime E2E at 6 scenarios. Manager behavior tests wait
   on W2 landing, so they assert the intended UX and not the confusing one.
 - **W5 — end-user validation.** Persona walkthroughs after each major merge;

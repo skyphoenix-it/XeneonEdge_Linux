@@ -89,8 +89,12 @@ had no single answer.
   written by reset**; nothing else calls `backup_config()`.
 - **Manager half of the single-writer rule is unproven end-to-end** (the hub half now
   is). The Manager saves only via GUI and exposes no headless hook.
-- `manager/qml/EdgeClone.qml` very likely has the **identical array-model rebuild**
-  the W3 agent fixed in `Dashboard.qml` — the clone probably still teleports.
+- ~~`manager/qml/EdgeClone.qml` array-model rebuild~~ — **CONFIRMED and FIXED**
+  (`43f55eb`). The premise was proven before the fix, with an identity guard run
+  against the unfixed code (`TELEPORT PROOF ... returned FALSE`). It also turned up
+  a latent bug nobody was looking for: `targetAt` returned a ROW number bridged
+  through `placements[from].idx`, which is correct only until the first drag
+  reorders something. Seven guards, each proven red on violation.
 - Wallpaper/theme **name collision**: Midnight/Nebula/Aurora are each both a theme
   and a wallpaper.
 - About's GitHub button opens `"#"` and does nothing (needs a real URL).
@@ -146,7 +150,7 @@ single-writer rule, the AppImage update path, and CI on the final commit.
    are free on public repos and currently off; the API call to enable them was
    blocked by the permission classifier, correctly — it is yours to click.
 4. **Make the four beta decisions** — they gate feature freeze.
-5. Port the `animS/animL` pattern to `EdgeClone.qml`.
+5. ~~Port the `animS/animL` pattern to `EdgeClone.qml`~~ — done (`43f55eb`); verify the glide on the real device, which no offscreen harness can show.
 6. Decide the `--reset` backup policy.
 
 ### Install
