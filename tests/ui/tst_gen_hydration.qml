@@ -378,6 +378,19 @@ Item {
     Item { width: 696; height: 819
         WidgetHarness { id: yProbe; anchors.fill: parent; widgetFile: "HydrationWidget.qml"; expanded: false } }
 
+    // ── Overlay-fit hosts ───────────────────────────────────────────────────
+    // The overlay column must FIT the pane it is given — count clipping off the
+    // top and the goal controls off the bottom (unreachable) was the bug. These
+    // are the real boxes Dashboard hosts the overlay in: the 456-tall landscape
+    // preview pane, the 2560x720 real device, and the 656x980 portrait pane. Each
+    // is a fresh host so a goal/count seeded here cannot leak into another test.
+    Item { id: fLandWrap; width: 941; height: 456
+        WidgetHarness { id: fLand; anchors.fill: parent; widgetFile: "HydrationWidget.qml"; expanded: true } }
+    Item { id: fDevWrap; width: 2560; height: 720
+        WidgetHarness { id: fDev; anchors.fill: parent; widgetFile: "HydrationWidget.qml"; expanded: true } }
+    Item { id: fPortWrap; width: 656; height: 980
+        WidgetHarness { id: fPort; anchors.fill: parent; widgetFile: "HydrationWidget.qml"; expanded: true } }
+
     TestCase {
         name: "HydrationSizes"
         when: windowShown
@@ -726,6 +739,98 @@ Item {
                    + "button pinned narrower than its own text (" + lr.width.toFixed(1)
                    + " vs " + lr.implicitWidth.toFixed(1) + ")")
             // (the label is restored by cleanup(), which runs even on failure)
+        }
+    }
+
+    // ── The overlay column FITS its pane ────────────────────────────────────
+    // The bug: the expanded ColumnLayout was built from literals (110px count,
+    // 88px glass cells, spacingXl between ~6 rows) sized for a tall screen that
+    // does not exist. At goal 8 it summed to ~612px and at goal 20 to ~812px, so
+    // inside the 456-tall landscape preview pane the count clipped off the TOP
+    // and the "Daily goal −N+" controls — the overlay's whole point — clipped off
+    // the BOTTOM, unreachable, at any goal past ~12. This guard maps the overlay
+    // column's top and bottom into the host box and asserts the STRUCTURAL fit
+    // (top >= 0, bottom <= boxH, small tolerance) — never glyph ink, which is
+    // meaningless headless. It is proved to go RED when the old literals are
+    // restored (the column then spills the 456 and 720 landscape boxes).
+    TestCase {
+        name: "HydrationOverlayFit"
+        when: windowShown
+
+        function findAll(node, pred, acc) {
+            if (!node) return acc
+            if (pred(node)) acc.push(node)
+            var kids = node.children
+            for (var i = 0; kids && i < kids.length; i++) findAll(kids[i], pred, acc)
+            return acc
+        }
+        // The overlay column is the PARENT of the big "N / N" count Text — the one
+        // Text in the tree whose content carries a slash at a hero size. (The tile
+        // has a "N of N glasses" line with no slash; micro's "N/N" lives in the
+        // hidden, non-micro tile here.) Anchoring on the count and taking .parent
+        // is exactly how the bug was measured.
+        function overlayColumn(host) {
+            var best = null
+            var counts = findAll(host.item, function (n) {
+                return n.hasOwnProperty("font") && n.font.pixelSize >= 40
+                       && String(n.text).indexOf("/") >= 0 }, [])
+            for (var i = 0; i < counts.length; i++)
+                if (!best || counts[i].font.pixelSize > best.font.pixelSize) best = counts[i]
+            return best ? best.parent : null
+        }
+
+        // Assert the column fits `box` (the wrapping Item) at the given goal/count.
+        // Returns the measured [top, bottom, colH] so the caller can log them.
+        function assertFits(host, box, goal, count, label) {
+            // The real Dashboard overlay sets showHeader=false (Dashboard.qml) and
+            // sizeClass "full"; reproduce BOTH so the column has the room it truly
+            // has on device, not a phantom header the harness would otherwise draw.
+            host.item.sizeClass = "full"
+            host.item.showHeader = false
+            host.storeCtl.patchSettings(host.instanceId,
+                { goal: goal, count: count, day: Qt.formatDate(new Date(), "yyyy-MM-dd") })
+            // A real event-loop turn: these hosts default to sizeClass "tall" and
+            // only become "full"/headerless on the lines above, and the seed bumps
+            // the store revision. wait(0) reads PRE-change geometry; waitForRendering
+            // is wrong offscreen (no frame is ever swapped, so it burns its timeout).
+            wait(16)
+            var col = overlayColumn(host)
+            verify(col !== null, label + ": the overlay column resolves")
+            var top = col.mapToItem(box, 0, 0).y
+            var bot = top + col.height
+            // A small tolerance for sub-pixel layout rounding; the real spills the
+            // literals produce are tens of pixels (top −53, −153; bottom +135),
+            // far past any 1px slack, so the tolerance cannot mask the bug.
+            var tol = 1.0
+            verify(top >= -tol,
+                   label + ": the count does not clip off the TOP (top=" + top.toFixed(1)
+                   + " >= 0, colH=" + col.height.toFixed(0) + " in " + box.height + ")")
+            verify(bot <= box.height + tol,
+                   label + ": the goal controls do not clip off the BOTTOM (bot="
+                   + bot.toFixed(1) + " <= " + box.height + ", colH=" + col.height.toFixed(0) + ")")
+        }
+
+        // Goal 8 AND goal 20 (the widget lets the user raise the goal to 20), in a
+        // landscape pane AND the real landscape device AND a portrait pane. The
+        // landscape boxes are what the literals overran; portrait is asserted so a
+        // fix that only shrank landscape and broke portrait would be caught too.
+        function test_overlay_column_fits_landscape_preview_pane() {
+            tryVerify(function () { return fLand.ready }, 3000)
+            compare(fLand.item.expanded, true, "precondition: this IS the overlay")
+            assertFits(fLand, fLandWrap, 8, 8, "941x456 g8")
+            assertFits(fLand, fLandWrap, 20, 20, "941x456 g20")
+        }
+        function test_overlay_column_fits_real_device_landscape() {
+            tryVerify(function () { return fDev.ready }, 3000)
+            compare(fDev.item.expanded, true, "precondition: this IS the overlay")
+            assertFits(fDev, fDevWrap, 8, 8, "2560x720 g8")
+            assertFits(fDev, fDevWrap, 20, 20, "2560x720 g20")
+        }
+        function test_overlay_column_fits_portrait_pane() {
+            tryVerify(function () { return fPort.ready }, 3000)
+            compare(fPort.item.expanded, true, "precondition: this IS the overlay")
+            assertFits(fPort, fPortWrap, 8, 8, "656x980 g8")
+            assertFits(fPort, fPortWrap, 20, 20, "656x980 g20")
         }
     }
 }
