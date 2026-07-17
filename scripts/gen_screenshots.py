@@ -20,8 +20,17 @@ import tempfile
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HUB = os.path.join(REPO, "build", "xeneon-edge-hub")
+MANAGER = os.path.join(REPO, "build", "xeneon-edge-manager")
 QMLTESTRUNNER = "/usr/lib/qt6/bin/qmltestrunner"
 OUT_DIR = os.path.join(REPO, "docs", "marketing-site", "assets", "generated")
+
+# Manager shots: (name, tab index, chrome theme). Tab 1 (Appearance) shows the
+# theme grid WITH the Pro badges + scope tags — the single best Pro/clarity shot.
+MANAGER_SHOTS = [
+    ("manager-appearance-pro", 1, "default"),  # theme grid, PRO badges, live preview
+    ("manager-layout",         0, "default"),  # the Edge clone + layout controls
+    ("manager-about-license",  4, "default"),  # the licence card
+]
 
 # Curated shots: (name, preset id, theme mode, orientation). Chosen so page 0
 # renders POPULATED — system/time/focus/health widgets show live data headless,
@@ -113,9 +122,29 @@ def render(name, doc, theme, orientation):
         shutil.rmtree(work, ignore_errors=True)
 
 
+def render_manager(name, tab, chrome):
+    work = tempfile.mkdtemp(prefix="mgr-")
+    try:
+        os.makedirs(work + "/config/xeneon-edge-hub", exist_ok=True)
+        os.makedirs(work + "/run", mode=0o700, exist_ok=True)
+        open(work + "/config/xeneon-edge-hub/Xeneon Edge Manager.conf", "w").write(
+            "[ManagerChrome]\nchromeTheme=%s\n" % chrome)
+        out = os.path.join(OUT_DIR, name + ".png")
+        env = dict(os.environ, XDG_CONFIG_HOME=work + "/config", XDG_RUNTIME_DIR=work + "/run",
+                   QT_QPA_PLATFORM="offscreen", XENEON_GRAB=out,
+                   XENEON_GRAB_W="1600", XENEON_GRAB_H="1100", XENEON_TAB=str(tab))
+        subprocess.run(["timeout", "20", MANAGER], env=env, capture_output=True, text=True)
+        ok = os.path.exists(out) and os.path.getsize(out) > 5000
+        print(f"  {'OK ' if ok else 'FAIL'} {name}  (Manager tab {tab})")
+        return ok
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", help="comma-separated shot names to render")
+    ap.add_argument("--no-manager", action="store_true", help="skip the Manager shots")
     args = ap.parse_args()
     if not os.path.exists(HUB):
         sys.exit(f"hub binary not found at {HUB} — build first (scripts/build.sh)")
@@ -129,14 +158,22 @@ def main():
 
     only = set(args.only.split(",")) if args.only else None
     shots = [s for s in SHOTS if not only or s[0] in only]
-    print(f"Rendering {len(shots)} screenshot(s) → {os.path.relpath(OUT_DIR, REPO)}/")
+    mgr_shots = [] if args.no_manager else [s for s in MANAGER_SHOTS if not only or s[0] in only]
+    total = len(shots) + len(mgr_shots)
+    print(f"Rendering {total} screenshot(s) → {os.path.relpath(OUT_DIR, REPO)}/")
     fails = 0
     for name, pid, theme, orient in shots:
         if pid not in presets:
             print(f"  SKIP {name}: no preset '{pid}'"); fails += 1; continue
         if not render(name, presets[pid], theme, orient):
             fails += 1
-    print(f"\n{len(shots)-fails}/{len(shots)} rendered.")
+    if mgr_shots and not os.path.exists(MANAGER):
+        print(f"  SKIP Manager shots: {MANAGER} not built"); fails += len(mgr_shots)
+    else:
+        for name, tab, chrome in mgr_shots:
+            if not render_manager(name, tab, chrome):
+                fails += 1
+    print(f"\n{total-fails}/{total} rendered.")
     sys.exit(1 if fails else 0)
 
 
