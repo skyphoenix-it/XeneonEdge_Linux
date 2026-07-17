@@ -49,6 +49,16 @@ jobs:
       - name: Tests
         working-directory: core
         run: cargo test
+      # The licence issuer tool (not shipped) mints the keys that unlock paid
+      # features, so its crypto correctness — a minted key verifies, a forged
+      # payload does not, a name can't inject a higher tier — is gated too. Folded
+      # into this existing job (no new job) to keep the Actions budget flat.
+      - name: Licence tool (fmt + clippy + test)
+        working-directory: tools/license-tool
+        run: |
+          cargo fmt --check
+          cargo clippy --all-targets -- -D warnings
+          cargo test
   build:
     name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
