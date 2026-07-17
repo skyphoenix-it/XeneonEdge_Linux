@@ -9,63 +9,80 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added (Widget Experience Overhaul)
-- Shared design-system foundation for a uniform, professional look across all widgets:
-  - `WidgetChrome.qml`: glass card with accent glow, category-tinted wash, and consistent header (icon + title + status)
-  - `PillButton.qml`, `SegmentedControl.qml`, `RingProgress.qml`: reusable, touch-friendly controls
-- Expanded theme in `main.qml`: 8 selectable accent presets, category colors, glass/transparency token, widget glow toggle, secondary surfaces, and gradient partners
-- `SettingsPanel.qml`: in-app appearance panel to change theme, accent color, glass/transparency, glow, and reduced motion — applied live
-- Full-featured, ADHD-friendly `FocusTimer.qml`: work/short/long phases with automatic cycling, Classic/Deep/Sprint/Custom presets, session tracking, big progress ring, Start/Pause/Reset, +5 min, Skip, rotating focus nudges, and completion flash
-- New widgets across categories: Hydration (Focus), Weather (Info), Now Playing (Entertainment), Doodle Pad (Entertainment), FPS/GPU (Gaming), Next Race (Gaming)
-- Rebuilt all existing widgets (Clock, CPU, Memory, Sensors, Network, Tasks, Habit Streak, Moon Phase, Daily Quote, Countdown, End of Day, Dice Roller, Analog) on the shared chrome with richer visuals and interactions
-- Dashboard reorganized into 5 category pages (System · Focus · Info · Play · Ambient) with a labelled, animated page indicator and gradient background
-- `ExpandedWidget.qml`: category-tinted backdrop and icon + accent underline in the title
+## [1.0.0-beta.1] - 2026-07-17
 
-### Added (Phase 1 — Application Shell)
-- Rust core library (`xeneon-core`) with:
-  - Configuration management (TOML, XDG paths, versioned schema, atomic saves)
-  - Display utilities (EDID parsing, hash computation, Xeneon Edge detection)
-  - System metrics collection (CPU usage/temp, RAM, core count from /proc and /sys)
-  - Structured logging via `tracing` with env-filter support
-  - C-compatible FFI layer (30 exported functions) for Qt C++ bridge
-  - 15 unit tests, all passing; clippy clean; rustfmt compliant
-- C FFI header (`core/xeneon_core.h`) for C++ integration
-- C++ application entry point (`app/src/main.cpp`):
-  - QGuiApplication setup with CLI flags (--reset, --safe-mode, --reset-wizard)
-  - QML context property injection for config, metrics, and display data
-  - Real-time metrics update timer (2s interval)
-  - Screen hotplug event monitoring
-- QML user interface (`ui/qml/`):
-  - `main.qml`: Application window with dark/light/OLED/high-contrast theme support
-  - `FirstRunWizard.qml`: 4-step onboarding wizard (welcome, display select, layout choice, options)
-  - `Dashboard.qml`: Clock, CPU, RAM, Focus Timer widgets with live metrics display
-  - QML resource file (`qml.qrc`) for bundled Qt resources
-- CMake build system (`CMakeLists.txt`):
-  - Rust library integration via cargo build command
-  - Qt6 QML resource compilation
-  - Install targets for binary and desktop entry
-- Build script (`scripts/build.sh`) with dependency checks
-- Desktop entry file (`assets/xeneon-edge-hub.desktop`)
-- Updated CI pipeline (GitHub Actions) with separate Rust and C++ build stages
-- Comprehensive Phase 1 roadmap updates
+First public **beta**. Everything from alpha.2 plus the beta workstreams (sizing,
+Manager clarity, widget smoothness), the Pro tier, and a long tail of correctness
+fixes. Feature-freeze from here — beta → RC → GA is fixes only.
 
-### Added (Phase 0 — Discovery)
-- Initial project structure and documentation
-- Product vision document
-- User personas (6 personas covering key user types)
-- Use cases (15 use cases spanning all major workflows)
-- MVP scope definition
-- Architecture Decision Records:
-  - ADR-0001: Application stack selection (Rust + Qt 6/QML)
-  - ADR-0002: Widget runtime architecture (Hybrid QML + WASM)
-- Architecture overview document
-- Threat model and security analysis
-- Widget permissions model
-- Test strategy document
-- Wireframe descriptions (portrait and landscape)
-- Repository meta-documents (README, LICENSE, SECURITY, CONTRIBUTING, CODE_OF_CONDUCT)
-- Project roadmap with 7 development phases
-- Full repository directory structure
+### Added
+- **Pro tier (licensing).** Offline, signed Ed25519 licence keys (`XE1.…`),
+  verified on-device with no network and no hardware fingerprint; any bad key
+  fails soft to Free. A paste-your-key dialog in the Manager (About) verifies as
+  you type and re-gates live over the control socket without a restart. The first
+  premium content is a **premium theme pack** (Synthwave, Cyberpunk, Vaporwave,
+  Matrix + the five distro themes); ~20 themes stay free and nothing functional is
+  ever gated. Issuer tooling (`tools/license-tool`, `scripts/mint-license.sh`) and
+  `docs/LICENSING.md` for selling via Lemon Squeezy / Gumroad.
+- **W1 — per-size widget layouts.** Every widget genuinely designed for each size
+  it declares, in both orientations, keyed off `sizeClass` (not the modal overlay).
+  Waves 1–3 across all widgets; `habit` gained a real transposed `1x1.5` map.
+- **W2 — Manager UX clarity.** A defined scope vocabulary with a tag on every
+  control, honest copy, live Appearance preview, and a post-setup Screens picker
+  so the preset library is no longer wizard-only.
+- **W3 — widget smoothness.** Tile reorder MOVES instead of teleporting (Dashboard
+  and the Manager's Edge clone), removed tiles fade out and added tiles arrive,
+  eased gauges, and stable sensor rows that update values without rebuilding.
+- **AppImage self-update.** Embedded `X-AppImage-UpdateInformation` (gh-releases
+  zsync) so an installed AppImage can discover and delta-patch to the next release.
+- **Diagnostics:** the Network tab surfaces the NetHub egress counters.
+- Nine runtime end-to-end scenarios (up from one) driving the real hub binary.
+
+### Changed
+- **Accessibility-forward defaults:** Atkinson Hyperlegible is the default font,
+  and a fresh install is calm/quiet (animated background and widget glow off).
+  Motion transitions stay on; reduce-motion remains a separate, respected setting.
+- `--reset` now backs up `config.toml` to `config.toml.bak` before clearing, and
+  refuses if the backup fails — a mistyped `--reset` is no longer unrecoverable.
+- The local update flow (`scripts/update-local.sh`) restarts BOTH the hub and the
+  Manager onto the new build.
+
+### Fixed
+- The RAM/gauge ring's centre reading overflowed when the mono font fell back to a
+  proportional face (`Layout.maximumWidth` inert without a paired `preferredWidth`);
+  fixed here and at three sibling sites.
+- The Hydration expanded overlay overran its box in landscape (fixed literals);
+  now room-derived.
+- `tst_meds` failed every night between 00:00–00:10 (a bare `HH:mm` schedule read
+  as a future dose); pinned to an injected clock.
+- Three tests that never executed (QtTest's `test_*_data` data-provider trap),
+  plus a family of gates that reported success while doing no work — all now
+  assert their own subjects exist. A live-test lint (`check_live_tests.sh`) gates
+  the class in CI.
+- The Manager's About "GitHub" button opened `"#"` and did nothing.
+- Security policy (`SECURITY.md`) pointed vulnerability reports at an unregistered
+  domain; replaced with GitHub private vulnerability reporting.
+- Docs CI had been red over a link that was actually valid; the checker now strips
+  anchors and verifies them.
+- The local dogfood build versioned *below* the installed release (a `pacman -U`
+  downgrade); pkgver is now tag-derived.
+- Removed ~202 MB of accidentally-committed makepkg build output.
+
+### Security
+- Licence verification is offline and fails-soft; the private issuer seed is never
+  in the repo or CI. GitHub private vulnerability reporting enabled.
+
+---
+
+## [1.0.0-alpha.2] - 2026-07-16
+First signed release; AUR package live. Curated 15-screen preset library, HTTP/JSON
++ KPI primitive widgets behind the NetHub egress gate, org-managed policy, offline
+licence-verification scaffolding, and the hardened control-socket / hermetic-test
+foundations.
+
+## [1.0.0-alpha.1] - 2026-07
+Initial alpha: Rust core + Qt6/QML dashboard, first-run wizard, the widget set,
+display matching, and the CI/coverage gates.
 
 ---
 
@@ -73,5 +90,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date | Description |
 |---------|------|-------------|
-| 0.1.0 | TBD | Initial public MVP release |
+| 1.0.0-beta.1 | 2026-07-17 | First public beta: Pro tier, sizing, Manager clarity, smoothness |
+| 1.0.0-alpha.2 | 2026-07-16 | First signed release; AUR live |
+| 1.0.0-alpha.1 | 2026-07 | Initial alpha |
 | 0.0.0 | 2026-07-11 | Project inception — Phase 0 Discovery |
