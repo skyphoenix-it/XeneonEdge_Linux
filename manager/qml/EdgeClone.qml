@@ -63,7 +63,31 @@ Item {
     // (s, l) and the packer never overlaps two tiles, so rows are patched in place
     // rather than moved — the minimum churn that still expresses the edit. Nothing
     // downstream may assume row order IS tile order; see `targetAt`.
+    //
+    // The model is also where a tile's LIFETIME lives, which is what lets a removed
+    // tile fade instead of blinking out: `dying` keeps the row — and therefore the
+    // delegate — alive past the packing that dropped it, and `entering` marks a row
+    // the page grew after it was seeded. Both are properties of the ROW (a removed
+    // tile is exactly "a row that is no longer in the packing"), so neither is a mode
+    // flag that can drift out of sync with what is on screen.
     ListModel { id: placementModel }
+
+    // Which page the model currently holds rows FOR — null until the first sync.
+    //
+    // This is the clone's own problem, and the reason it needs no `_live` flag. The
+    // hub gives each page its own delegate, so a page can only ever be BORN or edited.
+    // The Manager has ONE clone and moves `pageIndex` (Manager.qml binds it to
+    // currentPageIndex), so every tile on screen changes at once when the user clicks
+    // another page in the sidebar. That is not an edit: nothing was added and nothing
+    // was removed — the user asked to look somewhere else. Read as an edit it would be
+    // the worst frame in the app: every tile of the old page fading out as a ghost
+    // while every tile of the new one faded in through them.
+    //
+    // So a page switch RE-SEEDS: rows are dropped outright and re-appended inert. It
+    // doubles as the hub's `_live` — nothing has been seeded yet at construction, so
+    // the first sync is a re-seed and the tiles the clone opens with never fade in.
+    // `null` rather than -1 because -1 is a real pageIndex ("no page") in this app.
+    property var _shownPage: null
 
     // One packer placement → one model row. The string roles are coerced because a
     // ListModel FIXES each role's type on the first append: a tile reaching the clone
@@ -73,21 +97,65 @@ Item {
     // The extent (the packer's es/el) is deliberately NOT a role: the cell derives its
     // extent from `effSize`, which the resize drag previews live, so a role here would
     // be a second and staler copy of `semiUnits(size)` — the identical fact.
+    //
+    // `dying`/`entering` are declared here for the same reason: the first append fixes
+    // the ROLE SET too, so a role that only ever appeared later would not exist at all.
     function _row(p) {
         return ({ tileId: p.id || "", tileType: p.type || "", tileSize: p.size || "",
-                  tileIdx: p.idx, ps: p.s, pl: p.l })
+                  tileIdx: p.idx, ps: p.s, pl: p.l, dying: false, entering: false })
+    }
+    // Drop a faded-out row. Called by the cell when its exit fade ends — by id,
+    // because rows shift as others are reaped.
+    //
+    // Only a DYING row may be reaped: this is a fade closing the row it opened, not a
+    // general-purpose delete. A row resurrected mid-fade (see _syncPlacements) is live
+    // again and must survive the animation that was removing it.
+    function _reapRow(id) {
+        for (var r = 0; r < placementModel.count; r++)
+            if (placementModel.get(r).tileId === id && placementModel.get(r).dying) {
+                placementModel.remove(r)
+                return true
+            }
+        return false
     }
     // Reconciles the model to the current packing. Returns the row count — one per
-    // PLACED tile — so the caller and the tests can check the sync against it.
+    // PLACED tile, plus any still fading out — so the caller and the tests can check
+    // the sync against it.
     function _syncPlacements() {
         var ps = clone.placements || []
         var byId = Object.create(null)
         for (var i = 0; i < ps.length; i++) byId[ps[i].id] = ps[i]
 
-        // Gone → drop the row (backwards: remove() shifts the tail).
-        for (var r = placementModel.count - 1; r >= 0; r--)
-            if (byId[placementModel.get(r).tileId] === undefined)
-                placementModel.remove(r)
+        // A PAGE SWITCH is not an edit (see `_shownPage`): drop everything, ghosts
+        // included, and re-seed inert below. Doing this first also means the rest of
+        // this function only ever sees one page's tiles, so a stale row from the page
+        // we just left can never be mistaken for a removal.
+        var reseed = (clone._shownPage !== clone.pageIndex)
+        if (reseed) {
+            placementModel.clear()
+            clone._shownPage = clone.pageIndex
+        }
+
+        // Gone → the tile was removed. Its delegate has to OUTLIVE the packing that
+        // dropped it or there is nothing left to fade, so the row is marked `dying`
+        // and the cell reaps it when its fade ends (see the exit fade below).
+        //
+        // REDUCE MOTION: the DURATION TOKEN does the real work — at motionRemove 0 the
+        // exit fade finishes SYNCHRONOUSLY when it is started, so the row is reaped in
+        // this same event even by the `dying` path. Measured here, not assumed: with
+        // this branch deleted, test_reduce_motion_removes_a_tile_instantly still
+        // passes. The branch is kept as the explicit statement of intent, and to skip
+        // marking, animating and reaping a row for a fade that cannot be seen — it is
+        // NOT the mechanism. Smooth is not more motion.
+        for (var r = placementModel.count - 1; r >= 0; r--) {
+            if (byId[placementModel.get(r).tileId] !== undefined) continue
+            if (theme.motionRemove > 0) {
+                if (!placementModel.get(r).dying)
+                    placementModel.setProperty(r, "dying", true)
+            } else {
+                placementModel.remove(r)   // backwards: remove() shifts the tail
+            }
+        }
 
         // Survivors → patch in place. THIS is the move: same row, same delegate
         // object, new slot. set() only touches rows that actually differ, so an
@@ -96,7 +164,15 @@ Item {
         for (var r2 = 0; r2 < placementModel.count; r2++) {
             var row = placementModel.get(r2)
             var p = byId[row.tileId]
+            // A row with no placement is one of the dying rows above, held open only
+            // for its fade. It is not in the packing, so there is nothing to reconcile
+            // it against — and reading `p.s` off it would throw.
+            if (p === undefined) continue
             seen[row.tileId] = true
+            // Resurrection: this id was fading out and is back (an undo, or a live
+            // push that re-adds it). Cancel the exit — the tile exists, so it must not
+            // vanish when a fade nobody is watching any more happens to finish.
+            if (row.dying) placementModel.setProperty(r2, "dying", false)
             if (row.ps !== p.s || row.pl !== p.l || row.tileIdx !== p.idx
                 || row.tileSize !== p.size || row.tileType !== p.type)
                 placementModel.set(r2, clone._row(p))
@@ -104,10 +180,21 @@ Item {
 
         // Genuinely new tiles → append. A new delegate is born at its final slot (a
         // Behavior does not fire on initial binding), so an add slides its NEIGHBOURS
-        // and never itself.
-        for (var k = 0; k < ps.length; k++)
-            if (seen[ps[k].id] === undefined)
-                placementModel.append(clone._row(ps[k]))
+        // and never itself — the tile's own arrival is the `entering` fade instead.
+        // Never on a re-seed (the tiles a page is shown with are not an add), and only
+        // while the token allows it.
+        //
+        // REDUCE MOTION, exactly as on the exit above: `theme.motionAdd > 0` is NOT the
+        // mechanism — measured, with that clause deleted a 0ms entrance still lands its
+        // end value synchronously and test_reduce_motion_adds_a_tile_instantly still
+        // passes. The DURATION TOKEN does the work. The clause is the statement of
+        // intent, and skips animating an arrival nobody can see.
+        for (var k = 0; k < ps.length; k++) {
+            if (seen[ps[k].id] !== undefined) continue
+            var fresh = clone._row(ps[k])
+            fresh.entering = !reseed && theme.motionAdd > 0
+            placementModel.append(fresh)
+        }
 
         return placementModel.count
     }
@@ -219,10 +306,18 @@ Item {
     // that actually exist — and reads each one's `tileIdx`, rather than assuming a
     // row number is a tile number. (`tiles` is one per stored tile and an unplaceable
     // one has no delegate, so counting tiles here would walk past the end.)
+    //
+    // A GHOST IS NOT A DROP TARGET. A dying row still occupies a row here and still
+    // sits on its old pixels, but it reports a STALE `tileIdx`: removing a tile shifts
+    // every later store index down, and the ghost is by definition not in that packing
+    // any more. Hit-testing it would hand moveTile an index that now addresses a
+    // DIFFERENT tile — a drop onto a fading box would silently move the wrong widget —
+    // or an index past the end. So dying rows are skipped, and the pixels they are
+    // vacating target nothing, exactly as the empty space they are becoming would.
     function targetAt(gx, gy) {
         for (var r = 0; r < rep.count; r++) {
             var it = rep.itemAt(r)
-            if (!it) continue
+            if (!it || it.dying) continue
             if (gx >= it.x && gx <= it.x + it.width && gy >= it.y && gy <= it.y + it.height)
                 return it.tileIdx
         }
@@ -305,6 +400,12 @@ Item {
                             required property int tileIdx
                             required property int ps
                             required property int pl
+                            // Lifetime, not layout: `dying` is set on a row the packing
+                            // has dropped and kept until this cell has faded out;
+                            // `entering` is fixed at append time and says this cell was
+                            // grown by the page, not seeded with it.
+                            required property bool dying
+                            required property bool entering
                             // Live preview during a resize drag: the size the drag has
                             // snapped to, "" when not dragging. Only the dragged tile's
                             // own box previews — the page re-packs on commit, because a
@@ -363,7 +464,102 @@ Item {
                                 clone.landscape, screen.cellShort, screen.cellLong, 10)
                             x: _r.x; y: _r.y
                             width: _r.width; height: _r.height
-                            opacity: clone.dragIdx === tile.tileIdx ? 0.3 : 1.0
+
+                            // ── Opacity has TWO owners here, so it is composed ──
+                            // The hub's cell animates `opacity` directly, because there
+                            // the only thing opacity means is "am I coming or going".
+                            // In the clone it ALREADY means something else: a tile being
+                            // dragged is held at 0.3 so the page reads through it. Those
+                            // are independent facts — a tile can be dragged AND dying (a
+                            // live push can delete the widget in your hand) — and an
+                            // animation ASSIGNS a property, destroying any binding on it.
+                            // Animating `opacity` here would silently break the drag
+                            // binding for the rest of the delegate's life the first time
+                            // anything faded.
+                            //
+                            // So the fade owns its own property and the two are
+                            // multiplied: neither has to know about the other, and
+                            // neither can clobber the other.
+                            property real lifeOpacity: tile.entering ? 0 : 1
+                            opacity: (clone.dragIdx === tile.tileIdx ? 0.3 : 1.0) * tile.lifeOpacity
+
+                            // ── The exit ──────────────────────────────────────
+                            // A removed tile used to blink out of existence while its
+                            // neighbours glided into the space it left — the one motion
+                            // on screen belonged to everything EXCEPT the thing the user
+                            // actually acted on. (Confirmed before fixing: the delegate
+                            // did not outlive its removal, so there was nothing left to
+                            // fade — the guard was red on the old code.)
+                            //
+                            // The delegate has to outlive its removal from the packing
+                            // for there to be anything to fade, so the ROW is the thing
+                            // held open (`dying`, set by _syncPlacements) and this cell
+                            // is what closes it: when the fade ends, it reaps its own
+                            // row. That keeps the lifetime in ONE place — no delegate can
+                            // be orphaned by a fade that never ran, because the only
+                            // thing that starts a fade is the role that also holds the
+                            // row open.
+                            //
+                            // motionRemove (150ms) is shorter than the 250ms move, so
+                            // the ghost is gone before its neighbours arrive over it.
+                            // Under reduce-motion that token is 0, and THAT is what makes
+                            // a removal instant rather than merely quick: a 0ms fade
+                            // lands and reaps in the same event it starts.
+                            //
+                            // A ghost is not a tile: it must not answer a tap, or offer
+                            // ⚙/✕/resize chrome for a tile the store no longer has. (It
+                            // is not a drop target either — see `targetAt`.)
+                            enabled: !tile.dying
+                            onDyingChanged: {
+                                if (tile.dying) {
+                                    // A FADE MUST NOT FIGHT A DRAG. The drop path clears
+                                    // dragIdx before it calls moveTile, so a drop can
+                                    // never race its own re-pack. The way in is a removal
+                                    // from OUTSIDE — a live push, or the ✕ on the other
+                                    // clone — deleting the tile being held. `enabled`
+                                    // just went false, so this MouseArea's grab dies with
+                                    // it and onReleased will never run: the drag state
+                                    // would be stranded and the floating name-tag with
+                                    // it (the exact shape of REGRESSION 1 in
+                                    // tst_edgeclone_drag). A tile that dies mid-drag ends
+                                    // its own drag.
+                                    if (clone.dragIdx === tile.tileIdx) {
+                                        clone.dragIdx = -1; clone.targetIdx = -1
+                                    }
+                                    // Only ever one animation owns lifeOpacity. A tile can
+                                    // be removed inside its own entrance (add a widget,
+                                    // think better of it, hit ✕ — 200ms is easy to beat),
+                                    // and two animations writing the same property every
+                                    // tick fight rather than blend.
+                                    enterFade.stop(); exitFade.start()
+                                } else {
+                                    exitFade.stop(); tile.lifeOpacity = 1   // resurrected
+                                }
+                            }
+                            NumberAnimation {
+                                id: exitFade
+                                target: tile; property: "lifeOpacity"; to: 0
+                                duration: theme.motionRemove; easing.type: Easing.OutCubic
+                                onFinished: clone._reapRow(tile.tileId)
+                            }
+
+                            // ── The entrance ──────────────────────────────────
+                            // An added tile is the one thing on screen the user just
+                            // asked for, so it arrives in its own right instead of simply
+                            // already being there. It fades in AT its slot: it does not
+                            // fly in, because the packer put it where it belongs and
+                            // there is no truthful "from" to fly from.
+                            //
+                            // `entering` is decided once, when the row is appended (see
+                            // _syncPlacements), so a page SWITCH — which re-seeds — cannot
+                            // trigger it, and reduce-motion means it is never set and
+                            // lifeOpacity stays bound at 1.
+                            Component.onCompleted: if (tile.entering) enterFade.start()
+                            NumberAnimation {
+                                id: enterFade
+                                target: tile; property: "lifeOpacity"; from: 0; to: 1
+                                duration: theme.motionAdd; easing.type: Easing.OutCubic
+                            }
 
                             Rectangle {   // placeholder / loading
                                 anchors.fill: parent; radius: theme.radiusLg
