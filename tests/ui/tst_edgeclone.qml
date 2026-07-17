@@ -78,9 +78,15 @@ Item {
     // Keyed on the STORE tile index the delegate carries, not the Repeater's row
     // number: rows are patched in place by _syncPlacements, so the two part company
     // after the first reorder.
+    //
+    // Ghosts (dying rows, held open for their exit fade) are skipped for the SAME
+    // reason EdgeClone.targetAt skips them: a removal shifts every later store index
+    // down, so a dying row's `tileIdx` is stale. This suite shares one Loader and
+    // re-seeds per test, so an earlier test's ghost really was answering to `tileIdx`
+    // here and handing back the wrong box — test_targetAt's corner probe caught it.
     function tileAtIdx(i) {
         var ds = tileDelegates()
-        for (var k = 0; k < ds.length; k++) if (ds[k].tileIdx === i) return ds[k]
+        for (var k = 0; k < ds.length; k++) if (!ds[k].dying && ds[k].tileIdx === i) return ds[k]
         return null
     }
     // The resize-handle MouseArea: it carries the press-origin (sx/sy) but, unlike
