@@ -6,6 +6,7 @@ BackgroundCatalog 1.0 ../../ui/qml/BackgroundCatalog.qml
 Dashboard 1.0 ../../ui/qml/Dashboard.qml
 DashboardStore 1.0 ../../ui/qml/DashboardStore.qml
 Diagnostics 1.0 ../../ui/qml/Diagnostics.qml
+PresetCatalog 1.0 ../../ui/qml/PresetCatalog.qml
 FirstRunWizard 1.0 ../../ui/qml/FirstRunWizard.qml
 Theme 1.0 ../../ui/qml/Theme.qml
 WallpaperCatalog 1.0 ../../ui/qml/WallpaperCatalog.qml

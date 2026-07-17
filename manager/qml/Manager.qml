@@ -149,6 +149,11 @@ ApplicationWindow {
     WidgetCatalog { id: catalog }
     WallpaperCatalog { id: bundledWallpapers }
     BackgroundCatalog { id: bgCatalog }
+    // The curated "screens" library — the same presets the hub's first-run wizard
+    // and preset picker use. The Manager is the full control surface, so it can
+    // start a page set from a preset too (applied via store.resetTo → persisted
+    // + pushed live to a running hub).
+    PresetCatalog { id: presetLib }
 
     // Colour tokens + the user's uploaded images, for the shared BackgroundPicker.
     readonly property var mCol: ({ textPrimary: m.textPrimary, textSecondary: m.textSecondary,
@@ -224,6 +229,14 @@ ApplicationWindow {
     }
 
     property int currentPageIndex: 0
+    // Appearance: the 29-swatch Edge-theme grid dominated the tab (audit: "cluttered
+    // and hard to understand"). It now shows a curated handful by default and
+    // expands on demand. The currently-selected theme is always shown, even when
+    // collapsed, so the selection is never hidden behind "Show all".
+    property bool apShowAllThemes: false
+    readonly property var apFeaturedThemes: [
+        "dark", "midnight", "aurora", "sunset", "nebula", "deep_ocean", "nord", "light"
+    ]
     // Transient "Starting hub…" feedback: set when the user hits Start, cleared
     // when the hub connects (see the backend Connections) or a safety timeout.
     property bool hubStarting: false
@@ -311,6 +324,68 @@ ApplicationWindow {
     function previewAccent(name) { theme.applyAccent(name) }
     function endThemePreview() { _appearanceSig = ""; syncTheme() }
 
+    // Hover-preview is DEBOUNCED. Wheel-scrolling the swatch grid drags many
+    // swatches under a stationary cursor, firing onContainsMouseChanged for each
+    // one; routed straight to previewTheme() that was a storm of ~20 theme
+    // property writes per swatch per frame — the other half of the scroll lag the
+    // audit found. Coalescing to the LAST hover after a short idle collapses the
+    // storm to a single applyTheme and is imperceptible for a genuine hover.
+    property string _hoverKind: ""     // "theme" | "accent"
+    property string _hoverKey: ""      // "" → restore the committed appearance
+    Timer {
+        id: hoverPreviewTimer; interval: 45; repeat: false
+        onTriggered: {
+            if (win._hoverKey === "") { win.endThemePreview(); return }
+            if (win._hoverKind === "accent") win.previewAccent(win._hoverKey)
+            else win.previewTheme(win._hoverKey)
+        }
+    }
+    function hoverPreview(kind, key, on) {
+        win._hoverKind = kind
+        win._hoverKey = on ? key : ""
+        hoverPreviewTimer.restart()
+    }
+
+    // Apply a curated "screen" preset. Mirrors Dashboard.applyPreset: the preset's
+    // own character (background/glow/motion) applies, but the user's accessibility
+    // choice (reduceMotion) and any appearance keys the preset doesn't set are
+    // preserved. store.resetTo persists + pushes live to a running hub.
+    function applyPresetScreen(presetId) {
+        if (!presetLib.has(presetId)) return
+        var prev = store.appearance()
+        var keep = {}
+        for (var k in prev) keep[k] = prev[k]
+        store.resetTo(presetId)
+        for (var kk in keep)
+            if (store.appearance()[kk] === undefined) store.setAppearance(kk, keep[kk])
+        if (keep.reduceMotion !== undefined) store.setAppearance("reduceMotion", keep.reduceMotion)
+        win.currentPageIndex = 0
+        pageName.forIndex = 0
+        pageName.text = win.currentPageName()
+    }
+    function confirmApplyPreset(presetId, title) {
+        var n = store.pageCount()
+        confirmDialog.message = "Replace your current " + n + " page" + (n === 1 ? "" : "s")
+            + " with the “" + title + "” screen set? This can't be undone. "
+            + "Your uploaded images are kept."
+        confirmDialog.onConfirm = function () { win.applyPresetScreen(presetId) }
+        confirmDialog.open()
+    }
+
+    // Reset every page + widget to the default layout (a clean starting point).
+    // Uploaded images live on disk and are untouched.
+    function confirmResetLayout() {
+        confirmDialog.message = "Reset every page and widget to the default layout? "
+            + "This can't be undone. Your uploaded images are kept."
+        confirmDialog.onConfirm = function () {
+            store.resetTo("productivity")
+            win.currentPageIndex = 0
+            pageName.forIndex = 0
+            pageName.text = win.currentPageName()
+        }
+        confirmDialog.open()
+    }
+
     // Removing a page discards its widgets and their settings — the only
     // destructive click in the Manager that skipped the confirm dialog.
     function confirmRemovePage() {
@@ -369,31 +444,29 @@ ApplicationWindow {
                 anchors.margins: 16
                 spacing: 8
 
-                // SKYPhoenix IT logo. The variant follows the surface it sits on so it
-                // stays legible: white on a dark background, black on a light one, and
-                // the colour lockup on a mid/neutral tone. The Manager's sidebar is
-                // `m.panel` (currently a fixed dark tone → white), but keying off the
-                // real background means it adapts automatically if the chrome is themed.
+                // Brand lockup, top to bottom: the "EdgeHub" wordmark in the company
+                // brand face, a small "by SKYPhoenix IT" maker line, then the logo
+                // small beneath — the order Simon asked for. The logo variant follows
+                // the surface it sits on so it stays legible: white on a dark
+                // background, black on a light one, the colour lockup on the neutral
+                // Default chrome. The version lives in the About view.
+                Text {
+                    text: "EdgeHub"; color: m.textPrimary
+                    font.family: theme.fontBrand; font.pixelSize: 30; font.bold: true
+                    font.letterSpacing: 0.5
+                }
+                Text {
+                    text: "by SKYPhoenix IT"; color: m.textSecondary
+                    font.family: theme.fontMono; font.pixelSize: 10; font.letterSpacing: 0.5
+                }
                 Image {
-                    Layout.preferredWidth: 150; Layout.preferredHeight: 92
-                    Layout.bottomMargin: 4
+                    Layout.preferredWidth: 104; Layout.preferredHeight: 44
+                    Layout.topMargin: 6; Layout.bottomMargin: 12
                     fillMode: Image.PreserveAspectFit; horizontalAlignment: Image.AlignLeft
                     smooth: true; asynchronous: true; mipmap: true
                     source: appSettings.chromeTheme === "light" ? "qrc:/manager/branding/sky-black.png"
                           : appSettings.chromeTheme === "default" ? "qrc:/manager/branding/sky-color.png"
                           : "qrc:/manager/branding/sky-white.png"
-                }
-                // Brand lockup: big "EdgeHub" wordmark over a small "by SKYPhoenix IT"
-                // maker line. The version moved to the About view.
-                Text {
-                    text: "EdgeHub"; color: m.textPrimary
-                    font.family: theme.fontDisplay; font.pixelSize: 27; font.bold: true
-                    font.letterSpacing: -0.5
-                }
-                Text {
-                    text: "by SKYPhoenix IT"; color: m.textSecondary
-                    font.family: theme.fontMono; font.pixelSize: 11; font.letterSpacing: 0.5
-                    Layout.bottomMargin: 12
                 }
 
                 Repeater {
@@ -426,51 +499,11 @@ ApplicationWindow {
 
                 Item { Layout.fillHeight: true }
 
-                // Manager chrome theme switch (Dark / Light / Default). Named and
-                // captioned to separate it from Appearance → "Edge theme": the
-                // audit's top confusion was two unlabelled "theme" controls.
-                ColumnLayout {
-                    Layout.fillWidth: true; Layout.bottomMargin: 6; spacing: 6
-                    Text {
-                        text: "MANAGER WINDOW STYLE"; color: m.textSecondary
-                        font.pixelSize: 10; font.family: theme.fontMono
-                        opacity: 0.85; Layout.leftMargin: 2
-                    }
-                    // Audit F5: this was the one Design control whose scope lived in
-                    // prose instead of a pill. An exception teaches the user the pills
-                    // are decorative, so it gets the same treatment. On its OWN row:
-                    // beside the mono heading the pair's implicit width exceeded the
-                    // 240px sidebar and pushed the whole sidebar wider.
-                    ScopeTag { label: win.scopeLabels.window; Layout.leftMargin: 2 }
-                    Text {
-                        text: "Your Edge's own theme is set in Appearance."
-                        color: m.textSecondary; font.pixelSize: 10; opacity: 0.85
-                        Layout.fillWidth: true; Layout.leftMargin: 2; wrapMode: Text.WordWrap
-                    }
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 6
-                        Repeater {
-                            model: [ { k: "dark", l: "Dark" }, { k: "light", l: "Light" }, { k: "default", l: "Default" } ]
-                            delegate: Rectangle {
-                                required property var modelData
-                                Layout.fillWidth: true; implicitHeight: 30; radius: 8
-                                property bool sel: appSettings.chromeTheme === modelData.k
-                                color: sel ? m.accent : m.panelAlt
-                                border.width: 1; border.color: sel ? m.accent : m.border
-                                Text {
-                                    anchors.centerIn: parent; text: modelData.l
-                                    color: sel ? m.textOnAccent : m.textSecondary
-                                    font.pixelSize: 12; font.bold: sel
-                                }
-                                MouseArea {
-                                    anchors.fill: parent; hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: appSettings.chromeTheme = modelData.k
-                                }
-                            }
-                        }
-                    }
-                }
+                // The "Manager window style" control used to live HERE in the
+                // sidebar, far from Appearance → "Edge theme" — the audit's top
+                // confusion (two unlabelled "theme" controls in two places). It now
+                // sits inside the Appearance tab beside the Edge theme, so both
+                // theme pickers are together with unmistakable scope pills.
 
                 // Hub connection status + Start/Stop control.
                 ColumnLayout {
@@ -615,6 +648,9 @@ ApplicationWindow {
                                 MButton { text: "Add widget"; iconName: "ui-plus"; primary: true
                                     Layout.fillWidth: true; Layout.preferredHeight: m.touch
                                     onClicked: addPicker.open() }
+                                MButton { text: "Start from a preset screen…"; iconName: "ui-layout"
+                                    Layout.fillWidth: true; Layout.preferredHeight: m.touch
+                                    onClicked: presetDialog.open() }
                                 Rectangle {
                                     Layout.fillWidth: true; Layout.preferredHeight: hintCol.implicitHeight + 24
                                     radius: m.radius; color: m.panel; border.width: 1; border.color: m.border
@@ -728,6 +764,12 @@ ApplicationWindow {
                                 readonly property bool locked: (modelData.pro === true) && !win.isPro
                                 width: 150; height: 80; radius: m.radius; clip: true
                                 property bool sel: (store.revision, store.appearance().themeMode || "dark") === modelData.k
+                                // Collapsed by default to a curated set; the selected
+                                // theme always shows so it's never hidden. (Positioners
+                                // skip invisible children, so the Flow simply reflows.)
+                                visible: win.apShowAllThemes
+                                         || win.apFeaturedThemes.indexOf(modelData.k) >= 0
+                                         || sel
                                 border.width: sel ? 3 : 1
                                 border.color: sel ? m.accent : (swMA.containsMouse ? m.accent : m.border)
                                 gradient: Gradient {
@@ -757,13 +799,58 @@ ApplicationWindow {
                                     cursorShape: Qt.PointingHandCursor
                                     // Hover = transient try-on in the preview; click commits —
                                     // unless it's a locked Pro theme, where the click opens the
-                                    // activate dialog instead of applying it.
-                                    onContainsMouseChanged: containsMouse
-                                        ? win.previewTheme(modelData.k) : win.endThemePreview()
+                                    // activate dialog instead of applying it. Debounced (see
+                                    // hoverPreview) so scrolling the grid can't storm applyTheme.
+                                    onContainsMouseChanged: win.hoverPreview("theme", modelData.k, containsMouse)
                                     onClicked: {
                                         if (parent.locked) { win.endThemePreview(); licenseDialog.open() }
                                         else store.setAppearance("themeMode", modelData.k)
                                     }
+                                }
+                            }
+                        }
+                    }
+
+                    // Expand / collapse the theme grid (keeps the tab uncluttered).
+                    Text {
+                        text: win.apShowAllThemes ? "Show fewer themes ▴" : "Show all themes ▾"
+                        color: m.accent; font.pixelSize: 13; font.bold: true
+                        Layout.topMargin: 2
+                        MouseArea { anchors.fill: parent; hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: win.apShowAllThemes = !win.apShowAllThemes }
+                    }
+
+                    // Manager window style — moved here from the sidebar so it sits
+                    // right beside the Edge theme. The scope pill makes the
+                    // difference explicit: this restyles ONLY the Manager window on
+                    // your PC; it never touches the Edge.
+                    RowLayout {
+                        Layout.topMargin: 4; spacing: 8
+                        Text { text: "Manager window style"; color: m.textPrimary; font.pixelSize: 15; font.bold: true }
+                        ScopeTag { label: win.scopeLabels.window }
+                    }
+                    Text { text: "The look of THIS companion window on your PC — separate from the Edge theme above. Default is the warm SKYPhoenix palette."
+                        color: m.textSecondary; font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                    RowLayout {
+                        Layout.fillWidth: true; spacing: 8
+                        Repeater {
+                            model: [ { k: "dark", l: "Dark" }, { k: "light", l: "Light" }, { k: "default", l: "Default" } ]
+                            delegate: Rectangle {
+                                required property var modelData
+                                Layout.fillWidth: true; implicitHeight: 40; radius: 8
+                                property bool sel: appSettings.chromeTheme === modelData.k
+                                color: sel ? m.accent : m.panelAlt
+                                border.width: 1; border.color: sel ? m.accent : m.border
+                                Text {
+                                    anchors.centerIn: parent; text: modelData.l
+                                    color: sel ? m.textOnAccent : m.textSecondary
+                                    font.pixelSize: 13; font.bold: sel
+                                }
+                                MouseArea {
+                                    anchors.fill: parent; hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: appSettings.chromeTheme = modelData.k
                                 }
                             }
                         }
@@ -794,8 +881,7 @@ ApplicationWindow {
                                 ToolTip.text: modelData.name
                                 MouseArea { id: accMA; anchors.fill: parent; hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    onContainsMouseChanged: containsMouse
-                                        ? win.previewAccent(modelData.name) : win.endThemePreview()
+                                    onContainsMouseChanged: win.hoverPreview("accent", modelData.name, containsMouse)
                                     onClicked: store.setAppearance("accent", modelData.name) }
                             }
                         }
@@ -1183,6 +1269,50 @@ ApplicationWindow {
                             color: m.textSecondary; font.pixelSize: 12; Layout.leftMargin: 56
                             Layout.fillWidth: true; wrapMode: Text.WordWrap }
                     }
+
+                    // ── Software updates (opt-in) ──
+                    // Mirrors the hub's own toggle so it is DISCOVERABLE here in the
+                    // full-control Manager (the hub buries it in the on-panel
+                    // settings — "where is autoupdate?"). Off by default: EdgeHub
+                    // never phones home on its own. The Manager only sets the flag;
+                    // the actual check runs on the hub through its audited network
+                    // gate, so the Manager adds no new egress surface.
+                    RowLayout {
+                        Layout.topMargin: 8; spacing: 8
+                        Text { text: "Software updates"; color: m.textPrimary; font.pixelSize: 15; font.bold: true }
+                        ScopeTag { label: win.scopeLabels.edge }
+                    }
+                    ColumnLayout {
+                        spacing: 2
+                        MSwitch {
+                            id: updateSwitch
+                            text: "Check for updates automatically"
+                            checked: { store.revision; return store.appearance().updateCheck === true }
+                            onToggled: {
+                                store.setAppearance("updateCheck", checked)
+                                checked = Qt.binding(function () { store.revision; return store.appearance().updateCheck === true })
+                            }
+                        }
+                        Text { text: "Off by default — EdgeHub never checks on its own. When on, the Edge asks GitHub for the latest release tag through its audited network gate (nothing identifying is sent) and shows the result on the display itself. Install updates with your package manager."
+                            color: m.textSecondary; font.pixelSize: 12; Layout.leftMargin: 56
+                            Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                    }
+
+                    // ── Troubleshooting / reset ──
+                    RowLayout {
+                        Layout.topMargin: 8; spacing: 8
+                        Text { text: "Troubleshooting"; color: m.textPrimary; font.pixelSize: 15; font.bold: true }
+                        ScopeTag { label: win.scopeLabels.edge }
+                    }
+                    Text { text: "Start over from a clean default layout. Your uploaded images are kept — only pages and widgets are reset."
+                        color: m.textSecondary; font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                    RowLayout {
+                        Layout.fillWidth: true; spacing: 8
+                        MButton { objectName: "resetLayoutBtn"; text: "Reset to default layout"; iconName: "ui-trash"
+                            onClicked: win.confirmResetLayout() }
+                        Item { Layout.fillWidth: true }
+                    }
+
                     Item { Layout.preferredHeight: 12 }   // bottom padding
                 }
               }
@@ -1211,23 +1341,23 @@ ApplicationWindow {
                             anchors.left: parent.left; anchors.right: parent.right
                             anchors.top: parent.top
                             anchors.margins: 20; spacing: 4
+                            Text {
+                                text: "EdgeHub"; color: m.textPrimary
+                                font.family: theme.fontBrand; font.pixelSize: 40; font.bold: true
+                                font.letterSpacing: 0.5
+                            }
+                            Text {
+                                text: "by SKYPhoenix IT"; color: m.textSecondary
+                                font.family: theme.fontMono; font.pixelSize: 12; font.letterSpacing: 0.5
+                            }
                             Image {
-                                Layout.preferredWidth: 180; Layout.preferredHeight: 110
-                                Layout.bottomMargin: 6
+                                Layout.preferredWidth: 150; Layout.preferredHeight: 60
+                                Layout.topMargin: 8
                                 fillMode: Image.PreserveAspectFit; horizontalAlignment: Image.AlignLeft
                                 smooth: true; asynchronous: true; mipmap: true
                                 source: appSettings.chromeTheme === "light" ? "qrc:/manager/branding/sky-black.png"
                                       : appSettings.chromeTheme === "default" ? "qrc:/manager/branding/sky-color.png"
                                       : "qrc:/manager/branding/sky-white.png"
-                            }
-                            Text {
-                                text: "EdgeHub"; color: m.textPrimary
-                                font.family: theme.fontDisplay; font.pixelSize: 34; font.bold: true
-                                font.letterSpacing: -0.5
-                            }
-                            Text {
-                                text: "by SKYPhoenix IT"; color: m.textSecondary
-                                font.family: theme.fontMono; font.pixelSize: 12; font.letterSpacing: 0.5
                             }
                         }
                     }
@@ -1332,6 +1462,58 @@ ApplicationWindow {
                         color: m.textSecondary; font.pixelSize: 12; font.family: theme.fontMono
                     }
 
+                    // ── Diagnostics (for support) ──
+                    // The Manager's honest view: connection, displays, and the raw
+                    // config on demand. Live network egress counters are a hub-runtime
+                    // tally shown on the Edge itself (the hub's own Diagnostics), so
+                    // they're pointed to here, never faked with zeros.
+                    Rectangle {
+                        Layout.fillWidth: true; Layout.topMargin: 8
+                        radius: m.radius; color: m.panel; border.width: 1; border.color: m.border
+                        implicitHeight: diagCol.implicitHeight + 32
+                        ColumnLayout {
+                            id: diagCol
+                            anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+                            anchors.margins: 16; spacing: 8
+                            RowLayout {
+                                Layout.fillWidth: true; spacing: 8
+                                AppIcon { name: "ui-settings"; size: 18; color: m.textSecondary; Layout.alignment: Qt.AlignVCenter }
+                                Text { text: "Diagnostics"; color: m.textPrimary; font.pixelSize: 16; font.bold: true; Layout.fillWidth: true }
+                                MButton { text: diagBox.visible ? "Hide config" : "Show config"
+                                    onClicked: diagBox.visible = !diagBox.visible }
+                            }
+                            Text { text: (backend.hubConnected ? "Hub connected (live)" : "Hub offline (saved)")
+                                    + "  ·  " + win.screens.length + " display" + (win.screens.length === 1 ? "" : "s")
+                                    + (win.currentTarget.length ? "  ·  target " + win.currentTarget : "")
+                                color: m.textSecondary; font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                            Text { text: "Live network egress counters are shown on the Edge itself (the hub's Diagnostics) — the Manager makes no network requests of its own."
+                                color: m.textSecondary; font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                            Rectangle {
+                                id: diagBox; visible: false
+                                Layout.fillWidth: true; Layout.preferredHeight: 220
+                                radius: m.radius; color: m.bg; border.width: 1; border.color: m.border
+                                ScrollView {
+                                    anchors.fill: parent; anchors.margins: 8; clip: true
+                                    contentWidth: availableWidth
+                                    Text {
+                                        width: diagBox.width - 16
+                                        // Only fetch the config when the box is actually
+                                        // shown, and guard the method (the QML test mock
+                                        // backend doesn't implement configJson()).
+                                        text: {
+                                            if (!diagBox.visible) return ""
+                                            var _ = store.revision
+                                            return (backend && backend.configJson) ? backend.configJson()
+                                                                                    : "(config unavailable)"
+                                        }
+                                        color: m.textSecondary; font.family: theme.fontMono; font.pixelSize: 10
+                                        wrapMode: Text.WrapAnywhere; textFormat: Text.PlainText
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     Text {
                         text: "© 2026 SKYPhoenix IT · Independent product"
                         color: m.textSecondary; font.pixelSize: 12
@@ -1407,6 +1589,70 @@ ApplicationWindow {
                                 }
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Preset "screens" picker ──
+    // The full curated library, applied as a whole page set (store.resetTo →
+    // persisted + pushed live). Parity with the hub's first-run / preset picker,
+    // brought into the Manager so a page set can be started from the PC.
+    Dialog {
+        id: presetDialog
+        title: "Start from a preset screen"
+        modal: true; anchors.centerIn: parent
+        width: Math.min(parent ? parent.width * 0.9 : 760, 820)
+        height: Math.min(parent ? parent.height * 0.85 : 620, 700)
+        standardButtons: Dialog.Close
+        background: Rectangle { color: m.panel; radius: m.radius; border.width: 1; border.color: m.border }
+        header: Rectangle {
+            color: "transparent"; implicitHeight: 68
+            RowLayout {
+                anchors.fill: parent; anchors.leftMargin: 20; anchors.rightMargin: 20; spacing: 12
+                AppIcon { name: "ui-layout"; size: 24; color: m.accent; Layout.alignment: Qt.AlignVCenter }
+                ColumnLayout {
+                    spacing: 1; Layout.fillWidth: true
+                    Text { text: "Start from a preset screen"; color: m.textPrimary; font.pixelSize: 19; font.bold: true }
+                    Text { text: "Replaces every page with a ready-made set. You can tweak it afterwards."
+                        color: m.textSecondary; font.pixelSize: 12; elide: Text.ElideRight; Layout.fillWidth: true }
+                }
+                ScopeTag { label: win.scopeLabels.edge; Layout.alignment: Qt.AlignVCenter }
+            }
+        }
+        contentItem: ScrollView {
+            clip: true
+            ColumnLayout {
+                width: presetDialog.availableWidth
+                spacing: 10
+                Repeater {
+                    model: presetLib.list()
+                    delegate: Rectangle {
+                        required property var modelData
+                        Layout.fillWidth: true; implicitHeight: presetRow.implicitHeight + 24
+                        radius: m.radius; color: presetMA.containsMouse ? m.panelAlt : m.bg
+                        border.width: 1; border.color: m.border
+                        RowLayout {
+                            id: presetRow
+                            anchors.left: parent.left; anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.leftMargin: 14; anchors.rightMargin: 14; spacing: 14
+                            Text { text: modelData.icon || "🎛"; font.pixelSize: 30
+                                Layout.alignment: Qt.AlignVCenter }
+                            ColumnLayout {
+                                spacing: 2; Layout.fillWidth: true
+                                Text { text: modelData.title; color: m.textPrimary
+                                    font.pixelSize: 16; font.bold: true }
+                                Text { text: modelData.blurb || ""; color: m.textSecondary
+                                    font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                            }
+                            MButton { text: "Use this"; iconName: "ui-check"; primary: true
+                                Layout.alignment: Qt.AlignVCenter
+                                onClicked: { presetDialog.close()
+                                    win.confirmApplyPreset(modelData.id, modelData.title) } }
+                        }
+                        MouseArea { id: presetMA; anchors.fill: parent; hoverEnabled: true; z: -1 }
                     }
                 }
             }

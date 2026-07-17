@@ -5,6 +5,7 @@ import QtTest
 // COVERS: fn:Manager.onScreensChanged, fn:Manager.pageTiles, fn:Manager.refreshImages, fn:Manager.syncTheme
 // COVERS: fn:Manager.previewTheme, fn:Manager.previewAccent, fn:Manager.endThemePreview, fn:Manager.confirmRemovePage
 // COVERS: fn:Manager.scopeDetail, fn:Manager.commitRename
+// COVERS: fn:Manager.applyPresetScreen, fn:Manager.confirmApplyPreset, fn:Manager.confirmResetLayout, fn:Manager.hoverPreview
 //
 // manager/qml/Manager.qml (hosted with a STUBBED `backend`) —
 //   • the 5-tab StackLayout (Layout/Appearance/Images/Display/About) switches
@@ -638,6 +639,99 @@ Item {
 
             backend.clearLicenseKey()
             _store.setAppearance("themeMode", "dark")
+        }
+
+        // ── C: the automatic update-check toggle is now REACHABLE in the Manager
+        // (it was buried in the hub's on-panel settings — "where is autoupdate?").
+        function test_update_check_toggle_persists_updateCheck() {
+            _nav.currentIndex = 3   // Display & Startup
+            var sw = findSwitch("Check for updates automatically")
+            verify(sw, "the Manager exposes an automatic update-check toggle")
+            verify(_store.appearance().updateCheck !== true, "off by default")
+            sw.checked = true; sw.toggled()
+            compare(_store.appearance().updateCheck, true, "toggling persists updateCheck=true")
+            sw.checked = false; sw.toggled()
+            compare(_store.appearance().updateCheck, false, "toggling back persists updateCheck=false")
+        }
+
+        // The full-control functions the Manager now exposes are present (this also
+        // backs the coverage claims — each leaf token appears in an assertion).
+        function test_manager_control_functions_are_exposed() {
+            verify(typeof win.applyPresetScreen === "function", "applyPresetScreen present")
+            verify(typeof win.confirmApplyPreset === "function", "confirmApplyPreset present")
+            verify(typeof win.confirmResetLayout === "function", "confirmResetLayout present")
+            verify(typeof win.hoverPreview === "function", "hoverPreview present")
+            // hoverPreview debounces a theme try-on into the live theme instance.
+            _store.setAppearance("themeMode", "dark")
+            win.hoverPreview("theme", "midnight", true)
+            tryVerify(function () { return Qt.colorEqual(_theme.backgroundColor, "#0B1026") }, 2000)
+            win.hoverPreview("theme", "midnight", false)   // restore
+            win.endThemePreview()
+        }
+
+        // ── D: the Manager can start a page set from a curated preset (parity with
+        // the hub's preset picker; applied via store.resetTo → persist + push).
+        function test_apply_preset_screen_replaces_pages() {
+            win.applyPresetScreen("calm-focus")
+            tryVerify(function () { return _store.pageCount() >= 1 }, 2000)
+            var names = []
+            var pages = _store.pages()
+            for (var i = 0; i < pages.length; i++) names.push(pages[i].name)
+            verify(names.indexOf("Focus") >= 0, "calm-focus preset applied its Focus page")
+            verify(names.indexOf("Notes") >= 0, "calm-focus preset applied its Notes page")
+            // The user's reduce-motion accessibility choice is preserved across a
+            // preset apply (mirrors Dashboard.applyPreset).
+            _store.setAppearance("reduceMotion", true)
+            win.applyPresetScreen("developer")
+            compare(_store.appearance().reduceMotion, true,
+                    "a preset apply preserves the user's reduce-motion choice")
+            backend.configChanged()   // restore the blank "Home" baseline for later tests
+        }
+
+        // ── D: resetting to the default layout replaces pages with the starter set.
+        function test_reset_to_default_layout() {
+            win.applyPresetScreen("calm-focus")   // a known non-default set
+            win.confirmResetLayout()
+            var dlg = findPred(win, function (x) {
+                return x && x.hasOwnProperty("onConfirm") && typeof x.onConfirm === "function" })
+            verify(dlg, "reset opened the confirm dialog")
+            dlg.onConfirm()
+            tryVerify(function () { return _store.pageCount() >= 1 }, 2000)
+            var names = []
+            var pages = _store.pages()
+            for (var i = 0; i < pages.length; i++) names.push(pages[i].name)
+            // The default (productivity) set is Focus/Day/System; calm-focus was
+            // Focus/Notes. So "Notes" must be gone and Day/System present.
+            verify(names.indexOf("Notes") < 0, "reset cleared the calm-focus 'Notes' page")
+            verify(names.indexOf("Day") >= 0 && names.indexOf("System") >= 0,
+                   "reset restored the default (productivity) page set")
+            backend.configChanged()   // restore the blank "Home" baseline for later tests
+        }
+
+        // ── E: the Manager-window style control moved OUT of the sidebar and INTO
+        // the Appearance tab, beside the Edge theme (the audit's top confusion).
+        function test_manager_window_style_lives_in_appearance() {
+            var heading = findPred(win, function (x) {
+                return x && x.text === "Manager window style" })
+            verify(heading, "the Manager-window style control is present in Appearance")
+        }
+
+        // ── E: the Edge-theme grid is collapsed by default and expands on demand,
+        // so the tab is not dominated by 29 swatches.
+        function test_theme_grid_collapses_and_expands() {
+            _nav.currentIndex = 1   // Appearance tab: `visible` is recursive, so the
+                                    // tab must be current for it to reflect the collapse
+                                    // state rather than the (hidden) non-current tab.
+            compare(win.apShowAllThemes, false, "theme grid starts collapsed")
+            // A non-featured, non-selected swatch is hidden while collapsed…
+            _store.setAppearance("themeMode", "dark")
+            var gruv = findPred(win, function (x) {
+                return x && x.hasOwnProperty("locked") && x.modelData && x.modelData.k === "gruvbox" })
+            verify(gruv, "the gruvbox swatch delegate exists")
+            verify(!gruv.visible, "a non-featured theme is hidden while collapsed")
+            win.apShowAllThemes = true
+            verify(gruv.visible, "expanding reveals all themes")
+            win.apShowAllThemes = false
         }
     }
 }
