@@ -156,3 +156,73 @@ over the installed `1.0.0alpha.2-1` (`vercmp` = 1) — before this session it wo
 have been a downgrade. Restart the hub with **SIGTERM, never SIGKILL** (it saves
 config on the way out), or just run `./scripts/update-local.sh`, which does the
 build, the install and the graceful restart in one step.
+
+---
+
+## Addendum — 2026-07-17 daytime (continued autonomous pass)
+
+Worked the remaining backlog. Everything below is merged, pushed, and green on
+all four workflows.
+
+**The AppImage self-update path never worked, and had never run.** Not "untested"
+— unexecuted. No release ever published an AppImage (`gh release view` on alpha.1
+and alpha.2 confirms it), so `release.sh`'s `zsyncmake` branch has executed zero
+times. Two independent bugs underneath: the artifact was named from
+`project(... VERSION 0.1.0)`, which CMake freezes, so every release forever would
+have shipped an identically-named `xeneon-edge-hub-0.1.0-x86_64.AppImage`; and
+`build-appimage.sh` never passed `-DXENEON_VERSION_OVERRIDE`, so the version came
+from `git describe --tags` while `actions/checkout` fetches **no tags** at depth 1
+— `--always` then silently degrades to a bare sha, which `UpdateChecker` cannot
+SemVer-order. The one install kind pointed at zsync could never have detected an
+update. CI now produces `xeneon-edge-hub-1.0.0-alpha.2-101-g69a0484-x86_64.AppImage`
+and that string parses. **Still open (your decision):** no
+`X-AppImage-UpdateInformation` is embedded, so there is no discovery path from an
+installed AppImage to the next `.zsync`. That defines a public URL contract.
+
+**The born-inert audit — eight instances, one shape.** A gate reports SUCCESS for
+the state where it did no work.
+
+| Gate | How it was inert |
+|---|---|
+| 3 QtTest cases | `test_x_data()` = data provider for a `test_x()` that never existed |
+| `coverage.sh` C++ gate | gcovr arg misparse → `n/a` → the gate skipped **itself**, for years |
+| `qml_coverage.py` | empty matrix scored **100%**; a typo'd source dropped 24 behaviors with *no* coverage drop |
+| `check_ui_links.sh` (mine) | grepped a pattern that was line-wrapped in its own target |
+| `check_live_tests.sh`, `check_doc_links.sh` (mine) | reported OK on an **empty tree** |
+| `packaging/ci/smoke.sh` | zero derived modules → loop ran zero times → SMOKE PASS |
+| a W3 agent's guard | mode-keyed literal only fires with the mode ON; its hosts were `expanded:false` |
+
+All fixed. The fix is always the same, and `check_no_raw_xhr.sh` had it right from
+the start: **a gate must assert its own subjects exist.** Its one line — "the gate
+must still own exactly one construction site" — is why the no-telemetry claim rests
+on something. I verified that lint both directions while auditing.
+
+**Consequence worth flagging: C++-only coverage is 91.70%, not 95.** That number
+was never enforced because the gate never ran. It is now a ratchet at the measured
+floor. CI is unaffected (it gates Rust ≥95 AND merged ≥95, never C++-only).
+
+**Also landed:** the Manager's About button opened `"#"` and did nothing (fixed +
+linted); `mpris_bridge.cpp` was not at 0% coverage but *invisible to coverage
+entirely* — 279 lines in nobody's denominator — now extracted and covered without
+a bus; the Dashboard and EdgeClone both gained exit fades, entrances and eased add
+slots; Hydration/Habit stopped conflating `expanded` with size.
+
+**A real bug found while porting the fade to EdgeClone:** a dying row's `tileIdx`
+is stale, so a drop onto a fading tile would have silently moved the **wrong
+widget**. Now guarded; I reproduced the guard's failure myself.
+
+### Still open for you
+1. `X-AppImage-UpdateInformation` — a public URL contract (above).
+2. The four beta decisions (Calm default, font, distro-name legal pass, payments).
+3. Secret scanning + push protection — a click in Settings → Code security.
+4. **Nothing motion-related is verified on the real panel.** The offscreen harness
+   cannot instantiate `qrc:` widgets, so every agent asserted Loader survival and
+   said so plainly. This genuinely needs your eyes on the device.
+5. The `expanded`-vs-size conflation remains in 7 more widgets (see `BACKLOG.md`).
+
+### Install
+```
+sudo pacman -U packaging/local/xeneon-edge-hub-1.0.0.alpha.2.r110.gd926d41-1-x86_64.pkg.tar.zst
+```
+`sudo` is not passwordless here, so this is yours. It is a genuine upgrade
+(`vercmp` = 1) over the installed `1.0.0alpha.2-1`.
