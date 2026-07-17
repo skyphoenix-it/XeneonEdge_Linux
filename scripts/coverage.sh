@@ -19,6 +19,22 @@ mkdir -p "$COVERAGE_DIR"
 
 GATE=95
 
+# C++-only has its OWN floor, and it is not 95. This script said 95 for a long
+# time, but the C++ gate was INERT (see the gcovr note where CPP_PCT is
+# computed), so that number was never true and never enforced. The first honest
+# measurement, the day the gate was fixed (2026-07-17), was 91.70%.
+#
+# CI does not gate C++-only at all: it gates Rust >= 95 AND merged >= 95, which
+# is why none of this ever showed up as red. Two reasons C++ trails Rust: the
+# D-Bus/QScreen/QProcess glue is deliberately `// GCOVR_EXCL`-marked, and code
+# that compiles only into the `xeneon-edge-hub` target was not instrumented at
+# all (mpris_bridge.cpp contributed 279 uncovered lines to NOBODY's denominator
+# until it was covered on 2026-07-17).
+#
+# This is a RATCHET, not a target: raise it as coverage improves. Never lower it
+# to turn a red run green — that is how the gate got hollow in the first place.
+CPP_GATE=91
+
 RUST_PCT="n/a"
 CPP_PCT="n/a"
 MERGED_PCT="n/a"
@@ -34,8 +50,8 @@ elif [ -x "$HOME/.local/bin/gcovr" ]; then
 fi
 
 pct_ge_gate() {
-    # pct_ge_gate <pct>  -> 0 if pct >= GATE else 1
-    python3 -c "import sys; sys.exit(0 if float(sys.argv[1]) >= float(sys.argv[2]) else 1)" "$1" "$GATE"
+    # pct_ge_gate <pct> [gate]  -> 0 if pct >= gate (default $GATE) else 1
+    python3 -c "import sys; sys.exit(0 if float(sys.argv[1]) >= float(sys.argv[2]) else 1)" "$1" "${2:-$GATE}"
 }
 
 # ---------------------------------------------------------------- Rust --------
@@ -77,14 +93,26 @@ else
         --exclude '.*main\.cpp' \
         --lcov "$COVERAGE_DIR/cpp-lcov.info" \
         "$PROJECT_DIR/build" || echo "    WARN: gcovr lcov export reported an error"
+    # The search path MUST come before --json-summary. gcovr 8's
+    # `--json-summary [OUTPUT]` takes an OPTIONAL FILENAME, so
+    # `--json-summary "$PROJECT_DIR/build"` is parsed as "write the summary to
+    # the file build/" -> "Could not create output file 'build': Is a directory"
+    # -> swallowed by 2>/dev/null -> CPP_PCT="n/a" -> the gate below skipped
+    # ITSELF, silently. This gate had never once run. Same born-inert class as
+    # the QtTest `_data` trap: a check that cannot fail is worse than no check.
     CPP_PCT="$("$GCOVR" --root "$PROJECT_DIR" \
         --filter 'app/src/' --filter 'manager/src/' \
         --exclude '.*main\.cpp' \
-        --json-summary "$PROJECT_DIR/build" 2>/dev/null \
+        "$PROJECT_DIR/build" --json-summary 2>/dev/null \
         | python3 -c 'import json,sys; print("%.2f" % json.load(sys.stdin)["line_percent"])' 2>/dev/null || echo "n/a")"
     echo "    C++ line coverage: ${CPP_PCT}%"
-    if [ "$CPP_PCT" != "n/a" ] && ! pct_ge_gate "$CPP_PCT"; then
-        echo "    FAIL: C++ ${CPP_PCT}% < ${GATE}%"
+    # An "n/a" here is now a FAILURE, not a shrug. It used to mean "the gate
+    # quietly skipped itself", which is exactly how this stayed broken.
+    if [ "$CPP_PCT" = "n/a" ]; then
+        echo "    FAIL: C++ coverage could not be measured (gcovr produced no summary)"
+        fail=1
+    elif ! pct_ge_gate "$CPP_PCT" "$CPP_GATE"; then
+        echo "    FAIL: C++ ${CPP_PCT}% < ${CPP_GATE}%"
         fail=1
     fi
 fi

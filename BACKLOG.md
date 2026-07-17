@@ -138,6 +138,16 @@ after the fix shipped). If an entry here disagrees with the code, the code wins.
 
 - Fedora support; Ubuntu 26.04 LTS support.
 
+- **C++-only line coverage is 91.70%** (measured honestly for the first time on
+  2026-07-17). `scripts/coverage.sh` now ratchets it at **91**, not the 95 it used
+  to claim — that 95 was never enforced because the gate was inert. CI is
+  unaffected: it gates Rust ≥95 AND merged ≥95, never C++-only. Two structural
+  reasons C++ trails Rust: the D-Bus/QScreen/QProcess glue is deliberately
+  `GCOVR_EXCL`-marked, and code compiling ONLY into the `xeneon-edge-hub` target
+  is not instrumented at all — `mpris_bridge.cpp`'s 279 uncovered lines were in
+  nobody's denominator until 2026-07-17. Raise the ratchet as coverage improves;
+  never lower it.
+
 ## Test-integrity debt (opened 2026-07-16)
 
 Three tests were found that had **never executed**: QtTest silently treats
