@@ -280,6 +280,23 @@ ApplicationWindow {
     }
     Connections { target: store; function onChanged() { win.syncTheme() } }
 
+    // ── Licence (Pro tier) state, kept fresh ──
+    // Parsed from the backend's stored-key status. Re-read whenever the key
+    // changes (activate/remove) so the About card and any gated affordance
+    // update without a manual refresh. Never trust a cached bool — the tier is
+    // always recomputed from the signed key by the Rust verifier.
+    property var licStatus: ({ state: "unlicensed", tier: "free" })
+    property bool isPro: licStatus.tier === "pro"
+    function refreshLicense() {
+        try { win.licStatus = JSON.parse(backend.licenseStatusJson()) }
+        catch (e) { win.licStatus = ({ state: "unlicensed", tier: "free" }) }
+    }
+    Connections {
+        target: backend
+        function onLicenseChanged() { win.refreshLicense() }
+        function onConfigChanged() { win.refreshLicense() }
+    }
+
     // ── Hover previews (show, then commit) ──
     // Hovering a theme/accent swatch applies it to the Manager's theme instance
     // ONLY — the live preview pane repaints, the store (and hence the Edge and
@@ -310,7 +327,7 @@ ApplicationWindow {
         confirmDialog.open()
     }
 
-    Component.onCompleted: { store.load(backend.starterLayout()); syncTheme(); refreshImages() }
+    Component.onCompleted: { store.load(backend.starterLayout()); syncTheme(); refreshImages(); refreshLicense() }
 
     // Capture helper: XENEON_CFG=<type> auto-opens that widget's config dialog.
     Timer {
@@ -1208,6 +1225,66 @@ ApplicationWindow {
                         Layout.fillWidth: true; wrapMode: Text.WordWrap
                     }
 
+                    // ── Licence card ──
+                    // Free by default; Pro when a valid key is stored. Everything
+                    // functional is free — Pro unlocks the premium theme/preset
+                    // packs and custom user widgets. "expired" is worded as
+                    // renew-not-broken (the signature was genuine).
+                    Rectangle {
+                        Layout.fillWidth: true; Layout.topMargin: 8
+                        radius: m.radius; color: m.panel
+                        border.width: 1
+                        border.color: win.isPro ? m.accent : m.border
+                        implicitHeight: licCol.implicitHeight + 32
+                        ColumnLayout {
+                            id: licCol
+                            anchors.left: parent.left; anchors.right: parent.right
+                            anchors.top: parent.top; anchors.margins: 16; spacing: 8
+                            RowLayout {
+                                Layout.fillWidth: true; spacing: 10
+                                AppIcon {
+                                    name: win.isPro ? "ui-check" : "ui-settings"
+                                    size: 22; color: win.isPro ? m.accent : m.textSecondary
+                                    Layout.alignment: Qt.AlignVCenter
+                                }
+                                ColumnLayout {
+                                    spacing: 1; Layout.fillWidth: true
+                                    Text {
+                                        text: win.isPro ? "Xeneon Edge Pro"
+                                            : win.licStatus.state === "expired" ? "Pro licence expired"
+                                            : "Free tier"
+                                        color: m.textPrimary; font.pixelSize: 17; font.bold: true
+                                    }
+                                    Text {
+                                        text: win.isPro
+                                              ? ("Thank you" + (win.licStatus.issuedTo
+                                                   ? ", " + win.licStatus.issuedTo : "") + " — premium unlocked.")
+                                            : win.licStatus.state === "expired"
+                                              ? "Renew to keep the premium extras. Your dashboards keep working."
+                                            : "Everything works. Pro adds premium themes, preset packs and custom widgets."
+                                        color: m.textSecondary; font.pixelSize: 12
+                                        Layout.fillWidth: true; wrapMode: Text.WordWrap
+                                    }
+                                }
+                            }
+                            RowLayout {
+                                Layout.fillWidth: true; spacing: 8
+                                MButton {
+                                    text: win.isPro ? "Manage licence" : "Activate Pro"
+                                    iconName: "ui-settings"
+                                    onClicked: licenseDialog.open()
+                                }
+                                MButton {
+                                    visible: !win.isPro
+                                    text: "Get Pro"; iconName: "ui-display"
+                                    onClicked: Qt.openUrlExternally(
+                                        "https://github.com/skyphoenix-it/XeneonEdge_Linux#pro")
+                                }
+                                Item { Layout.fillWidth: true }
+                            }
+                        }
+                    }
+
                     // Links.
                     RowLayout {
                         Layout.fillWidth: true; Layout.topMargin: 6; spacing: 8
@@ -1315,6 +1392,113 @@ ApplicationWindow {
 
     // ── Per-widget configure (schema-driven form + live preview) ──
     WidgetConfigDialog { id: cfgDialog }
+
+    // ── Licence entry / management ──
+    // Paste a key → live preview (verified offline, no network) → Activate. The
+    // preview is what makes this safe to commit: the user sees "unlocks Pro for
+    // <name>" (or why not) BEFORE it is stored. Storing routes through
+    // backend.setLicenseKey, which respects the single-writer rule (pushes to the
+    // hub over IPC when connected so the tier re-gates live; writes directly when
+    // offline).
+    Dialog {
+        id: licenseDialog
+        modal: true; anchors.centerIn: parent
+        width: Math.min(parent ? parent.width * 0.9 : 640, 640)
+        standardButtons: Dialog.NoButton
+        background: Rectangle { color: m.panel; radius: m.radius; border.width: 1; border.color: m.border }
+
+        // The candidate the user has typed, and its offline-verified status.
+        property string candidate: ""
+        property var preview: ({ state: "unlicensed", tier: "free" })
+        function reVerify() {
+            var k = keyField.text.trim()
+            licenseDialog.candidate = k
+            if (k.length === 0) { licenseDialog.preview = ({ state: "unlicensed", tier: "free" }); return }
+            try { licenseDialog.preview = JSON.parse(backend.verifyLicenseCandidate(k)) }
+            catch (e) { licenseDialog.preview = ({ state: "unlicensed", tier: "free" }) }
+        }
+        onOpened: { keyField.text = ""; licenseDialog.reVerify(); keyField.forceActiveFocus() }
+
+        header: Rectangle {
+            color: "transparent"; implicitHeight: 60
+            RowLayout {
+                anchors.fill: parent; anchors.leftMargin: 20; anchors.rightMargin: 20; spacing: 12
+                AppIcon { name: "ui-settings"; size: 22; color: m.accent; Layout.alignment: Qt.AlignVCenter }
+                Text { text: win.isPro ? "Manage your Pro licence" : "Activate Xeneon Edge Pro"
+                    color: m.textPrimary; font.pixelSize: 18; font.bold: true; Layout.fillWidth: true }
+            }
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 12
+            Text {
+                text: "Paste the licence key from your purchase e-mail. It is verified on "
+                    + "this device — nothing is sent anywhere."
+                color: m.textSecondary; font.pixelSize: 13
+                Layout.fillWidth: true; wrapMode: Text.WordWrap
+            }
+            Rectangle {
+                Layout.fillWidth: true; radius: m.radius
+                color: m.bg; border.width: 1
+                border.color: keyField.activeFocus ? m.accent : m.border
+                implicitHeight: 92
+                TextArea {
+                    id: keyField
+                    anchors.fill: parent; anchors.margins: 8
+                    wrapMode: TextArea.WrapAnywhere
+                    placeholderText: "XE1.…"
+                    color: m.textPrimary; font.family: theme.fontMono; font.pixelSize: 13
+                    selectByMouse: true
+                    background: null
+                    onTextChanged: licenseDialog.reVerify()
+                }
+            }
+            // Live verdict.
+            RowLayout {
+                Layout.fillWidth: true; spacing: 8
+                visible: licenseDialog.candidate.length > 0
+                readonly property bool ok: licenseDialog.preview.tier === "pro"
+                readonly property bool expired: licenseDialog.preview.state === "expired"
+                AppIcon {
+                    name: parent.ok ? "ui-check" : "ui-warning"
+                    size: 18; color: parent.ok ? m.accent : (parent.expired ? m.danger : m.textSecondary)
+                    Layout.alignment: Qt.AlignVCenter
+                }
+                Text {
+                    Layout.fillWidth: true; wrapMode: Text.WordWrap
+                    color: m.textPrimary; font.pixelSize: 13
+                    text: parent.ok
+                          ? ("Valid — unlocks Pro"
+                             + (licenseDialog.preview.issuedTo ? " for " + licenseDialog.preview.issuedTo : "") + ".")
+                        : parent.expired
+                          ? "This key has expired. Renew to reactivate Pro."
+                        : "Not a valid licence key for this product."
+                }
+            }
+            RowLayout {
+                Layout.fillWidth: true; Layout.topMargin: 4; spacing: 8
+                MButton {
+                    visible: win.isPro || win.licStatus.state === "expired"
+                    text: "Remove licence"; iconName: "ui-trash"
+                    onClicked: { backend.clearLicenseKey(); licenseDialog.close() }
+                }
+                Item { Layout.fillWidth: true }
+                MButton {
+                    text: "Cancel"; onClicked: licenseDialog.close()
+                }
+                MButton {
+                    text: "Activate"; iconName: "ui-check"
+                    // Only enabled when the pasted key actually unlocks Pro — no
+                    // point storing a key the verifier rejects.
+                    enabled: licenseDialog.preview.tier === "pro"
+                    onClicked: {
+                        if (backend.setLicenseKey(licenseDialog.candidate))
+                            licenseDialog.close()
+                    }
+                }
+            }
+        }
+    }
 
     // ── Image import dialog + model ──
     FileDialog {

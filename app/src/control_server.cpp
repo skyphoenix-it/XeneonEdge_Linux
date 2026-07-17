@@ -158,6 +158,18 @@ void ControlServer::handleLine(QLocalSocket* sock, const QByteArray& line) {
         bool ok = false;
         emit autostartReceived(obj.value("enabled").toBool(), &ok);
         writeAck(sock, ok, type, QStringLiteral("failed to apply autostart"));
+    } else if (type == "setLicenseKey") {
+        // The `key` field must be present as a string (an absent field would be
+        // an empty string → a silent CLEAR of the user's licence, which is not
+        // what a malformed request should do). An empty string IS the explicit
+        // "remove my key" and is allowed only when sent deliberately.
+        if (!obj.value("key").isString()) {
+            writeAck(sock, false, type, QStringLiteral("missing key field"));
+            return;
+        }
+        bool ok = false;
+        emit licenseKeyReceived(obj.value("key").toString(), &ok);
+        writeAck(sock, ok, type, QStringLiteral("failed to apply licence key"));
     } else if (type == "ping") {
         writeJson(sock, QJsonDocument(QJsonObject{{"type", "pong"}}).toJson(QJsonDocument::Compact));
     } else if (type == "shutdown") {

@@ -39,6 +39,7 @@
 #include "autostart.h"
 #include "display_match.h"
 #include "config_bridge.h"
+#include "license_bridge.h"
 #include "metrics_worker.h"
 
 // --- Global handle for signal handler access ---
@@ -444,6 +445,12 @@ int main(int argc, char *argv[]) {
     ConfigBridge* configBridge = new ConfigBridge(config, &engine);
     engine.rootContext()->setContextProperty("configBridge", configBridge);
 
+    // The Pro tier, live. QML gates premium content on `license.isPro`; a key
+    // pasted in the Manager (pushed over the control socket, below) re-gates
+    // without a restart. Verification is offline and fails-soft (see license.rs).
+    LicenseBridge* licenseBridge = new LicenseBridge(config, &engine);
+    engine.rootContext()->setContextProperty("license", licenseBridge);
+
     // Real IANA time zones. QML cannot resolve one at all (no Intl; the timeZone
     // option on toLocaleString is silently ignored), so the clock needs this.
     TimeZoneBridge* timeZoneBridge = new TimeZoneBridge(&engine);
@@ -491,6 +498,16 @@ int main(int argc, char *argv[]) {
     // moved to another thread, an auto/queued connection would (a) deliver AFTER emit
     // returns → the ack always reports false, and (b) write *ok into a since-unwound
     // stack frame → a use-after-free. Keep this Direct.
+    }, Qt::DirectConnection);
+    // A Pro key pasted in the Manager arrives here (single-writer: the Manager
+    // pushes over IPC, the hub is the one that writes config). Persist + re-gate
+    // live. Same Direct-connection discipline as uiStateReceived — `ok` is a
+    // pointer into the socket handler's stack frame.
+    QObject::connect(controlServer, &ControlServer::licenseKeyReceived, &engine,
+                     [licenseBridge](const QString& key, bool* ok) {
+        const bool applied = licenseBridge->applyExternalKey(key);
+        if (ok) *ok = applied;
+        if (!applied) qWarning() << "Failed to apply externally pushed licence key";
     }, Qt::DirectConnection);
     // Manager "Stop hub" → quit cleanly. Defer briefly so the "ok" ack flushes to
     // the socket before the event loop tears down.

@@ -363,6 +363,47 @@ public:
         return QFile::exists(autostartPath());
     }
 
+    // ── Licensing (Pro tier) ──
+    // Verify a candidate key WITHOUT storing it — the dialog previews "unlocks Pro
+    // for <name>" / "expired" / "not a valid key" before the user commits.
+    Q_INVOKABLE QString verifyLicenseCandidate(const QString& key) const {
+        XeneonString js(xeneon_license_verify_json(key.toUtf8().constData()));
+        return js.qstring();
+    }
+    // The effective entitlement from the STORED key, same JSON shape as the
+    // candidate verify (state/tier/issuedTo/id/expires). What the Manager shows.
+    Q_INVOKABLE QString licenseStatusJson() const {
+        if (!m_config) return QStringLiteral("{\"state\":\"unlicensed\",\"tier\":\"free\"}");
+        XeneonString js(xeneon_config_license_status_json(m_config));
+        return js.qstring();
+    }
+    // Store (or clear, with an empty string) the Pro key. Single-writer (B5), same
+    // as setAutostart: when the hub is connected it OWNS config.toml, so push the
+    // key over the socket and let the hub persist AND re-gate live; when offline
+    // the Manager writes directly. Either way our in-memory copy is updated first
+    // so licenseStatusJson() on the next line reflects the change. Emits
+    // licenseChanged() so the Manager UI re-reads without a manual refresh.
+    Q_INVOKABLE bool setLicenseKey(const QString& key) {
+        if (!m_config) return false;
+        const QByteArray k = key.toUtf8();
+        xeneon_config_set_license_key(m_config, key.isEmpty() ? nullptr : k.constData());
+        bool ok;
+        if (m_hubConnected) {
+            // Always send a real string field (empty string = explicit clear); the
+            // hub rejects a missing field so a malformed push can't silently wipe
+            // the licence.
+            writeMsg(QJsonObject{{"type", "setLicenseKey"}, {"key", key}});
+            ok = waitForAck(QStringLiteral("setLicenseKey"));
+        } else {
+            markSelfWrite();
+            ok = xeneon_config_save(m_config) == 0;
+        }
+        if (!ok) emit saveError(QStringLiteral("Failed to save the licence key"));
+        emit licenseChanged();
+        return ok;
+    }
+    Q_INVOKABLE bool clearLicenseKey() { return setLicenseKey(QString()); }
+
     // ── Images ──
     Q_INVOKABLE QString imagesDir() const {
         XeneonString cd(xeneon_config_dir());
@@ -427,6 +468,7 @@ signals:
     void imagesChanged();
     void screensChanged();
     void configChanged();   // config reloaded (from the hub or disk) → QML re-reads
+    void licenseChanged();  // the Pro key was set/cleared → QML re-reads the tier
     // Emitted when a persist/apply the user asked for did NOT succeed, so the QML
     // side can surface an honest error (a toast) instead of a silent no-op. The
     // C++ return values are already truthful; this makes the failure observable.

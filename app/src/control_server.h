@@ -62,6 +62,9 @@ signals:
     // same-thread (direct) slot before emit returns, so the ack is honest.
     void targetDisplayReceived(const QString& connector, const QString& model, bool* ok);
     void autostartReceived(bool enabled, bool* ok);
+    // A Pro licence key pushed from the Manager. `ok` reports whether the hub
+    // persisted it (same synchronous-ack discipline as uiStateReceived).
+    void licenseKeyReceived(const QString& key, bool* ok);
     // A client asked the hub to quit (companion Manager's Stop control).
     void shutdownRequested();
 

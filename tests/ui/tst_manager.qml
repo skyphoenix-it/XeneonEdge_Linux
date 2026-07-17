@@ -32,6 +32,22 @@ Item {
         signal imagesChanged()
         signal configChanged()
         signal screensChanged()
+        signal licenseChanged()
+        // Licence stub: `storedKey` is what setLicenseKey persists; the status
+        // reflects it. `proKeys` is the set the fake verifier accepts as Pro, so
+        // a test can assert the dialog/card react to a valid vs invalid key
+        // without a real ed25519 issuer.
+        property string storedKey: ""
+        property var proKeys: ({ "XE1.valid.pro": "Ada Lovelace" })
+        function _statusFor(k) {
+            if (proKeys[k] !== undefined)
+                return JSON.stringify({ state: "licensed", tier: "pro", issuedTo: proKeys[k] })
+            return JSON.stringify({ state: "unlicensed", tier: "free" })
+        }
+        function verifyLicenseCandidate(k) { return _statusFor(k) }
+        function licenseStatusJson() { return _statusFor(storedKey) }
+        function setLicenseKey(k) { storedKey = k; licenseChanged(); return true }
+        function clearLicenseKey() { return setLicenseKey("") }
         property var imagesList: []
         property string lastDeleted: ""
         property string lastImported: ""
@@ -531,6 +547,58 @@ Item {
             sw.toggle(); sw.toggled()
             verify(sw.checked !== before, "the switch flipped")
             compare(_store.appearance().glow, sw.checked, "toggle persisted to the store")
+        }
+
+        // ── Licensing ──
+        function findByText(txt) {
+            return findPred(win, function (x) {
+                return x && typeof x.text === "string" && x.text === txt })
+        }
+
+        function test_activating_a_valid_key_unlocks_pro_and_a_bad_key_does_not() {
+            _nav.currentIndex = 4                     // About tab hosts the licence card
+            backend.storedKey = ""; backend.licenseChanged()
+            verify(!win.isPro, "starts on the free tier")
+
+            // Open the dialog via the card's button.
+            var activate = findByText("Activate Pro")
+            verify(activate, "the free card offers 'Activate Pro'")
+            activate.clicked()
+
+            var dlg = findPred(win, function (x) {
+                return x && x.hasOwnProperty("preview") && x.hasOwnProperty("candidate") })
+            verify(dlg, "the licence dialog is present")
+            tryVerify(function () { return dlg.opened === true }, 2000)
+
+            // The dialog's content lives under its contentItem; search from there
+            // (and from win as a fallback) by the unique placeholder.
+            function findInDialog(pred) {
+                return findPred(dlg.contentItem || dlg, pred) || findPred(win, pred)
+            }
+            // A BAD key must NOT enable Activate and must NOT flip the tier.
+            var field = findInDialog(function (x) {
+                return x && typeof x.text === "string"
+                       && x.hasOwnProperty("placeholderText")
+                       && String(x.placeholderText).indexOf("XE1") === 0 })
+            verify(field, "found the key input")
+            field.text = "XE1.nope.nope"
+            var commit = findInDialog(function (x) {
+                return x && x.text === "Activate" && typeof x.enabled === "boolean" })
+            verify(commit, "found the Activate button")
+            verify(!commit.enabled, "a rejected key keeps Activate disabled")
+            verify(!win.isPro, "a rejected key does not unlock Pro")
+
+            // A VALID key enables Activate; clicking it flips the tier and the card.
+            field.text = "XE1.valid.pro"
+            tryVerify(function () { return commit.enabled === true }, 2000)
+            commit.clicked()
+            tryVerify(function () { return win.isPro === true }, 2000)
+            compare(backend.storedKey, "XE1.valid.pro", "the valid key was stored")
+            verify(!!findByText("Xeneon Edge Pro"), "the card now reads Pro")
+
+            // Removing reverts to free.
+            backend.clearLicenseKey()
+            tryVerify(function () { return win.isPro === false }, 2000)
         }
     }
 }

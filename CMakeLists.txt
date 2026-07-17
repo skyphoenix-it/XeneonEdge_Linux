@@ -99,6 +99,7 @@ add_executable(xeneon-edge-hub
     app/src/autostart.cpp
     app/src/display_match.cpp
     app/src/config_bridge.h
+    app/src/license_bridge.h
     app/src/metrics_worker.h
     app/src/timezone_bridge.h
     app/src/distro_bridge.h
