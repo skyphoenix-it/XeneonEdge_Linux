@@ -57,13 +57,16 @@ after the fix shipped). If an entry here disagrees with the code, the code wins.
   did not exist. Reset now writes it, but nothing else does — so the "canonical
   good-config backup" is still not a routine safety net. Worth deciding whether a
   save should ever produce one.
-- **The Manager half of the single-writer rule is unproven end-to-end.** Runtime
-  07 proves the *hub* keeps its half (a pushed layout is persisted by the hub,
-  survives SIGKILL+restart, and an empty push writes nothing). That the *Manager*
-  does not write `config.toml` while connected is still covered only by
-  `tst_manager_backend_sync.cpp`'s FakeHub. The Manager saves only through GUI
-  interaction and exposes no headless save hook; adding one would be product code
-  written to pass a test. This is the one real gap left in the B5 story.
+- ~~The Manager half of the single-writer rule is unproven~~ — it is proven, the
+  entry was stale. `tst_manager_backend_sync.cpp::connectedSaveIsIpcOnlyNoFileWrite`
+  drives the real `ManagerBackend` against a `FakeHub` over the actual control
+  socket, saves while connected, and asserts the push arrives over IPC AND
+  `!QFile::exists(config.toml)` — i.e. the Manager did not write the file. Verified
+  fail-on-violation 2026-07-17: reintroducing the second write in the connected
+  branch makes the C++ suite go red (1/21 failed); removing it returns to 21/21.
+  No GUI or product test-hook was needed — the backend save path is directly
+  drivable headlessly. The B5 story is closed on both halves (hub side = runtime
+  scenario 07).
 - ~~`mpris_bridge.cpp` D-Bus fan-out is uncovered — needs a session bus.~~
   **Done 2026-07-17.** The "needs a bus" framing was wrong for most of it: the
   player-choice policy, the metadata/availability rules and the dirty-check were
