@@ -1,7 +1,27 @@
 #!/usr/bin/env python3
+#
+# DANGER — this generator is STALE SCAFFOLDING, not a live source of truth.
+# It was the original bootstrap for the widget files, but they have since been
+# hand-written far beyond what it emits: of the ~30 names here, most no longer
+# exist in the repo, and the few that do (RamWidget, SensorBarWidget, ...) have
+# diverged to ~10x the size. A plain re-run REPLACES a real, hand-maintained
+# widget with a 20-line stub. That happened on 2026-07-17 — a single accidental
+# run clobbered RamWidget.qml and dropped three dead stubs into the tree.
+#
+# So it no longer overwrites anything by default: an existing file is SKIPPED
+# (loudly), and you must pass --force to replace it. If you are regenerating a
+# genuinely new widget, write the one file; do not --force the whole set.
+#
+# (AGENTS.md still says "re-run the script to regenerate" — that advice predates
+# the divergence and is unsafe now; treat this header as the correction.)
 import os
+import sys
 
-base = '/home/simon/IdeaProjects/XeneonEdge_Linux/ui/qml/widgets'
+base = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), '..', 'ui', 'qml', 'widgets')
+base = os.path.normpath(base)
+
+FORCE = '--force' in sys.argv[1:]
 
 widgets = {}
 
@@ -217,11 +237,33 @@ widgets['ViewStatsWidget.qml'] = card('System Stats','📊','''property var metr
         Text { Layout.alignment: Qt.AlignHCenter; text: '🖥 '+(metrics.cpu_core_count||1)+' cores'; font.pixelSize: 13; font.family: 'monospace'; color: theme.textSecondary }
         Text { Layout.alignment: Qt.AlignHCenter; visible: (metrics.cpu_temp_celsius||-1)>0; text: '🌡 '+(metrics.cpu_temp_celsius||0).toFixed(0)+'°C'; font.pixelSize: 12; color: theme.warning }''')
 
+created = skipped = novel = 0
 for fname, content in widgets.items():
     path = os.path.join(base, fname)
+    exists = os.path.exists(path)
+    if exists and not FORCE:
+        print(f'SKIP (exists, hand-maintained): {fname}')
+        skipped += 1
+        continue
+    if not exists and not FORCE:
+        # A name in this scaffolding that no longer exists in the repo. Of the
+        # ~30 names here, only 3 still match a real widget; the rest are ghosts
+        # of an early draft. Emitting them without --force just litters 27
+        # untracked stub files (it did, on 2026-07-17). A genuinely new widget
+        # is added by hand, not resurrected from this list.
+        novel += 1
+        continue
     with open(path, 'w') as f:
         f.write(content.strip() + '\n')
-    print(f'Created: {fname}')
+    print(f'{"OVERWROTE" if exists else "Created"}: {fname}')
+    created += 1
+if novel and not FORCE:
+    print(f'{novel} scaffolded name(s) not in the repo were NOT created '
+          f'(stale draft; use --force only if you truly want them).')
 
-print(f'\nTotal widgets created: {len(widgets)}')
+print(f'\nWrote {created}, skipped {skipped} existing.')
+if skipped and not FORCE:
+    print('Existing files were left untouched. Pass --force to overwrite them —')
+    print('but read this script\'s header first: the repo widgets have diverged far')
+    print('past this scaffolding, and --force replaces them with stubs.')
 
