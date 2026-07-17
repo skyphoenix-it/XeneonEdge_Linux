@@ -50,11 +50,16 @@ Both can auto-deliver a licence key on purchase. Two integration shapes:
 - **Simplest:** let the store deliver a purchase, and mint the key yourself from
   the order (manually or via a webhook that calls the mint tool) and e-mail it.
   Fine at low volume.
-- **Automated:** run the mint step from a Lemon Squeezy webhook (order-created →
-  mint with the buyer's name + a unique id → return the key). The seed lives on
-  that server only.
+- **Automated:** deploy the mint webhook (`tools/license-webhook`) and register it
+  with `scripts/setup-lemonsqueezy.py`. On every purchase it verifies the webhook
+  signature, mints the buyer's key (same signing code as the CLI), and e-mails it.
+  The seed lives only in that service's environment — never here, never in CI, and
+  never with anyone else. See `tools/license-webhook/README.md`.
 
-Set the price in the store's dashboard — it does not affect the app.
+Create the product (name, price, description, image) once in the Lemon Squeezy
+dashboard — it needs human input and the dashboard is the right place. The price
+does not affect the app. Point the app's in-Manager "Get Pro" button at the
+product URL.
 
 ## Issuing a key
 
