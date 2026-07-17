@@ -226,3 +226,60 @@ sudo pacman -U packaging/local/xeneon-edge-hub-1.0.0.alpha.2.r110.gd926d41-1-x86
 ```
 `sudo` is not passwordless here, so this is yours. It is a genuine upgrade
 (`vercmp` = 1) over the installed `1.0.0alpha.2-1`.
+
+---
+
+## Addendum 2 — 2026-07-17 evening (backlog drawdown)
+
+Worked the actionable backlog to the point where what remains is genuinely
+yours to decide. All merged, pushed, four workflows green.
+
+**The `expanded`-vs-size conflation is closed across all 7 remaining widgets**
+(EndOfDay/Focus/Moon/RightNow, Net/Tasks/Hydration), after Habit. Each mode-keyed
+*size* now derives from the actual box; genuine mode-checks (a header, an
+editor-vs-display split, which side peaks sit on) were kept and documented; dead
+`expanded` terms were removed. Two celebrate labels gained the missing
+wrapMode/elide. The agents documented two *honest* non-guards — sizes where the
+literal and the derived formula land on the same cap, so no test can tell them
+apart — rather than ship green-either-way guards.
+
+**A latent gauge overflow, and the sweep it triggered.** The RAM gauge's centre
+reading overran its ring when `theme.fontMono` fell back to a proportional face —
+`Layout.maximumWidth` is inert once implicitWidth exceeds it, taking HorizontalFit
+and elide down with it. Same fix as CountdownWidget: pair `preferredWidth`. A
+sweep found the identical shape at three more real sites (Kpi/Clock/Break, all
+fixed) and one non-issue (a wrapping Text, which binds the cap on its own). No
+automated guard for these: I wrote one, my own negative control passed (the value
+pre-fits by char count under a mono font), so it was inert — removed it rather
+than ship it. Verified manually under a no-mono fontconfig; the CI font blind spot
+is recorded.
+
+**Two stale backlog entries corrected against the code** (the drift this whole
+session has been about): the Manager half of the single-writer rule is NOT
+unproven — `connectedSaveIsIpcOnlyNoFileWrite` already asserts
+`!QFile::exists(config.toml)` after a connected save, and I verified it reds on
+violation (1/21) and greens on restore (21/21). And `motionRemove` is no longer
+unused — the exit-fade work wired it in.
+
+**A real footgun neutralised: `scripts/gen_widgets.py` silently overwrote
+hand-written widgets.** It bit me directly — an accidental run clobbered
+RamWidget.qml (mid-gauge-fix) and littered stale stubs. It now writes nothing by
+default (skips existing files and dead names; `--force` to override), and
+AGENTS.md's "re-run to regenerate" advice — which was the footgun's instruction
+manual — is corrected.
+
+### What is left, and why I did not do it
+- **Decisions only you can make:** the wallpaper/theme naming (is Midnight-the-
+  wallpaper meant to pair with Midnight-the-theme? — five names collide); the
+  AppImage `X-AppImage-UpdateInformation` URL contract; whether a normal save
+  should refresh `config.toml.bak`. Each changes user-facing behaviour or public
+  contracts; not mine to pick.
+- **Tracked, non-blocking:** C++-only coverage is 91.70% (a ratchet, improves as
+  logic is extracted); the CI font blind spot (a proportional-fallback overflow
+  can't reproduce under CI's DejaVu-mono). Both recorded in BACKLOG.md.
+
+### Install
+```
+sudo pacman -U packaging/local/xeneon-edge-hub-1.0.0.alpha.2.r122.g1335087-1-x86_64.pkg.tar.zst
+```
+`sudo` isn't passwordless here, so this is yours. Genuine upgrade (`vercmp` = 1).
