@@ -91,15 +91,22 @@ after the fix shipped). If an entry here disagrees with the code, the code wins.
   wrong in KIND — the requirement was generosity, not a matched pair — so it is
   now a `PillButton.minWidth` FLOOR: identical rendering today, content wins when
   wider.
-- **The `expanded`-vs-size conflation still exists in 7 more widgets**:
-  `EndOfDayWidget`, `FocusWidget`, `MoonWidget`, `RightNowWidget`, `NetWidget`,
-  `TasksWidget`, and Hydration's own `celebrateLabel` (line 130, `expanded ? 40 :
-  20`, with no `wrapMode`/`elide`). `expanded` is the modal overlay, not a size.
-  Habit's was fixed in `b7ef100`; these were left to keep that task bounded.
-  Worth knowing before touching them: **`full` is not a full screen** — the
-  Dashboard hosts the config preview in a pane (~941×456 landscape / ~656×980
-  portrait), and the old literals both ignored that box and never noticed when W5
-  shrank the pane to 38%.
+- ~~The `expanded`-vs-size conflation in 7 more widgets~~ — **FIXED** across
+  EndOfDay/Focus/Moon/RightNow (`92a3d2e`) and Net/Tasks/Hydration (`e4db92b`),
+  after Habit (`b7ef100`). Each mode-keyed SIZE now derives from the room; genuine
+  mode-checks (a `showHeader`, an editor-vs-display view, a composition choice
+  like which side peaks sit on) were deliberately KEPT and documented as such;
+  several `expanded` terms were outright dead code and removed. `celebrateLabel`
+  in Tasks and Hydration gained the missing `wrapMode`/`elide`/bounded width.
+  Two honest non-guards were documented rather than faked: Tasks `rowFont` and its
+  empty-state line both hit the same cap under the literal and the derived
+  formula, so no test can tell them apart — the agents left a comment saying so
+  instead of a green-either-way guard. **`full` is not a full screen** (the config
+  preview is a pane ~941×456 / ~656×980) is now encoded in the tests.
+- **Two `expanded`-keyed layouts LEFT unfixed, by scope** (documented in-file):
+  HydrationWidget's expanded ColumnLayout is built from literals (110px count,
+  88px cells) for a screen that doesn't exist and overruns the 456px landscape
+  pane — a redesign, not a ternary swap. Worth a follow-up.
 - ~~`RamGbOverflow::test_gb_centre_text_fits_ring_interior` fails under a
   DejaVu-only fontconfig~~ — **FIXED** (`18c927f`). It was the real bug, not an
   env quirk: with `theme.fontMono` falling back to a proportional face the ring's
@@ -178,6 +185,13 @@ after the fix shipped). If an entry here disagrees with the code, the code wins.
   is not instrumented at all — `mpris_bridge.cpp`'s 279 uncovered lines were in
   nobody's denominator until 2026-07-17. Raise the ratchet as coverage improves;
   never lower it.
+
+- ~~`scripts/gen_widgets.py` silently overwrites hand-written widgets~~ —
+  **FIXED** (`58a65ee`). It wrote every file with `open(path,'w')` unconditionally;
+  a plain run replaced real ~92-line widgets with 20-line stubs (it did, once, to
+  RamWidget). Now skips existing files and dead names by default; only `--force`
+  overwrites. AGENTS.md's "re-run to regenerate" advice was corrected — it was the
+  footgun's instruction manual.
 
 ## Test-integrity debt (opened 2026-07-16)
 
