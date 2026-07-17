@@ -74,6 +74,19 @@ if [ -d "$SRC_ROOT/ui/qml" ]; then
   MODULES=$(grep -rhoE '^[[:space:]]*import Qt[A-Za-z0-9.]+' \
               "$SRC_ROOT/ui/qml" "$SRC_ROOT/manager" 2>/dev/null \
             | awk '{print $2}' | grep -v '^QtTest$' | sort -u)
+  # ANTI-VACUITY: an empty MODULES makes the loop below iterate zero times, so
+  # RC stays 0 and this prints SMOKE PASS having verified NOTHING. This app
+  # cannot import zero Qt modules — an empty list means the grep or SRC_ROOT
+  # broke, not that the package is clean. That distinction matters: this check is
+  # the only reason we know the Ubuntu .deb needs its nine qml6-module-* Depends
+  # (dpkg-shlibdeps cannot see dlopened QML plugins), and a launch alone proves
+  # nothing because widgets load lazily.
+  MODULE_COUNT=$(printf '%s\n' $MODULES | grep -c . || true)
+  if [ "${MODULE_COUNT:-0}" -eq 0 ]; then
+    echo "FAIL: derived ZERO QML modules from $SRC_ROOT — the scan is broken."
+    echo "      (this app imports many; an empty list is never a clean result)"
+    RC=1
+  fi
   for m in $MODULES; do
     p="$QML_DIR/$(echo "$m" | tr '.' '/')"
     if [ -f "$p/qmldir" ]; then
@@ -83,6 +96,7 @@ if [ -d "$SRC_ROOT/ui/qml" ]; then
       RC=1
     fi
   done
+  [ "$RC" -eq 0 ] && echo "--- verified ${MODULE_COUNT} imported QML module(s) are installed"
   [ "$RC" -ne 0 ] && echo "FAIL: an imported QML module is not installed by the package's dependencies"
 else
   echo "--- skipping module check (sources not present; set SRC_ROOT to enable)"
