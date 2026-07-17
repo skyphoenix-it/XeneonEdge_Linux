@@ -91,7 +91,31 @@ else
     echo "==> Hub running; no control socket yet (Manager may not connect)" >&2
 fi
 
+# Restart the Manager too, if it is running. It is a GUI tool, not a persistent
+# service, so we only relaunch one when we stopped one — we do NOT pop an
+# unwanted window on someone who did not have it open. Unlike the hub it owns no
+# config while connected (the hub is the single writer), so a plain SIGTERM is
+# safe; we still wait for a clean exit before relaunching so the new process
+# never races a dying one for the control socket.
 if pgrep -x xeneon-edge-manager >/dev/null; then
-    echo "    NOTE: the Manager is running the OLD build — restart it when convenient."
+    echo "==> Restarting the Manager (it was open — bringing it to the new build)"
+    pkill -TERM -x xeneon-edge-manager
+    for _ in $(seq 1 20); do
+        pgrep -x xeneon-edge-manager >/dev/null || break
+        sleep 0.5
+    done
+    if pgrep -x xeneon-edge-manager >/dev/null; then
+        echo "    Manager did not exit within 10s; sending SIGKILL (it holds no"
+        echo "    unsaved state — the hub owns config while connected)." >&2
+        pkill -KILL -x xeneon-edge-manager || true
+        sleep 1
+    fi
+    setsid /usr/bin/xeneon-edge-manager >/dev/null 2>&1 &
+    sleep 1
+    if pgrep -x xeneon-edge-manager >/dev/null; then
+        echo "==> Manager running on the new build"
+    else
+        echo "    Manager did not come back up — launch xeneon-edge-manager yourself." >&2
+    fi
 fi
-echo "==> Done: $(pacman -Q xeneon-edge-hub)"
+echo "==> Done: $(pacman -Q xeneon-edge-hub) — hub and (if it was open) Manager both on the new build"
