@@ -15,18 +15,24 @@ import QtQuick.Layouts
 //   • wide            — the grid BESIDE the count/controls column (1x0.5 portrait
 //                       is 696x409; stacked, that is three cramped bands).
 //   • tall            — the grid above a comfortable count + controls.
-//   • full (overlay)  — the big block with tappable glasses.
+//   • full (overlay)  — the big block with tappable glasses, sized by the pane
+//                       it is actually given (see the ovl* derivation below).
 //
-// KNOWN DEFECT, deliberately left (it is a redesign, not a sizing pass): the
-// expanded ColumnLayout at the bottom of this file is built from literals — a
-// 110px count, 88px glass cells, a 42px droplet — chosen for a "full screen"
-// that does not exist. "full" is NOT a full screen: Dashboard hosts the overlay's
-// live preview in a pane beside the config form, ~941x456 in landscape and
-// ~656x980 stacked in portrait. Summed at the default goal of 8 those literals
-// ask for roughly 575px of height inside a 456px landscape pane, so the centred
-// column overruns it top and bottom. The literals in there are mode-keyed by
-// CONTAINMENT (`visible: w.expanded`) rather than by a ternary, which is why they
-// read as innocent. Everything ABOVE this line is sized by its box.
+// FIXED (was a KNOWN DEFECT): the expanded ColumnLayout at the bottom of this
+// file used to be built from literals — a 110px count, 88px glass cells, a 42px
+// droplet, spacingXl between ~6 rows — chosen for a "full screen" that does not
+// exist. "full" is NOT a full screen: Dashboard hosts the overlay in a pane
+// beside the config form, ~941x456 in landscape and ~656x980 stacked in portrait,
+// and the real device is 2560x720 landscape. Summed at goal 8 those literals
+// asked for ~612px (812 at goal 20) and overran the 456-tall landscape pane at
+// both ends — the count clipped off the top and the goal controls off the bottom,
+// unreachably, at any goal past ~12. The overlay's hero sizes are now DERIVED
+// from the pane (ovlCountPx / ovlCell / ovlDropPx / ovlSpacing), like every tile
+// class above: a short pane shrinks the count and glasses so the column fits
+// without scrolling; a tall pane keeps the generous look (portrait still sums to
+// the original ~612px at goal 8). The literals were mode-keyed by CONTAINMENT
+// (`visible: w.expanded`) rather than by a ternary, which is why they read as
+// innocent. Everything ABOVE this line was already sized by its box.
 WidgetChrome {
     id: w
     property var metrics: ({})
@@ -254,40 +260,73 @@ WidgetChrome {
         }
     }
 
+    // ── Overlay room derivation (fit) ────────────────────────────────────────
+    // "full" is NOT a full screen. Dashboard hosts the overlay in a live-preview
+    // pane (~941x456 landscape / ~656x980 portrait) and the real device is
+    // 2560x720 landscape — none of them the tall screen the old 110px count /
+    // 88px cell / spacingXl literals imagined. Those summed to ~612px at goal 8
+    // (812 at goal 20) and overran the 456-tall landscape pane at BOTH ends,
+    // clipping the count off the top and the goal controls — the overlay's whole
+    // point — off the bottom, unreachably, at any goal past ~12. So every hero
+    // size here now scales to the pane. The two −/+ control rows are PillButtons
+    // (touchSecondary tall at every size, like the rest of this widget) and are
+    // the fixed floor; the count, the glasses and the air scale around them so
+    // the column fits without scrolling. A tall pane keeps the generous look
+    // (scale caps at 1); a short one shrinks the count and the glasses instead of
+    // spilling. The glass cell is `sqrt(area-budget / N) − spacing`: fixing the
+    // grid's total AREA to a bounded share of the box makes it hold ~that share
+    // of the height whatever the goal, so 20 glasses fill more columns rather
+    // than a taller stack. The Flow wraps by width, so the column count follows.
+    readonly property real ovlColW: Math.min(width, 600)
+    readonly property real ovlInnerW: ovlColW - 2 * theme.spacingLg
+    readonly property real ovlScale: Math.max(0.5, Math.min(1.0, height / 720))
+    readonly property real ovlCountPx: Math.round(Math.max(42, Math.min(110 * ovlScale, height * 0.14)))
+    readonly property real ovlSubPx: Math.round(Math.max(12, Math.min(20, ovlCountPx * 0.19)))
+    readonly property real ovlVolPx: Math.round(Math.max(11, Math.min(16, ovlCountPx * 0.15)))
+    readonly property real ovlSpacing: Math.round(Math.max(5, Math.min(theme.spacingXl, height * 0.026)))
+    readonly property int ovlGlassN: Math.max(w.goal, w.count)
+    readonly property real ovlCellSpacing: Math.round(Math.max(4, theme.spacingMd * ovlScale))
+    readonly property real ovlCell: Math.floor(Math.max(22, Math.min(
+        Math.sqrt(height * 0.18 * ovlInnerW / ovlGlassN) - ovlCellSpacing, height * 0.16, 88)))
+    readonly property real ovlDropPx: Math.round(ovlCell * 0.48)
+
     // ── Expanded: one large, centered, cohesive block ──
     ColumnLayout {
         anchors.centerIn: parent
-        width: Math.min(parent.width, 600)
+        width: w.ovlColW
         visible: w.expanded
-        spacing: theme.spacingXl
+        spacing: w.ovlSpacing
 
         Text { Layout.alignment: Qt.AlignHCenter; text: w.count + " / " + w.goal
-            font.pixelSize: 110; font.bold: true; font.family: theme.fontMono
+            font.pixelSize: Math.round(w.ovlCountPx); font.bold: true; font.family: theme.fontMono
             color: w.count >= w.goal ? theme.success : w.effAccent }
-        Text { Layout.alignment: Qt.AlignHCenter; Layout.topMargin: -theme.spacingMd
+        Text { Layout.alignment: Qt.AlignHCenter; Layout.topMargin: -Math.round(theme.spacingMd * w.ovlScale)
             text: w.count > w.goal ? ("Overachiever! +" + (w.count - w.goal) + " 💪")
                   : (w.count === w.goal ? "Daily goal reached! 🎉" : "glasses of water today")
-            font.pixelSize: 20; color: theme.textSecondary }
-        Text { Layout.alignment: Qt.AlignHCenter; Layout.topMargin: -theme.spacingLg
+            font.pixelSize: Math.round(w.ovlSubPx); color: theme.textSecondary }
+        Text { Layout.alignment: Qt.AlignHCenter; Layout.topMargin: -Math.round(theme.spacingLg * w.ovlScale)
             text: w.volumeText() + " today" + (w.streakDisplay > 1 ? "   ·   🔥 " + w.streakDisplay + "-day streak" : "")
-            font.pixelSize: 16; color: theme.textTertiary }
+            font.pixelSize: Math.round(w.ovlVolPx); color: theme.textTertiary }
 
         Flow {
-            Layout.alignment: Qt.AlignHCenter; Layout.fillWidth: true
-            spacing: theme.spacingMd
+            Layout.alignment: Qt.AlignHCenter
+            // Pinned to the inner width (not fillWidth), so the cell arithmetic
+            // above and the Flow's own wrapping agree on how many columns fit.
+            Layout.preferredWidth: w.ovlInnerW
+            spacing: w.ovlCellSpacing
             Repeater {
                 // Render goal cells, plus any extra "bonus" glasses when overfilled.
-                model: Math.max(w.goal, w.count)
+                model: w.ovlGlassN
                 delegate: Rectangle {
                     required property int index
                     readonly property bool filled: index < w.count
                     readonly property bool bonus: index >= w.goal
-                    width: 88; height: 88; radius: theme.radiusMd
+                    width: w.ovlCell; height: w.ovlCell; radius: theme.radiusMd
                     color: filled ? Qt.rgba(w.effAccent.r, w.effAccent.g, w.effAccent.b, bonus ? 0.28 : 0.18) : "transparent"
                     border.width: 2
                     border.color: filled ? (bonus ? theme.success : w.effAccent) : theme.cardBorder
                     Text { anchors.centerIn: parent; text: filled ? "💧" : "○"
-                        font.pixelSize: 42; opacity: filled ? 1 : 0.4 }
+                        font.pixelSize: Math.round(w.ovlDropPx); opacity: filled ? 1 : 0.4 }
                     MouseArea { anchors.fill: parent; onClicked: w.set(index + 1) }
                 }
             }
@@ -306,7 +345,7 @@ WidgetChrome {
         // ever exceeds it. They are NOT a matched pair and never were: 170 != 240,
         // and nothing in the column aligns to either number.
         RowLayout {
-            Layout.alignment: Qt.AlignHCenter; Layout.topMargin: theme.spacingMd; spacing: theme.spacingLg
+            Layout.alignment: Qt.AlignHCenter; Layout.topMargin: Math.round(theme.spacingMd * w.ovlScale); spacing: theme.spacingLg
             PillButton { label: "Remove"; glyph: "−"; minWidth: 170; onClicked: w.set(w.count - 1) }
             PillButton { label: "Add a glass"; glyph: "💧"; primary: true; tint: w.effAccent
                 minWidth: 240; onClicked: w.set(w.count + 1) }
