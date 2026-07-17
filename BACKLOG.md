@@ -107,15 +107,19 @@ after the fix shipped). If an entry here disagrees with the code, the code wins.
   formula, so no test can tell them apart — the agents left a comment saying so
   instead of a green-either-way guard. **`full` is not a full screen** (the config
   preview is a pane ~941×456 / ~656×980) is now encoded in the tests.
-- **HydrationWidget's expanded overlay overflows its box — IN PROGRESS.** Measured
-  2026-07-17 (anchoring on the 110px count text, mapping the ColumnLayout into its
-  host): the overlay is **612px** tall at goal 8, **812px** at goal 20, built from
-  fixed literals. In the 941×456 landscape preview pane it spills off BOTH ends
-  (top −53, bottom 559 at goal 8); and it overruns the real device's 720px
-  landscape screen too at goal ≳12 — the count clips off the top, the "Daily goal"
-  controls off the bottom (unreachable). Portrait panes fit. A room-derivation fix
-  is under way (scale the count/cells/spacing to the box height, both orientations).
-  Not a ternary swap — a genuine responsive redesign of the overlay.
+- ~~HydrationWidget's expanded overlay overflows its box~~ — **FIXED** (`67052c6`).
+  Was 612px (goal 8) / 812px (goal 20) of fixed literals spilling off the 456px
+  preview pane AND the real 720px landscape screen (count clipped off the top, goal
+  controls off the bottom). Now room-derived: an `ovlScale` from the box height
+  drives the count/air, and the glass grid uses a closed-form AREA budget (~18% of
+  the box) so 20 glasses fill more columns instead of a taller stack. Post-fix it
+  fits every case (941×456, 2560×720, both goals) while portrait keeps its generous
+  look. The agent caught a subtlety my repro missed: the real Dashboard overlay
+  sets `showHeader=false` (Dashboard.qml:1531), so the guard measures the true
+  on-device room. Guard proven fail-on-violation (restoring the literals reds it,
+  and I re-verified independently: reverting just count+cell → top=-9 on the pane,
+  top=-26 on the device). Not verified on the physical panel — margins left ≥11px
+  to absorb font-metric differences.
 - ~~`RamGbOverflow::test_gb_centre_text_fits_ring_interior` fails under a
   DejaVu-only fontconfig~~ — **FIXED** (`18c927f`). It was the real bug, not an
   env quirk: with `theme.fontMono` falling back to a proportional face the ring's
