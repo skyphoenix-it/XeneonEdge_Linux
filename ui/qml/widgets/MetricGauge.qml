@@ -88,6 +88,13 @@ Item {
                     // The system tiles only ever pass short readings ("42%", "N/A"),
                     // which never reach the cap; an HTTP/JSON gauge shows arbitrary
                     // values ("128ms"), which used to spill out over the ring.
+                    // `Layout.maximumWidth` ALONE is a cap the layout ignores when the
+                    // Text's implicitWidth already exceeds it — the Text keeps its
+                    // natural width, and with it `HorizontalFit` and `elide` both go
+                    // inert, because each needs a real box to fit INTO. Pairing it with
+                    // `preferredWidth` forces the layout to allocate exactly that box.
+                    // Same fix as CountdownWidget's overflowing number.
+                    Layout.preferredWidth: Math.max(24, g._ringW - 2 * ring.thickness - 8)
                     Layout.maximumWidth: Math.max(24, g._ringW - 2 * ring.thickness - 8)
                     font.pixelSize: Math.min(g._ringW * 0.34, g.expanded ? 108 : g.bigMax)
                     fontSizeMode: Text.HorizontalFit
@@ -100,6 +107,10 @@ Item {
                     Layout.alignment: Qt.AlignHCenter
                     visible: g.sub.length > 0
                     text: g.sub
+                    // Paired for the same reason as the value above: maximumWidth
+                    // alone is ignored once implicitWidth exceeds it, taking
+                    // HorizontalFit and elide down with it.
+                    Layout.preferredWidth: Math.max(24, g._ringW - 2 * ring.thickness - 8)
                     Layout.maximumWidth: Math.max(24, g._ringW - 2 * ring.thickness - 8)
                     // Scale gently with the ring so a big tall-tile ring doesn't
                     // caption itself in 14px dust.
