@@ -53,20 +53,21 @@ const KEY_PREFIX: &str = "XE1";
 
 /// The Ed25519 public key that licences are verified against.
 ///
-/// **PLACEHOLDER — no licence keypair has been issued yet.** All-zero means
-/// "unissued", and [`issuer_key`] treats it as such: while this constant is
-/// zero, *every* key verifies as [`Tier::Free`] via
-/// [`LicenseError::NoIssuerKey`]. That is the correct behaviour today, since no
-/// valid licence exists to honour, and it is fail-closed by construction rather
-/// than by comment — an all-zero Ed25519 key is a small-order point that must
-/// never be trusted, so it is rejected before it can be used, not after.
+/// ARMED (2026-07-17): the real issuer public key is embedded below. The private
+/// seed lives only in the owner's password manager — it is NOT in this repo, NOT
+/// the project's GPG release key (`93CDC77EACF98990`), and never touches CI.
+/// Licence signing is fully offline (`tools/license-tool`).
 ///
-/// To go live, replace this with the 32 raw bytes of the licence signing key's
-/// public half. That keypair does NOT exist yet and is NOT the project's GPG
-/// release key (`93CDC77EACF98990`) — that one signs release artifacts, and
-/// reusing it would put a licence-minting capability on the same key that has
-/// to be usable in release CI. Licence signing stays offline.
-const ISSUER_PUBLIC_KEY: [u8; 32] = [0u8; 32];
+/// The all-zero form is kept commented as the "unissued" sentinel: [`issuer_key`]
+/// still returns `None` for all-zero (a small-order point that must never be
+/// trusted), so if this ever regresses to zeros the app fails CLOSED — every
+/// licence becomes free — rather than trusting a bad key. `production_issuer_key_
+/// is_armed_and_valid` guards against that regression.
+//const ISSUER_PUBLIC_KEY: [u8; 32] = [0u8; 32];
+const ISSUER_PUBLIC_KEY: [u8; 32] = [
+    82, 190, 225, 48, 160, 218, 44, 176, 68, 219, 18, 251, 105, 106, 130, 233, 54, 157, 51, 220,
+    45, 28, 54, 226, 250, 16, 76, 43, 181, 177, 118, 89,
+];
 
 /// What a licence unlocks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -705,26 +706,36 @@ mod tests {
         assert_eq!(st.tier(), Tier::Free);
     }
 
-    // ── The production issuer is a placeholder ───────────────────────────────
+    // ── The production issuer is ARMED ───────────────────────────────────────
+    // (Was the "still a placeholder" release guard. The real issuer public key
+    //  was embedded 2026-07-17; these now assert the armed state instead.)
 
     #[test]
-    fn production_issuer_key_is_still_the_placeholder() {
-        // Guards the release: when the real key is embedded this test fails and
-        // must be deleted along with the two below, which encode "unissued".
-        assert_eq!(ISSUER_PUBLIC_KEY, [0u8; 32]);
-        assert!(issuer_key().is_none());
+    fn production_issuer_key_is_armed_and_valid() {
+        // The real key is embedded — NOT the all-zero placeholder — and parses as
+        // a well-formed Ed25519 verifying key. If this ever reverts to zeros,
+        // every licence silently becomes free; this is the guard against that.
+        assert_ne!(
+            ISSUER_PUBLIC_KEY, [0u8; 32],
+            "the issuer key must be armed, not the placeholder"
+        );
+        assert!(
+            issuer_key().is_some(),
+            "the embedded key must be a valid Ed25519 point"
+        );
     }
 
     #[test]
-    fn while_unissued_every_key_including_a_well_formed_one_is_free() {
-        let key = mint(TEST_SEED, &pro_payload(None));
-        assert_eq!(
-            verify_at(&key, NOW),
-            Status::Unlicensed(LicenseError::NoIssuerKey)
-        );
-        assert_eq!(verify_at(&key, NOW).tier(), Tier::Free);
-        assert_eq!(verify(&key).tier(), Tier::Free);
+    fn a_key_from_a_different_issuer_does_not_unlock_pro() {
+        // Now that the real key is armed, a key signed by ANY other seed (here the
+        // test seed — the real one is secret and never in the repo) must fail to
+        // verify and stay Free. Arming must not make a foreign key trusted.
+        let foreign = mint(TEST_SEED, &pro_payload(None));
+        assert_eq!(verify_at(&foreign, NOW).tier(), Tier::Free);
+        assert_eq!(verify(&foreign).tier(), Tier::Free);
+        // And the trivial cases remain Free.
         assert_eq!(verify("").tier(), Tier::Free);
+        assert_eq!(verify("XE1.garbage.garbage").tier(), Tier::Free);
     }
 
     #[test]
