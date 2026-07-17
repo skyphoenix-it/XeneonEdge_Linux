@@ -246,6 +246,33 @@ Item {
             verify(Qt.colorEqual(f, theme.cardBackground), "non-decorative themes use fully-opaque cards")
         }
 
+        // The Glassiness slider must VISIBLY do something even with no wallpaper —
+        // the long-standing "slider does nothing" report. The fill can't carry it
+        // (lightening a dark card breaks accent contrast; see the WCAG gates), so
+        // the visible cue is the border rim-light + top sheen, which more glass
+        // brightens. Guards that regression.
+        function test_glass_brightens_border_and_sheen() {
+            theme.applyTheme("dark")   // decorative, flat dark page
+            theme.glassOpacity = 0.0
+            var b0 = _snap(theme.cardBorderGlass); var s0 = theme.cardSheen
+            theme.glassOpacity = 1.0
+            var b1 = _snap(theme.cardBorderGlass); var s1 = theme.cardSheen
+            function lum(c) { return 0.299 * c.r + 0.587 * c.g + 0.114 * c.b }
+            verify(lum(b1) > lum(b0) + 0.05, "more glass → a visibly brighter card border")
+            verify(s1 > s0 + 0.05, "more glass → a stronger top sheen")
+            // The fill still frosts (alpha drops) so a wallpaper reads through.
+            theme.glassOpacity = 0.0; var a0 = theme.cardFillColor.a
+            theme.glassOpacity = 1.0; var a1 = theme.cardFillColor.a
+            verify(a1 < a0, "more glass → a more translucent fill")
+            theme.glassOpacity = 0.55
+        }
+
+        function test_glass_border_solid_when_not_decorative() {
+            theme.applyTheme("high_contrast")
+            verify(Qt.colorEqual(theme.cardBorderGlass, theme.cardBorder),
+                   "high contrast keeps its solid border regardless of glass")
+        }
+
         // ── Category colours are stable across theme switches ────────────────
         function test_category_colors_stable() {
             var before = [theme.catSystem, theme.catProductivity, theme.catInfo,

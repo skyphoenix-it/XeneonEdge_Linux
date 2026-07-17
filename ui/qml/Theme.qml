@@ -9,7 +9,7 @@ import QtQuick
 QtObject {
     id: t
 
-    property real glassOpacity: 0.6
+    property real glassOpacity: 0.55
     property bool showWidgetGlow: false
     property bool reduceMotion: false
     property string accentName: "blue"
@@ -168,6 +168,12 @@ QtObject {
         FontLoader { source: t._fontsDir + "Lexend-Regular.ttf" }
     readonly property FontLoader lexendBoldLoader:
         FontLoader { source: t._fontsDir + "Lexend-Bold.ttf" }
+    // Brand wordmark face (Chakra Petch, OFL) — close free stand-in for the
+    // SKYPhoenix IT logo lettering. Used only for the "EdgeHub" lockup.
+    readonly property FontLoader brandLoader:
+        FontLoader { source: t._fontsDir + "ChakraPetch-SemiBold.ttf" }
+    readonly property FontLoader brandBoldLoader:
+        FontLoader { source: t._fontsDir + "ChakraPetch-Bold.ttf" }
 
     // Family tokens resolve through the loaders so a widget gets the REAL
     // loaded family name; the literal-name fallback only matters if the
@@ -178,6 +184,11 @@ QtObject {
     readonly property string fontFamilyLexend:
         lexendLoader.status === FontLoader.Ready
             ? lexendLoader.name : "Lexend"
+    // The brand wordmark family. Falls back to the geometric system stack if the
+    // bundled face is somehow missing, so the lockup never renders in a serif.
+    readonly property string fontBrand:
+        brandLoader.status === FontLoader.Ready
+            ? brandLoader.name : "Chakra Petch, Rajdhani, Saira, sans-serif"
 
     // User-facing font preference: "system" (default — the product's look) |
     // "hyperlegible" | "lexend". Wires the UI family token (fontDisplay) so
@@ -193,16 +204,40 @@ QtObject {
 
     property real glass: glassOpacity
     property bool glow: showWidgetGlow
-    // Card surface alpha. Higher glassOpacity → more translucent so the page
-    // backdrop / wallpaper reads THROUGH the cards (frosted-glass look), not just
-    // in the gaps between them. Range ~0.22 (max glass) .. 0.84 (opaque).
-    // High-contrast forces fully opaque cards for legibility.
-    function cardFill() {
-        if (!decorative)
-            return cardBackground
-        return Qt.rgba(cardBackground.r, cardBackground.g, cardBackground.b,
-                       0.22 + (1.0 - glassOpacity) * 0.62)
-    }
+    // Widget-card FILL, as a NOTIFIABLE property so every card repaints the instant
+    // glassOpacity changes. (The old cardFill() was a plain function; a
+    // function-call binding is the one appearance token whose re-evaluation on
+    // change isn't guaranteed — this removes that doubt.) Higher glassOpacity →
+    // more translucent so a wallpaper / animated backdrop reads THROUGH the cards
+    // (frosted-glass look). Range ~0.22 (max glass) .. 0.84 (opaque). The RGB is
+    // deliberately left at cardBackground: lightening the fill to make glass
+    // "visible" on a flat dark page would close the gap to mid-tone accents (e.g.
+    // Fedora's navy) below the 3:1 WCAG non-text bar. The VISIBLE glassiness cue
+    // lives on the border + sheen instead (see cardBorderGlass and WidgetChrome),
+    // which no contrast gate constrains. High-contrast forces fully opaque cards.
+    readonly property color cardFillColor:
+        !decorative
+            ? cardBackground
+            : Qt.rgba(cardBackground.r, cardBackground.g, cardBackground.b,
+                      0.22 + (1.0 - glassOpacity) * 0.62)
+    // Back-compat shim: existing call sites use cardFill(); both resolve here.
+    function cardFill() { return cardFillColor }
+
+    // Card BORDER, brightened with glassOpacity — this is what makes the slider
+    // visibly DO something on the common flat-dark case, where the fill alone
+    // couldn't change perceptibly without breaking accent contrast. More glass →
+    // a brighter "rim light" frosty edge (up to ~45% toward white), the hallmark
+    // of a glass surface. Decoupled from every legibility gate (nothing measures
+    // contrast against the border). High-contrast keeps its solid white border.
+    readonly property color cardBorderGlass:
+        !decorative
+            ? cardBorder
+            : Qt.rgba(cardBorder.r + (1.0 - cardBorder.r) * glassOpacity * 0.45,
+                      cardBorder.g + (1.0 - cardBorder.g) * glassOpacity * 0.45,
+                      cardBorder.b + (1.0 - cardBorder.b) * glassOpacity * 0.45, 1)
+    // Strength of the card's top-edge frosted highlight, also scaling with glass
+    // (0.04 → ~0.16 white). A second visible cue that reads as "more glass".
+    readonly property real cardSheen: decorative ? (0.04 + glassOpacity * 0.12) : 0.0
 
     property int motionPage: effectiveReduceMotion ? 0 : 250
     property int motionAdd: effectiveReduceMotion ? 0 : 200

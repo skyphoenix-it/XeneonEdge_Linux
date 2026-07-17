@@ -11,5 +11,11 @@
         <file alias="AtkinsonHyperlegible-Bold.ttf">fonts/AtkinsonHyperlegible-Bold.ttf</file>
         <file alias="Lexend-Regular.ttf">fonts/Lexend-Regular.ttf</file>
         <file alias="Lexend-Bold.ttf">fonts/Lexend-Bold.ttf</file>
+        <!-- Brand wordmark face. Chakra Petch (OFL 1.1) is a close free stand-in
+             for the SKYPhoenix IT logo lettering (squared, angular, cut terminals).
+             Used only for the "EdgeHub" lockup; swap in the real brand font later
+             by replacing these files. -->
+        <file alias="ChakraPetch-SemiBold.ttf">fonts/ChakraPetch-SemiBold.ttf</file>
+        <file alias="ChakraPetch-Bold.ttf">fonts/ChakraPetch-Bold.ttf</file>
     </qresource>
 </RCC>

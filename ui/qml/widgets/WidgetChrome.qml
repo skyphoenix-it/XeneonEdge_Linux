@@ -92,9 +92,12 @@ Item {
         visible: !chrome.chromeless
         anchors.fill: parent
         radius: theme.radiusLg
-        color: theme.cardFill()
+        color: theme.cardFillColor
         border.width: theme.cardBorderWidth
-        border.color: theme.cardBorder
+        // Glass-driven rim light: the border brightens with the Glassiness slider
+        // (theme.cardBorderGlass), so the control has a clear, contrast-safe
+        // effect even on a flat dark page.
+        border.color: theme.cardBorderGlass
         Behavior on border.color { ColorAnimation { duration: theme.motionFast } }
         clip: true
 
@@ -111,14 +114,16 @@ Item {
             running: !theme.effectiveReduceMotion
         }
 
-        // Diagonal glass gradient
+        // Diagonal glass gradient. The top frosted highlight scales with the
+        // Glassiness slider (theme.cardSheen) so more glass reads as a stronger
+        // sheen — the second visible cue alongside the brightened border.
         Rectangle {
             visible: theme.decorative
             anchors.fill: parent
             radius: parent.radius
             gradient: Gradient {
                 orientation: Gradient.Vertical
-                GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, 0.05) }
+                GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, theme.cardSheen) }
                 GradientStop { position: 0.5; color: Qt.rgba(1, 1, 1, 0.0) }
                 GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, 0.10) }
             }
