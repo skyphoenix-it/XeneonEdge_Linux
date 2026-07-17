@@ -113,11 +113,13 @@ after the fix shipped). If an entry here disagrees with the code, the code wins.
   centre reading rendered 265px into a 227px interior. `Layout.maximumWidth` alone
   is inert once implicitWidth exceeds it (and takes HorizontalFit + elide with it);
   paired with `preferredWidth` it binds. Both gauge texts fixed.
-- **The identical inert-cap shape is still latent at BreakWidget.qml:267,281,
-  ClockWidget.qml:177 and KpiWidget.qml:290** — `Layout.maximumWidth` + a
-  fit/elide that depends on it, with no paired `preferredWidth`. Found by sweep
-  2026-07-17; none is covered by a test, so each is a silent overflow waiting for
-  a wide or missing font. Left unfixed to keep the gauge fix bounded.
+- ~~The identical inert-cap shape latent at BreakWidget/ClockWidget/KpiWidget~~
+  — **FIXED** the three real ones (`KpiWidget:291`, `ClockWidget:178`,
+  `BreakWidget:282`); `BreakWidget:268` was correctly a non-issue (it WRAPS, which
+  binds the cap on its own). No automated guard: verified under a no-mono
+  fontconfig, but un-guardable in the default DejaVu-mono suite because the value
+  pre-fits by char count — a guard there is inert either way (I wrote one, my
+  negative control passed, I removed it). This is the CI font blind spot below.
 - **CI has a font blind spot for this class.** CI installs `fonts-dejavu-core`,
   which INCLUDES DejaVu Sans Mono, so a `theme.fontMono`-fallback overflow (the
   gauge bug above) does NOT reproduce in CI — only on a machine whose mono font is
@@ -139,8 +141,8 @@ after the fix shipped). If an entry here disagrees with the code, the code wins.
   the cheap fix is UI disambiguation + honest copy about the pairing. **Decide the
   intent first** (is Midnight-the-wallpaper meant to go with Midnight-the-theme?);
   it is a copy question, not an engineering one.
-- **`Theme.qml:209` defines `motionRemove: 150` and NOTHING uses it.** The token
-  for the missing exit fade already exists. Verified 2026-07-17.
+- ~~`Theme.qml:209` `motionRemove` is unused~~ — now driving the Dashboard exit
+  fade (`Dashboard.qml:764`) since the W3 exit-fade work landed.
 - **AppImage zsync update path: audited 2026-07-17. It does not work today, and
   never has.** Still an **RC exit criterion**. What the audit established:
   - **No release has ever shipped an AppImage or a `.zsync`.** alpha.1 and
