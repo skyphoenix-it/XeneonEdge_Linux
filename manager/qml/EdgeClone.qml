@@ -362,7 +362,9 @@ Item {
         id: frame
         anchors.centerIn: parent
         transformOrigin: Item.Center
-        width: 420
+        // Frame follows the screen's intrinsic size (which follows orientation), so a
+        // landscape page draws wide instead of overflowing a fixed portrait frame.
+        width: screen.width + 16
         height: screen.height + 16
         // Scale the entire device so the full page is visible at once. Capped so a
         // short page doesn't upscale to blurriness.
@@ -373,19 +375,21 @@ Item {
         Rectangle {
             id: screen
             anchors.centerIn: parent
-            width: parent.width - 16
-            // The Edge's real 2560x720 aspect, extended when the page runs longer
-            // than one screen. `_deviceAspect` is what makes a cell here the same
-            // SHAPE as a cell on the panel — a size's aspect is the one thing a clone
-            // at a different pixel scale can still get wrong, and it is exactly what
-            // the widget authors judge their `sizes` declarations against.
+            // The Edge's real 2560x720 aspect, extended when the page runs longer than
+            // one screen. `_deviceAspect` makes a cell here the same SHAPE as a cell on
+            // the panel — the one thing a clone at a different pixel scale can get
+            // wrong, and exactly what widget authors judge their `sizes` against.
             readonly property real _deviceAspect: 2560 / 720
-            // Cells derive from ONE SCREEN, never from the content — the same rule as
-            // the hub, and the reason a 0.5x0.5 is a twelfth here too. The frame then
-            // grows to whatever the page needs.
-            readonly property real cellShort: width / sizes.shortHalves
-            readonly property real cellLong: (width * _deviceAspect) / sizes.longHalves
-            height: cellLong * clone.longExtent
+            // Cells derive from ONE SCREEN (a 0.5x0.5 is a twelfth here too), and the
+            // frame grows along the LONG axis for a longer page. Orientation-aware:
+            // portrait draws tall (short axis = width), landscape draws wide (short
+            // axis = height, long axis = width) — mirroring the panel so a landscape
+            // preview is not cut off by a portrait-shaped frame.
+            readonly property real _shortPx: 404          // the short axis (2 half-cells)
+            readonly property real cellShort: _shortPx / sizes.shortHalves
+            readonly property real cellLong: (_shortPx * _deviceAspect) / sizes.longHalves
+            width: clone.landscape ? cellLong * clone.longExtent : _shortPx
+            height: clone.landscape ? _shortPx : cellLong * clone.longExtent
             radius: 20; clip: true
             gradient: Gradient {
                 GradientStop { position: 0.0; color: theme.backgroundColor }
