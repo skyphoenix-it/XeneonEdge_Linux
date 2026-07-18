@@ -678,6 +678,21 @@ Item {
             backend.configChanged()   // restore the blank "Home" baseline for later tests
         }
 
+        // The preset picker shows a live LAYOUT PREVIEW of each screen (PresetMini),
+        // so the user sees what they'll get before adding it. Opening the dialog must
+        // render at least one preview whose packing has the screen's tiles.
+        function test_preset_picker_shows_layout_previews() {
+            var dlg = findPred(win, function (x) { return x && x.title === "Start from a preset screen" })
+            verify(dlg, "found the preset dialog")
+            dlg.open()
+            var mini = null
+            tryVerify(function () {
+                mini = findPred(win, function (x) { return x && x.objectName === "presetMini" })
+                return mini !== null && mini.placements !== undefined && mini.placements.length >= 1
+            }, 3000, "a preset layout preview rendered with packed tiles")
+            dlg.close()
+        }
+
         // ── D: resetting to the default layout replaces pages with the starter set.
         function test_reset_to_default_layout() {
             win.applyPresetScreen("calm-focus")   // a known non-default set

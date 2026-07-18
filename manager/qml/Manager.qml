@@ -236,6 +236,39 @@ ApplicationWindow {
         color: m.border
     }
 
+    // PresetMini — a small LANDSCAPE thumbnail of a preset screen's layout, so the
+    // preset picker shows what you'd actually get before you add it. It packs the
+    // screen's tiles with the real WidgetPacker (same arrangement the device uses)
+    // and draws each as a mini accent cell with the widget's icon. Landscape because
+    // the panel's 720x2560 portrait aspect is too thin to read as a small strip.
+    component PresetMini: Rectangle {
+        id: mini
+        objectName: "presetMini"
+        property var tiles: []
+        readonly property var placements: miniPacker.pack(mini.tiles)
+        radius: m.radius; color: Qt.rgba(0, 0, 0, 0.28)
+        border.width: 1; border.color: m.border; clip: true
+        WidgetPacker { id: miniPacker }
+        Repeater {
+            model: mini.placements
+            delegate: Rectangle {
+                required property var modelData
+                readonly property var r: miniPacker.rect(modelData, true, mini.height / 2, mini.width / 6, 3)
+                x: r.x; y: r.y; width: r.width; height: r.height
+                radius: 3
+                color: Qt.rgba(m.accent.r, m.accent.g, m.accent.b, 0.16)
+                border.width: 1; border.color: Qt.rgba(m.accent.r, m.accent.g, m.accent.b, 0.40)
+                AppIcon {
+                    anchors.centerIn: parent
+                    readonly property var ic: catalog.iconFor(modelData.type)
+                    name: ic.name; iconSource: ic.source
+                    size: Math.max(10, Math.min(20, Math.min(parent.width, parent.height) * 0.6))
+                    color: m.accent
+                }
+            }
+        }
+    }
+
     // Shared hub model + registry.
     DashboardStore { id: store }
     WidgetCatalog { id: catalog }
@@ -1899,17 +1932,22 @@ ApplicationWindow {
                             anchors.left: parent.left; anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
                             anchors.leftMargin: 14; anchors.rightMargin: 14; spacing: 14
-                            Rectangle {
+                            // A live layout thumbnail of the screen — see what you get.
+                            PresetMini {
                                 Layout.alignment: Qt.AlignVCenter
-                                implicitWidth: 44; implicitHeight: 44; radius: m.radius
-                                color: Qt.rgba(m.accent.r, m.accent.g, m.accent.b, 0.12)
-                                AppIcon { anchors.centerIn: parent; name: modelData.icon || "ui-layout"
-                                    size: 24; color: m.accent }
+                                Layout.preferredWidth: 224; Layout.preferredHeight: 64
+                                tiles: (modelData.pages && modelData.pages[0])
+                                       ? modelData.pages[0].tiles : []
                             }
                             ColumnLayout {
                                 spacing: 2; Layout.fillWidth: true
-                                Text { text: modelData.title; color: m.textPrimary
-                                    font.pixelSize: 16; font.bold: true }
+                                RowLayout {
+                                    spacing: 8
+                                    AppIcon { name: modelData.icon || "ui-layout"; size: 18; color: m.accent
+                                        Layout.alignment: Qt.AlignVCenter }
+                                    Text { text: modelData.title; color: m.textPrimary
+                                        font.pixelSize: 16; font.bold: true }
+                                }
                                 Text { text: modelData.blurb || ""; color: m.textSecondary
                                     font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.WordWrap }
                             }
