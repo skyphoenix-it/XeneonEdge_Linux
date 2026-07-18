@@ -83,6 +83,14 @@ ApplicationWindow {
             { name: "mint", c: "#34D399" }, { name: "coral", c: "#FB7185" },
             { name: "amber", c: "#FBBF24" }, { name: "magenta", c: "#E879F9" }
         ]
+        // The Okabe–Ito colour-universal-design accents (the `a` tone of each, to
+        // match the Hub's swatch). Kept in step with Theme.qml's accent table.
+        readonly property var a11yAccents: [
+            { name: "oi_blue", c: "#0072B2" }, { name: "oi_sky_blue", c: "#56B4E9" },
+            { name: "oi_bluish_green", c: "#009E73" }, { name: "oi_yellow", c: "#F0E442" },
+            { name: "oi_orange", c: "#E69F00" }, { name: "oi_vermillion", c: "#D55E00" },
+            { name: "oi_reddish_purple", c: "#CC79A7" }, { name: "oi_black", c: "#000000" }
+        ]
     }
 
     // ── Reusable, token-styled controls (inline so they capture `m`/`theme`) ──
@@ -164,14 +172,58 @@ ApplicationWindow {
         }
     }
 
+    // MSegment — a joined segmented selector for a small, mutually-exclusive choice
+    // (window style, columns, …). Replaces the loose, separate buttons those used to
+    // be so a "pick one of a set" reads as one control, not several actions. Selected
+    // = solid accent fill (the app's single rule for a text/segment selection);
+    // swatches/thumbnails use an outline instead, where a fill would hide the colour.
+    component MSegment: Rectangle {
+        id: mseg
+        property var options: []                 // [{label, value}] or [value]
+        property var currentValue: options.length ? _val(options[0]) : ""
+        signal selected(var value)
+        function _val(o) { return (typeof o === "object") ? o.value : o }
+        function _lab(o) { return (typeof o === "object") ? o.label : o }
+        implicitHeight: m.touch
+        radius: m.radius
+        color: m.panel
+        border.width: 1; border.color: m.border
+        RowLayout {
+            anchors.fill: parent; anchors.margins: 3; spacing: 3
+            Repeater {
+                model: mseg.options
+                delegate: Rectangle {
+                    required property var modelData
+                    Layout.fillWidth: true; Layout.fillHeight: true
+                    radius: Math.max(2, m.radius - 3)
+                    property bool active: mseg._val(modelData) === mseg.currentValue
+                    color: active ? m.accent : (segMA.containsMouse ? m.panelAlt : "transparent")
+                    Behavior on color { ColorAnimation { duration: 120 } }
+                    scale: segMA.pressed ? 0.97 : 1.0
+                    Behavior on scale { NumberAnimation { duration: 90 } }
+                    Text {
+                        anchors.centerIn: parent; text: mseg._lab(modelData)
+                        font.pixelSize: 13; font.bold: parent.active
+                        color: parent.active ? m.textOnAccent : m.textPrimary
+                        elide: Text.ElideRight; width: parent.width - 12
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+                    MouseArea { id: segMA; anchors.fill: parent; hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: mseg.selected(mseg._val(modelData)) }
+                }
+            }
+        }
+    }
+
     // Shared hub model + registry.
     DashboardStore { id: store }
     WidgetCatalog { id: catalog }
     WallpaperCatalog { id: bundledWallpapers }
     BackgroundCatalog { id: bgCatalog }
     // The curated "screens" library — the same presets the hub's first-run wizard
-    // and preset picker use. The Manager is the full control surface, so it can
-    // start a page set from a preset too (applied via store.resetTo → persisted
+    // and preset picker use. The Manager is the full control surface, so it can add
+    // a preset screen from the PC too (applied via store.appendPreset → persisted
     // + pushed live to a running hub).
     PresetCatalog { id: presetLib }
 
@@ -741,24 +793,11 @@ ApplicationWindow {
                                 }
                                 Text { text: "How many widgets sit side by side on this screen. Switching reflows the widgets already here to fit — a screen always stays one screen (it never scrolls)."
                                     color: m.textSecondary; font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.WordWrap }
-                                RowLayout {
-                                    Layout.fillWidth: true; spacing: 8
-                                    Repeater {
-                                        model: [ { n: 1, l: "1 column" }, { n: 2, l: "2 columns" } ]
-                                        delegate: Rectangle {
-                                            required property var modelData
-                                            Layout.fillWidth: true; height: m.touch; radius: m.radius
-                                            property bool sel: (store.structureRevision,
-                                                store.pageColumns(win.currentPageIndex)) === modelData.n
-                                            color: sel ? m.accent : (colMA.containsMouse ? m.panelAlt : m.panel)
-                                            border.width: 1; border.color: m.border
-                                            Text { anchors.centerIn: parent; text: modelData.l
-                                                color: parent.sel ? m.textOnAccent : m.textPrimary; font.pixelSize: 13 }
-                                            MouseArea { id: colMA; anchors.fill: parent; hoverEnabled: true
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: store.setPageColumns(win.currentPageIndex, modelData.n) }
-                                        }
-                                    }
+                                MSegment {
+                                    Layout.fillWidth: true
+                                    options: [ { label: "1 column", value: 1 }, { label: "2 columns", value: 2 } ]
+                                    currentValue: (store.structureRevision, store.pageColumns(win.currentPageIndex))
+                                    onSelected: (v) => store.setPageColumns(win.currentPageIndex, v)
                                 }
 
                                 Rectangle {
@@ -860,7 +899,13 @@ ApplicationWindow {
                                 text: (themeField.curDef ? themeField.curDef.n : themeField.curKey)
                                 color: m.textPrimary; font.pixelSize: 14
                             }
-                            Text { text: themePopup.visible ? "▴" : "▾"; color: m.textSecondary; font.pixelSize: 14 }
+                            // A real icon instead of a text glyph, rotated to point
+                            // down (closed) / up (open) — consistent with the app's SVG set.
+                            AppIcon {
+                                name: "ui-caret-right"; size: 16; color: m.textSecondary
+                                rotation: themePopup.visible ? -90 : 90
+                                Behavior on rotation { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                            }
                         }
                         MouseArea {
                             id: themeFieldMA; anchors.fill: parent; hoverEnabled: true
@@ -903,8 +948,10 @@ ApplicationWindow {
                                     readonly property bool locked: (modelData.pro === true) && !win.isPro
                                     readonly property bool sel: (store.revision, (store.appearance().themeMode || "dark") === modelData.k)
                                     width: ListView.view ? ListView.view.width : 0
-                                    height: 42; radius: 8
+                                    height: 44; radius: 8
                                     color: rowMA.containsMouse ? m.panelAlt : "transparent"
+                                    scale: rowMA.pressed ? 0.98 : 1.0
+                                    Behavior on scale { NumberAnimation { duration: 90 } }
                                     RowLayout {
                                         anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 10
                                         Rectangle {
@@ -947,28 +994,12 @@ ApplicationWindow {
                     }
                     Text { text: "The look of THIS companion window on your PC — separate from the Edge theme above. Default is the warm SKYPhoenix palette."
                         color: m.textSecondary; font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.WordWrap }
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 8
-                        Repeater {
-                            model: [ { k: "dark", l: "Dark" }, { k: "light", l: "Light" }, { k: "default", l: "Default" } ]
-                            delegate: Rectangle {
-                                required property var modelData
-                                Layout.fillWidth: true; implicitHeight: 40; radius: 8
-                                property bool sel: appSettings.chromeTheme === modelData.k
-                                color: sel ? m.accent : m.panelAlt
-                                border.width: 1; border.color: sel ? m.accent : m.border
-                                Text {
-                                    anchors.centerIn: parent; text: modelData.l
-                                    color: sel ? m.textOnAccent : m.textSecondary
-                                    font.pixelSize: 13; font.bold: sel
-                                }
-                                MouseArea {
-                                    anchors.fill: parent; hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: appSettings.chromeTheme = modelData.k
-                                }
-                            }
-                        }
+                    MSegment {
+                        Layout.fillWidth: true
+                        options: [ { label: "Dark", value: "dark" }, { label: "Light", value: "light" },
+                                   { label: "Default", value: "default" } ]
+                        currentValue: appSettings.chromeTheme
+                        onSelected: (v) => appSettings.chromeTheme = v
                     }
 
                     RowLayout {
@@ -978,28 +1009,46 @@ ApplicationWindow {
                     }
                     Text { text: "The highlight colour for rings, buttons and charts. A widget can override it just for itself (⚙ → Widget appearance)."
                         color: m.textSecondary; font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                    // One swatch shape for BOTH accent groups (house palette + the
+                    // colour-blind-safe Okabe–Ito set), so the two rows are identical
+                    // in every way but their colours. Selected = a contrasting ring +
+                    // check (a fill would hide the colour we're choosing) — the app's
+                    // outline rule for colour/thumbnail selection.
+                    Component {
+                        id: mAccentSwatch
+                        Rectangle {
+                            required property var modelData
+                            property bool sel: (store.revision, store.appearance().accent === modelData.name)
+                            width: 46; height: 46; radius: 23; color: modelData.c
+                            border.width: sel ? 3 : (accMA.containsMouse ? 2 : 0)
+                            border.color: m.textPrimary
+                            scale: accMA.pressed ? 0.94 : 1.0
+                            Behavior on scale { NumberAnimation { duration: 90 } }
+                            AppIcon { visible: parent.sel; anchors.centerIn: parent
+                                name: "ui-check"; size: 20; color: "#FFFFFF" }
+                            ToolTip.visible: accMA.containsMouse
+                            ToolTip.delay: 350
+                            ToolTip.text: modelData.name
+                            MouseArea { id: accMA; anchors.fill: parent; hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onContainsMouseChanged: win.hoverPreview("accent", modelData.name, containsMouse)
+                                onClicked: store.setAppearance("accent", modelData.name) }
+                        }
+                    }
                     Flow {
                         Layout.fillWidth: true; spacing: 10
-                        Repeater {
-                            model: m.accentPresets
-                            delegate: Rectangle {
-                                required property var modelData
-                                property bool sel: (store.revision, store.appearance().accent === modelData.name)
-                                width: 46; height: 46; radius: 23; color: modelData.c
-                                border.width: sel ? 3 : (accMA.containsMouse ? 2 : 0)
-                                border.color: m.textPrimary
-                                AppIcon { visible: parent.sel; anchors.centerIn: parent
-                                    name: "ui-check"; size: 20; color: "#FFFFFF" }
-                                // The circles carried no names — hover says which is which.
-                                ToolTip.visible: accMA.containsMouse
-                                ToolTip.delay: 350
-                                ToolTip.text: modelData.name
-                                MouseArea { id: accMA; anchors.fill: parent; hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onContainsMouseChanged: win.hoverPreview("accent", modelData.name, containsMouse)
-                                    onClicked: store.setAppearance("accent", modelData.name) }
-                            }
-                        }
+                        Repeater { model: m.accentPresets; delegate: mAccentSwatch }
+                    }
+                    // Parity with the Hub: the colour-blind-safe accents are reachable
+                    // from the PC too, under their own heading so they read as a
+                    // deliberate set rather than eight more decorative tones.
+                    Text {
+                        text: "Colour-blind safe (Okabe–Ito)"
+                        color: m.textSecondary; font.pixelSize: 12; font.bold: true; Layout.topMargin: 6
+                    }
+                    Flow {
+                        Layout.fillWidth: true; spacing: 10
+                        Repeater { model: m.a11yAccents; delegate: mAccentSwatch }
                     }
 
                     RowLayout {
@@ -1780,9 +1829,11 @@ ApplicationWindow {
     }
 
     // ── Preset "screens" picker ──
-    // The full curated library, applied as a whole page set (store.resetTo →
-    // persisted + pushed live). Parity with the hub's first-run / preset picker,
-    // brought into the Manager so a page set can be started from the PC.
+    // The full curated library. ADDITIVE: choosing one appends it as a NEW screen
+    // (confirmApplyPreset → applyPresetScreen → store.appendPreset), leaving the
+    // other screens and the global look untouched — same meaning as the hub's
+    // preset picker. (It is NOT a full replace; "Reset to default layout" on the
+    // Device/About side is the destructive path.)
     Dialog {
         id: presetDialog
         title: "Start from a preset screen"
@@ -1799,10 +1850,9 @@ ApplicationWindow {
                 ColumnLayout {
                     spacing: 1; Layout.fillWidth: true
                     Text { text: "Start from a preset screen"; color: m.textPrimary; font.pixelSize: 19; font.bold: true }
-                    Text { text: "Replaces every screen with a ready-made set. You can tweak it afterwards."
+                    Text { text: "Adds the chosen screen as a NEW screen — your other screens and your look stay put. Tweak it afterwards."
                         color: m.textSecondary; font.pixelSize: 12; elide: Text.ElideRight; Layout.fillWidth: true }
                 }
-                ScopeTag { label: win.scopeLabels.edge; Layout.alignment: Qt.AlignVCenter }
             }
         }
         contentItem: ScrollView {

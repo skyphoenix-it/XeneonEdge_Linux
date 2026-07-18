@@ -796,20 +796,20 @@ Item {
             compare(_store.appearance().accent, "green", "clicking an accent commits it")
             _store.setAppearance("accent", "blue")
         }
-        function _chromeSwatch(k) {   // Manager-window-style delegate (modelData {k,l} + sel)
+        function _chromeSwatch(k) {   // Manager-window-style MSegment segment ({label,value} + active)
             return findPred(win, function (x) {
-                return x && x.modelData && x.modelData.k === k && x.modelData.l !== undefined
-                       && x.hasOwnProperty("sel") })
+                return x && x.modelData && x.modelData.value === k && x.modelData.label !== undefined
+                       && x.hasOwnProperty("active") })
         }
         function test_manager_window_style_swatch_click() {
             _nav.currentIndex = 1                      // Appearance tab
             var light = _chromeSwatch("light")
-            verify(light, "found the Light Manager-window-style swatch")
+            verify(light, "found the Light Manager-window-style segment")
             _clickArea(light).clicked(null)
-            // appSettings is Manager-internal; assert via the swatch's own selection.
-            tryVerify(function () { return _chromeSwatch("light").sel === true }, 2000)
+            // appSettings is Manager-internal; assert via the segment's own selection.
+            tryVerify(function () { return _chromeSwatch("light").active === true }, 2000)
             _clickArea(_chromeSwatch("default")).clicked(null)   // restore
-            tryVerify(function () { return _chromeSwatch("default").sel === true }, 2000)
+            tryVerify(function () { return _chromeSwatch("default").active === true }, 2000)
         }
         function test_animated_bg_switch_toggles_store() {
             _nav.currentIndex = 1
