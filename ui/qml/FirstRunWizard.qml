@@ -286,13 +286,19 @@ Item {
                                     anchors.margins: 14
                                     spacing: 6
 
-                                    Text {
+                                    RowLayout {
                                         Layout.fillWidth: true
-                                        text: modelData.icon + "  " + modelData.title
-                                        font.pixelSize: 17
-                                        font.bold: true
-                                        color: theme.textPrimary
-                                        elide: Text.ElideRight
+                                        spacing: 10
+                                        AppIcon { name: modelData.icon || "ui-layout"
+                                            size: 22; color: theme.accent; Layout.alignment: Qt.AlignVCenter }
+                                        Text {
+                                            Layout.fillWidth: true
+                                            text: modelData.title
+                                            font.pixelSize: 17
+                                            font.bold: true
+                                            color: theme.textPrimary
+                                            elide: Text.ElideRight
+                                        }
                                     }
                                     Text {
                                         text: modelData.blurb

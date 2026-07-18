@@ -1901,8 +1901,13 @@ ApplicationWindow {
                             anchors.left: parent.left; anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
                             anchors.leftMargin: 14; anchors.rightMargin: 14; spacing: 14
-                            Text { text: modelData.icon || "🎛"; font.pixelSize: 30
-                                Layout.alignment: Qt.AlignVCenter }
+                            Rectangle {
+                                Layout.alignment: Qt.AlignVCenter
+                                implicitWidth: 44; implicitHeight: 44; radius: m.radius
+                                color: Qt.rgba(m.accent.r, m.accent.g, m.accent.b, 0.12)
+                                AppIcon { anchors.centerIn: parent; name: modelData.icon || "ui-layout"
+                                    size: 24; color: m.accent }
+                            }
                             ColumnLayout {
                                 spacing: 2; Layout.fillWidth: true
                                 Text { text: modelData.title; color: m.textPrimary

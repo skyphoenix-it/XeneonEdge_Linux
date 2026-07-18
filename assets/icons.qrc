@@ -53,5 +53,25 @@
         <file alias="ui-trash.svg">icons/ui-trash.svg</file>
         <file alias="ui-warning.svg">icons/ui-warning.svg</file>
         <file alias="weather.svg">icons/weather.svg</file>
+        <!-- Preset "screen" glyphs — Phosphor (regular), matching the icon set. -->
+        <file alias="flower-lotus.svg">icons/flower-lotus.svg</file>
+        <file alias="note-pencil.svg">icons/note-pencil.svg</file>
+        <file alias="house.svg">icons/house.svg</file>
+        <file alias="moon-stars.svg">icons/moon-stars.svg</file>
+        <file alias="sparkle.svg">icons/sparkle.svg</file>
+        <file alias="heartbeat.svg">icons/heartbeat.svg</file>
+        <file alias="film-slate.svg">icons/film-slate.svg</file>
+        <file alias="books.svg">icons/books.svg</file>
+        <file alias="check-circle.svg">icons/check-circle.svg</file>
+        <file alias="briefcase.svg">icons/briefcase.svg</file>
+        <file alias="game-controller.svg">icons/game-controller.svg</file>
+        <file alias="gauge.svg">icons/gauge.svg</file>
+        <file alias="compass.svg">icons/compass.svg</file>
+        <file alias="calendar-dots.svg">icons/calendar-dots.svg</file>
+        <file alias="code.svg">icons/code.svg</file>
+        <file alias="hard-drives.svg">icons/hard-drives.svg</file>
+        <file alias="chart-line-up.svg">icons/chart-line-up.svg</file>
+        <file alias="chart-line-down.svg">icons/chart-line-down.svg</file>
+        <file alias="buildings.svg">icons/buildings.svg</file>
     </qresource>
 </RCC>

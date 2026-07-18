@@ -137,11 +137,16 @@ Rectangle {
                                 anchors.fill: parent
                                 anchors.margins: 14
                                 spacing: 6
-                                Text {
-                                    Layout.fillWidth: true
-                                    text: presetCard.modelData.icon + "  " + presetCard.modelData.title
-                                    font.pixelSize: 17; font.bold: true; font.family: theme.fontDisplay
-                                    color: theme.textPrimary; elide: Text.ElideRight
+                                RowLayout {
+                                    Layout.fillWidth: true; spacing: 10
+                                    AppIcon { name: presetCard.modelData.icon || "ui-layout"
+                                        size: 22; color: theme.accent; Layout.alignment: Qt.AlignVCenter }
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: presetCard.modelData.title
+                                        font.pixelSize: 17; font.bold: true; font.family: theme.fontDisplay
+                                        color: theme.textPrimary; elide: Text.ElideRight
+                                    }
                                 }
                                 Text {
                                     Layout.fillWidth: true; Layout.fillHeight: true
