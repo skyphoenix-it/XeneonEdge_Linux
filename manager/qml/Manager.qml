@@ -144,6 +144,26 @@ ApplicationWindow {
         }
     }
 
+    // MScroll — a ScrollView with a usable mouse-wheel step. A plain QQC2 ScrollView
+    // under a Wayland/high-resolution wheel scrolls only a few pixels per notch (the
+    // "20 notches to reach the bottom" bug). This WheelHandler moves ~130px per notch
+    // (angleDelta 120 × 1.1), matching the hub's WidgetConfigPanel; it consumes the
+    // event so the internal Flickable doesn't also scroll (no double-step).
+    component MScroll: ScrollView {
+        id: msv
+        WheelHandler {
+            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+            onWheel: function (ev) {
+                var f = msv.contentItem
+                if (!f) return
+                var dy = ev.pixelDelta.y !== 0 ? ev.pixelDelta.y : ev.angleDelta.y
+                var maxY = Math.max(0, f.contentHeight - f.height)
+                f.contentY = Math.max(0, Math.min(maxY, f.contentY - dy * 1.1))
+                ev.accepted = true
+            }
+        }
+    }
+
     // Shared hub model + registry.
     DashboardStore { id: store }
     WidgetCatalog { id: catalog }
@@ -682,7 +702,7 @@ ApplicationWindow {
                         }
 
                         // Helper column: add + how-to + this page's background.
-                        ScrollView {
+                        MScroll {
                             id: helperScroll
                             Layout.fillWidth: true; Layout.fillHeight: true; clip: true
                             contentWidth: availableWidth
@@ -740,7 +760,7 @@ ApplicationWindow {
                 anchors.margins: 24
                 spacing: 20
 
-               ScrollView {
+               MScroll {
                 id: apScroll
                 Layout.fillWidth: true; Layout.fillHeight: true; clip: true
                 contentWidth: availableWidth
@@ -1156,6 +1176,17 @@ ApplicationWindow {
                         Layout.fillWidth: true; Layout.fillHeight: true; clip: true
                         cellWidth: 190; cellHeight: 190
                         model: imagesModel
+                        // Usable mouse-wheel step (see MScroll) — a GridView is a
+                        // Flickable too and hits the same tiny-per-notch problem.
+                        WheelHandler {
+                            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                            onWheel: function (ev) {
+                                var dy = ev.pixelDelta.y !== 0 ? ev.pixelDelta.y : ev.angleDelta.y
+                                var maxY = Math.max(0, imgGrid.contentHeight - imgGrid.height)
+                                imgGrid.contentY = Math.max(0, Math.min(maxY, imgGrid.contentY - dy * 1.1))
+                                ev.accepted = true
+                            }
+                        }
                         ScrollBar.vertical: ScrollBar {
                             policy: imgGrid.contentHeight > imgGrid.height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
                             contentItem: Rectangle { implicitWidth: 6; radius: 3; color: m.border }
@@ -1205,7 +1236,7 @@ ApplicationWindow {
 
             // ═══ 4. DISPLAY ═══
             Item {
-              ScrollView {
+              MScroll {
                 id: dpScroll
                 anchors.fill: parent; clip: true
                 contentWidth: availableWidth
@@ -1381,7 +1412,7 @@ ApplicationWindow {
 
             // ═══ 5. ABOUT ═══
             Item {
-              ScrollView {
+              MScroll {
                 id: abScroll
                 anchors.fill: parent; clip: true
                 contentWidth: availableWidth
