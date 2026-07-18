@@ -204,6 +204,10 @@ Item {
             compare(cr.height, win.width, "270°: contentRoot height takes the window WIDTH")
         }
 
+        // (Full-shell add-page navigation is covered in tst_hub_navigation.qml, which
+        // pushes the real Dashboard into this shell by relative URL — main.qml's qrc:
+        // initialItem can't resolve under qmltestrunner.)
+
         // ── onContentRotationChanged (reorient fx) ────────────────────────────
         // A contentRotation change fires main.qml's Connections handler
         // `onContentRotationChanged`, which — when motion is allowed — restarts the

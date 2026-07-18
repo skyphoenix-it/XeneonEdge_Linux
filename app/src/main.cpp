@@ -279,10 +279,15 @@ int main(int argc, char *argv[]) {
     const bool    qaGrabMode = qEnvironmentVariableIsSet("XENEON_GRAB");
     const QString qaGrabPath = qEnvironmentVariable("XENEON_GRAB");
     const QString qaExpand   = qEnvironmentVariable("XENEON_EXPAND");
+    // Adds N pages after load and logs the resulting SwipeView.currentIndex — so the
+    // add-page navigation can be verified against the REAL stack (main→StackView→
+    // Dashboard→SwipeView), which a qmltestrunner can't load (qrc: initialItem).
+    const int     qaAddPages = qEnvironmentVariable("XENEON_QA_ADDPAGES", "0").toInt();
 #else
     const bool    qaGrabMode = false;
     const QString qaGrabPath;
     const QString qaExpand;
+    const int     qaAddPages = 0;
 #endif
 
     // Single-instance guard — two hubs racing the shared config.toml corrupt it.
@@ -411,6 +416,7 @@ int main(int argc, char *argv[]) {
     // QA affordance: XENEON_EXPAND=<type> auto-opens that widget's expanded
     // config view on the first matching tile (mirrors the Manager's XENEON_CFG).
     engine.rootContext()->setContextProperty("_expandType", qaExpand);
+    engine.rootContext()->setContextProperty("_qaAddPages", qaAddPages);
 
     // Config path for diagnostics
     XeneonString configDir(xeneon_config_dir());

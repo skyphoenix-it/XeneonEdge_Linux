@@ -455,6 +455,35 @@ Item {
                         return
                     }
         }
+        // QA: reproduce/verify add-page navigation against the REAL stack
+        // (XENEON_QA_ADDPAGES=n). A qmltestrunner can't load main.qml's qrc: Dashboard,
+        // so this is how the snap-back is exercised end-to-end.
+        if (typeof _qaAddPages !== "undefined" && _qaAddPages > 0) {
+            dashboard.editMode = true
+            qaAddTimer.remaining = _qaAddPages
+            qaAddTimer.start()
+        }
+    }
+
+    // QA add-page driver (compiled behaviour only meaningful under XENEON_QA_HOOKS).
+    Timer {
+        id: qaAddTimer
+        property int remaining: 0
+        interval: 450; repeat: true
+        onTriggered: {
+            store.addPage("")
+            swipeView.goToPage(store.pageCount() - 1)
+            remaining--
+            console.warn("QA_ADDPAGE count=" + store.pageCount()
+                        + " currentIndex=" + swipeView.currentIndex)
+            if (remaining <= 0) { stop(); qaFinalTimer.start() }
+        }
+    }
+    Timer {
+        id: qaFinalTimer; interval: 1500; repeat: false
+        onTriggered: console.warn("QA_ADDPAGE_FINAL count=" + swipeView.count
+                                 + " currentIndex=" + swipeView.currentIndex
+                                 + " expected=" + (swipeView.count - 1))
     }
 
 
@@ -631,37 +660,52 @@ Item {
             clip: true
             interactive: !dashboard.editMode
 
-            // Landing on a just-added page fights the int-model Repeater: growing the
-            // model RESETS currentIndex to 0, the new delegate isn't in `count` on the
-            // same tick, and the reset can land AFTER a one-shot set — so a single
-            // Qt.callLater/onCountChanged didn't hold (the view snapped back to page
-            // 0). goToPage remembers the wanted index and RE-ASSERTS it briefly until
-            // it sticks: it applies immediately, on the next countChange, and on a
-            // short repeating timer that stops once the target has held (or after a
-            // safety window). This defeats a reset that arrives a few frames late.
+            // Landing on a just-added page fights the SwipeView's internal ListView:
+            // the int-model Repeater grows `count` a frame later, and — crucially — the
+            // ListView re-derives currentIndex from `contentX` on a DEFERRED relayout
+            // (the new page's build, and in landscape the larger swapped contentRoot
+            // geometry, settle late), snapping the view back toward page 0 AFTER a
+            // one-shot set. So we (1) COMMIT the position with positionViewAtIndex so
+            // there is no stale contentX to snap back to, and (2) re-assert on a timer
+            // that keeps going until the index has held for a LONG window (~700ms,
+            // spanning the deferred relayout) — not the earlier ~120ms that a late
+            // reset simply outlived.
             property int _wantIndex: -1
+            function _applyWant() {
+                var w = swipeView._wantIndex
+                if (w < 0 || w >= swipeView.count) return
+                if (swipeView.currentIndex !== w) swipeView.currentIndex = w
+                // Commit the ListView's scroll position to the real index (guarded:
+                // SwipeView's contentItem is a ListView, but stay defensive).
+                var ci = swipeView.contentItem
+                if (ci && typeof ci.positionViewAtIndex === "function")
+                    ci.positionViewAtIndex(w, ListView.SnapPosition)
+                else if (ci && typeof ci.forceLayout === "function")
+                    ci.forceLayout()
+            }
             function goToPage(idx) {
                 swipeView._wantIndex = idx
                 goHoldTimer.held = 0; goHoldTimer.ticks = 0
-                if (idx >= 0 && idx < swipeView.count) swipeView.currentIndex = idx
+                swipeView._applyWant()
                 goHoldTimer.restart()
             }
-            onCountChanged: if (_wantIndex >= 0 && _wantIndex < count) currentIndex = _wantIndex
+            onCountChanged: if (_wantIndex >= 0) _applyWant()
             Timer {
                 id: goHoldTimer
-                interval: 40; repeat: true
+                interval: 50; repeat: true
                 property int held: 0
                 property int ticks: 0
                 onTriggered: {
                     var w = swipeView._wantIndex
                     if (w < 0) { stop(); return }
                     if (w < swipeView.count) {
-                        if (swipeView.currentIndex !== w) { swipeView.currentIndex = w; held = 0 }
+                        if (swipeView.currentIndex !== w) { swipeView._applyWant(); held = 0 }
                         else held++
                     }
                     ticks++
-                    // Stop once it has held the target for ~120ms, or after ~800ms.
-                    if (held >= 3 || ticks >= 20) { swipeView._wantIndex = -1; stop() }
+                    // Require a LONG sustained hold (~700ms) so a LATE deferred relayout
+                    // can't win after we stop; give up after ~2.5s.
+                    if (held >= 14 || ticks >= 50) { swipeView._wantIndex = -1; stop() }
                 }
             }
 
