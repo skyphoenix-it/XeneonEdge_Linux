@@ -4,11 +4,13 @@
 #include <QDir>
 #include <QFile>
 #include <QRegularExpression>
+#include <QTimer>
 #include <QDebug>
 
 #include <fcntl.h>
 #include <unistd.h>
 #include <cerrno>
+#include <cstring>
 #include <sys/ioctl.h>
 #include <linux/hidraw.h>
 
@@ -96,28 +98,56 @@ bool OrientationSensor::openAndWatch(const QString& path) {
     connect(m_notifier, &QSocketNotifier::activated, this, &OrientationSensor::onReadable);
     qInfo() << "OrientationSensor: watching" << path << "for Xeneon Edge orientation";
     // The panel only pushes a report when the orientation *changes*, so actively
-    // query the current state once — otherwise the UI stays at its default until
-    // the user physically rotates the panel.
+    // query the current state once — otherwise the UI stays at its default (the
+    // native-portrait framebuffer, so it looks portrait even when mounted
+    // horizontally) until the user physically rotates the panel.
     queryInitialOrientation();
     // Also drain any immediately-available change report.
     onReadable();
+    // Some panels don't answer a GET_REPORT the instant the node opens; if we still
+    // have no reading, try once more shortly after. Harmless if already resolved (it
+    // no-ops when m_rotation is set) or if GET is unsupported (it just warns again).
+    if (m_rotation < 0)
+        QTimer::singleShot(400, this, [this]() {
+            if (m_fd >= 0 && m_rotation < 0) queryInitialOrientation();
+        });
     return true;
 }
 
 void OrientationSensor::queryInitialOrientation() {
     if (m_fd < 0)
         return;
-    // HID GET_REPORT for input report id 0x01 — the same report the panel pushes
-    // asynchronously on rotation. buf[0] is the report id on entry (and on return).
-    unsigned char buf[64] = {0};
+    unsigned char buf[64];
+    // 1) GET_REPORT on the INPUT report the panel pushes on rotation (id 0x01,
+    //    orientation byte at [7]). Many devices, however, refuse GET_REPORT on an
+    //    input report...
+    std::memset(buf, 0, sizeof(buf));
     buf[0] = 0x01;
-    const int n = ::ioctl(m_fd, HIDIOCGINPUT(sizeof(buf)), buf);
-    if (n < 8 || buf[0] != 0x01)
-        return;   // unsupported / unexpected layout: fall back to the next change report
-    // GCOVR_EXCL_START (HID GET_REPORT ioctl only succeeds against a real hidraw node;
-    // over the FIFO test seam the ioctl fails and returns at the guard above).
-    const int rot = byteToRotation(buf[7]);
-    if (rot >= 0 && rot != m_rotation) {
+    int n = ::ioctl(m_fd, HIDIOCGINPUT(sizeof(buf)), buf);
+    int rot = (n >= 8 && buf[0] == 0x01) ? byteToRotation(buf[7]) : -1;
+    const char* via = "input report";
+    // 2) ...so if that failed, fall back to GET_REPORT on the FEATURE report, which
+    //    is the report class devices are actually required to answer.
+    if (rot < 0) {
+        std::memset(buf, 0, sizeof(buf));
+        buf[0] = 0x01;
+        n = ::ioctl(m_fd, HIDIOCGFEATURE(sizeof(buf)), buf);
+        rot = (n >= 8) ? byteToRotation(buf[7]) : -1;
+        via = "feature report";
+    }
+    if (rot < 0) {
+        // Neither GET_REPORT worked (the FIFO test seam lands here too). Not fatal:
+        // the first physical rotation still corrects the UI via a pushed report.
+        qWarning() << "OrientationSensor: could not read the current orientation at "
+                      "startup (panel answered no GET_REPORT); the view will correct "
+                      "itself on the first rotation.";
+        return;
+    }
+    // GCOVR_EXCL_START (a successful GET_REPORT needs a real hidraw node; over the
+    // FIFO test seam both ioctls fail and we return at the guard above).
+    qInfo() << "OrientationSensor: initial orientation from" << via << "-> rotation"
+            << rot << "deg";
+    if (rot != m_rotation) {
         m_rotation = rot;
         emit rotationChanged(m_rotation);
     }
