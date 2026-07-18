@@ -766,7 +766,11 @@ ApplicationWindow {
                         EdgeClone {
                             id: edgeClone
                             Layout.fillHeight: true
-                            Layout.preferredWidth: 440
+                            // A landscape Edge is wide+short, so a 440px portrait pane
+                            // would scale it down to a tiny strip — give it more width
+                            // when the preview is landscape (the helper column keeps the
+                            // rest). Portrait stays 440.
+                            Layout.preferredWidth: edgeClone.landscape ? 780 : 440
                             pageIndex: win.currentPageIndex
                             // Pause the live preview while the helper column scrolls, so an
                             // animated preview doesn't repaint every scroll frame.
@@ -1076,10 +1080,16 @@ ApplicationWindow {
                         id: mAccentSwatch
                         Rectangle {
                             required property var modelData
-                            property bool sel: (store.revision, store.appearance().accent === modelData.name)
+                            // Mark the ACTIVE accent even when the config has no explicit
+                            // accent key (fall back to the applied theme.accentName, i.e.
+                            // the effective default) — otherwise no swatch reads as selected.
+                            property bool sel: (store.revision, (store.appearance().accent || theme.accentName) === modelData.name)
                             width: 46; height: 46; radius: 23; color: modelData.c
-                            border.width: sel ? 3 : (accMA.containsMouse ? 2 : 0)
-                            border.color: m.textPrimary
+                            // Always keep a subtle 1px edge so a dark swatch (e.g. the
+                            // Okabe-Ito black) is visible on the dark panel; thicker +
+                            // contrasting on hover/select.
+                            border.width: sel ? 3 : (accMA.containsMouse ? 2 : 1)
+                            border.color: (sel || accMA.containsMouse) ? m.textPrimary : m.border
                             scale: accMA.pressed ? 0.94 : 1.0
                             Behavior on scale { NumberAnimation { duration: 90 } }
                             AppIcon { visible: parent.sel; anchors.centerIn: parent
@@ -1267,7 +1277,9 @@ ApplicationWindow {
 
                 // ── Live preview pane (the same WYSIWYG clone as Layout, read-only) ──
                 ColumnLayout {
-                    Layout.preferredWidth: 400; Layout.maximumWidth: 400; Layout.fillHeight: true
+                    // Wider when the Edge preview is landscape, so it isn't a thin strip.
+                    readonly property int _pw: lookClone.landscape ? 760 : 400
+                    Layout.preferredWidth: _pw; Layout.maximumWidth: _pw; Layout.fillHeight: true
                     spacing: 8
                     Text { text: "Live preview"; color: m.textPrimary; font.pixelSize: 15; font.bold: true }
                     // Page chips so "which page am I looking at?" has an answer —
@@ -1293,6 +1305,7 @@ ApplicationWindow {
                         }
                     }
                     EdgeClone {
+                        id: lookClone
                         editable: false
                         Layout.fillWidth: true; Layout.fillHeight: true
                         pageIndex: win.currentPageIndex
