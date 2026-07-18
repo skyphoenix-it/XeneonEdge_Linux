@@ -464,6 +464,31 @@ Item {
             s.load("blank")
         }
 
+        // ── Adding a page LANDS on it (was: snapped back to page 0) ──────────
+        // The SwipeView's int-model Repeater resets currentIndex to 0 as the model
+        // grows, so a synchronous (or single-callLater) index set was lost. goToPage
+        // remembers the target and applies it when `count` catches up.
+        function test_adding_pages_lands_on_the_new_page() {
+            var s = root.store()
+            s.load("blank")                        // one page
+            var sw = findPred(ld.item, function (x) { return x && x.objectName === "pageSwipe" })
+            verify(sw, "found the page SwipeView")
+            // Add several pages in a row, exactly as the edit-toolbar button does.
+            for (var n = 0; n < 3; n++) {
+                s.addPage("")
+                sw.goToPage(s.pageCount() - 1)
+                var want = s.pageCount() - 1
+                tryVerify(function () { return sw.currentIndex === want }, 4000,
+                          "landed on the newly added page " + want + " (got " + sw.currentIndex + ")")
+            }
+            // The additive preset path lands on its new page too.
+            var appendWant = s.pageCount()
+            verify(ld.item.appendPreset("system-monitor"), "appendPreset adds a screen")
+            tryVerify(function () { return sw.currentIndex === appendWant }, 4000,
+                      "landed on the appended preset screen " + appendWant)
+            s.load("blank")
+        }
+
         // ── netGate (W5 finding 6): the egress gate exposed for Diagnostics ──
         function test_netGate_exposes_the_app_global_nethub() {
             var d = ld.item

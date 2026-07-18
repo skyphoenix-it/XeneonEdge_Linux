@@ -417,9 +417,7 @@ Item {
     function appendPreset(presetId) {
         var idx = store.appendPreset(presetId)   // -1 when managed/locked or unknown id
         if (idx < 0) return false
-        // Land on the new screen after the SwipeView has grown its delegate (else it
-        // snaps back to page 0 — same int-model race as the add-page button).
-        Qt.callLater(function () { swipeView.currentIndex = idx })
+        swipeView.goToPage(idx)                  // lands once the SwipeView grows to fit
         return true
     }
 
@@ -628,9 +626,30 @@ Item {
 
         SwipeView {
             id: swipeView
+            objectName: "pageSwipe"
             Layout.fillWidth: true; Layout.fillHeight: true
             clip: true
             interactive: !dashboard.editMode
+
+            // Landing on a just-added page is a two-step dance with the int-model
+            // Repeater: growing the model resets currentIndex to 0, and the new
+            // delegate isn't in `count` yet on the same tick — so setting the index
+            // straight away (or via a single Qt.callLater) either gets clobbered by
+            // the reset or clamped to the old last page. Instead we REMEMBER the
+            // wanted index and apply it the moment `count` catches up. goToPage()
+            // also tries immediately, for the common case where the page already
+            // exists (an existing-page target, or a synchronous model update).
+            property int _wantIndex: -1
+            function goToPage(idx) {
+                swipeView._wantIndex = idx
+                if (idx >= 0 && idx < swipeView.count) {
+                    swipeView.currentIndex = idx
+                    if (swipeView.currentIndex === idx) swipeView._wantIndex = -1
+                }
+            }
+            onCountChanged: if (_wantIndex >= 0 && _wantIndex < count) {
+                                currentIndex = _wantIndex; _wantIndex = -1
+                            }
 
             Repeater {
                 // A COUNT, not the pages array. `store.pages()` returns a fresh array
@@ -1357,18 +1376,17 @@ Item {
             // screen as it fits. Targets the page currently in view.
             BarButton { iconName: "ui-plus"; visible: dashboard.editMode
                         onClicked: { picker.pageIndex = swipeView.currentIndex; picker.shown = true } }
-            // Add page (edit mode) — land ON the new page (matches the Manager). The
-            // index is set AFTER the SwipeView has grown its delegate (Qt.callLater):
-            // setting it synchronously raced the int-model growth, so the view snapped
-            // back to page 0 and the new page's overlay bled onto it.
+            // Add page (edit mode) — land ON the new page (matches the Manager).
+            // goToPage applies the index once the int-model SwipeView grows to fit;
+            // setting it synchronously raced the model growth (snapped back to page 0
+            // and bled the new page's overlay onto the first screen).
             BarButton { iconName: "ui-add-page"; visible: dashboard.editMode
-                        onClicked: { store.addPage("")
-                                     Qt.callLater(function () { swipeView.currentIndex = store.pageCount() - 1 }) } }
+                        onClicked: { store.addPage(""); swipeView.goToPage(store.pageCount() - 1) } }
             // Remove current page (edit mode, keep ≥1) — re-clamp the index so the
             // view never points past the new end after deleting the last page.
             BarButton { iconName: "ui-del-page"; visible: dashboard.editMode && store.pageCount() > 1
                         onClicked: { var i = swipeView.currentIndex; store.removePage(i)
-                                     swipeView.currentIndex = Math.max(0, Math.min(i, store.pageCount() - 1)) } }
+                                     swipeView.goToPage(Math.max(0, Math.min(i, store.pageCount() - 1))) } }
             // Edit toggle
             BarButton {
                 iconName: dashboard.editMode ? "ui-check" : "ui-edit"
@@ -1735,10 +1753,10 @@ Item {
                                                     picker.shown = false
                                                     if (newId) {
                                                         var tp = store.pageIndexForTile(newId)
-                                                        // Defer: if the tile started a NEW screen, set the
-                                                        // index after the SwipeView grew its delegate (else
-                                                        // it snaps back to page 0 — same race as add-page).
-                                                        if (tp >= 0) Qt.callLater(function () { swipeView.currentIndex = tp })
+                                                        // If the tile started a NEW screen, land on it once the
+                                                        // SwipeView grows to fit; if it fit the current screen,
+                                                        // goToPage sets it immediately (no count change).
+                                                        if (tp >= 0) swipeView.goToPage(tp)
                                                     }
                                                 }
                                             }
