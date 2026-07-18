@@ -881,6 +881,21 @@ ApplicationWindow {
                                 clip: true; implicitHeight: contentHeight
                                 model: win.apThemeModel
                                 currentIndex: -1
+                                boundsBehavior: Flickable.StopAtBounds
+                                // Same fix as MScroll: a bare ListView scrolls only a
+                                // few px per wheel notch under Wayland/hi-res ("20
+                                // notches to the bottom"). Drive contentY ourselves at
+                                // ~130px/notch so this popup scrolls like every other
+                                // list in the Manager.
+                                WheelHandler {
+                                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                                    onWheel: function (ev) {
+                                        var dy = ev.pixelDelta.y !== 0 ? ev.pixelDelta.y : ev.angleDelta.y
+                                        var maxY = Math.max(0, themeList.contentHeight - themeList.height)
+                                        themeList.contentY = Math.max(0, Math.min(maxY, themeList.contentY - dy * 1.1))
+                                        ev.accepted = true
+                                    }
+                                }
                                 ScrollBar.vertical: ScrollBar {
                                     policy: themeList.contentHeight > themeList.height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff }
                                 delegate: Rectangle {
