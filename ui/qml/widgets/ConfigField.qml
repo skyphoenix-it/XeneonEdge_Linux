@@ -276,19 +276,40 @@ Item {
     }
     Component {
         id: segC
-        Flow {
-            spacing: 8
-            Repeater {
-                model: f.field.options || []
-                delegate: Rectangle {
-                    required property var modelData
-                    width: segLbl.implicitWidth + 30; height: Math.max(44, f.ctlH - 8); radius: 10
-                    property bool sel: f.cur() === modelData.value
-                    color: sel ? f.col.accent : f.col.panelAlt; border.width: 1
-                    border.color: sel ? f.col.accent : f.col.border
-                    Text { id: segLbl; anchors.centerIn: parent; text: modelData.label
-                        color: sel ? f.onAccent() : f.col.textPrimary; font.pixelSize: f.fontBase - 1 }
-                    MouseArea { anchors.fill: parent; onClicked: f.setV(modelData.value) }
+        // A JOINED segmented control (one bordered track, segments inside), matching
+        // the Manager's MSegment and the app's SegmentedControl — reads as "pick one
+        // of a set" rather than the old row of loose pills. Selected = accent fill;
+        // uses the shared f.col tokens so it themes for both the hub and the Manager.
+        Rectangle {
+            implicitHeight: Math.max(44, f.ctlH - 8)
+            radius: 10
+            color: f.col.bg
+            border.width: 1; border.color: f.col.border
+            RowLayout {
+                anchors.fill: parent; anchors.margins: 3; spacing: 3
+                Repeater {
+                    model: f.field.options || []
+                    delegate: Rectangle {
+                        required property var modelData
+                        Layout.fillWidth: true; Layout.fillHeight: true
+                        radius: 8
+                        property bool sel: f.cur() === modelData.value
+                        color: sel ? f.col.accent
+                                   : (segMA.containsMouse ? f.col.panelAlt : "transparent")
+                        Behavior on color { ColorAnimation { duration: 120 } }
+                        scale: segMA.pressed ? 0.97 : 1.0
+                        Behavior on scale { NumberAnimation { duration: 90 } }
+                        Text {
+                            anchors.centerIn: parent; text: modelData.label
+                            width: parent.width - 8; horizontalAlignment: Text.AlignHCenter
+                            elide: Text.ElideRight
+                            color: parent.sel ? f.onAccent() : f.col.textPrimary
+                            font.pixelSize: f.fontBase - 1; font.bold: parent.sel
+                        }
+                        MouseArea { id: segMA; anchors.fill: parent; hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: f.setV(modelData.value) }
+                    }
                 }
             }
         }
