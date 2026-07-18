@@ -919,7 +919,16 @@ ApplicationWindow {
                         Text { text: "Glassiness"; color: m.textSecondary; font.pixelSize: 14; Layout.preferredWidth: 120 }
                         Slider {
                             id: glassSlider; Layout.fillWidth: true; from: 0; to: 1
-                            value: { store.revision; var g = store.appearance().glass; return g === undefined ? 0.55 : g }
+                            // Bind to theme.glassOpacity — a STABLE Theme property kept in
+                            // step with the store by syncTheme() — NOT to store.revision.
+                            // The Appearance preview renders live cpu/gpu/ram widgets that
+                            // write sparkline history every ~2s, bumping store.revision; a
+                            // revision-bound value re-evaluated on every bump and snapped the
+                            // handle back to the (debounced, stale) stored value mid-drag —
+                            // the "can't move the slider" bug. theme.glassOpacity only moves
+                            // when we move it, so the drag holds (this mirrors the working hub
+                            // slider, SettingsPanel.qml).
+                            value: theme.glassOpacity
                             // Token-styled groove/handle so the raw Fusion control follows
                             // the chosen accent instead of the default light gray.
                             background: Rectangle {
@@ -942,14 +951,18 @@ ApplicationWindow {
                             // Live-preview the theme while dragging (cheap: opacity only),
                             // but debounce the persisted store write so we don't reapply the
                             // whole theme + save on every frame.
-                            onMoved: { theme.glassOpacity = value; glassCommit.restart() }
+                            onMoved: {
+                                theme.glassOpacity = value
+                                // Re-assert the binding the drag severs so external/hub
+                                // pushes still move the handle [S2]; value === theme.glassOpacity
+                                // right now, so this causes no jump.
+                                value = Qt.binding(function() { return theme.glassOpacity })
+                                glassCommit.restart()
+                            }
                             Timer { id: glassCommit; interval: 180; repeat: false
                                 onTriggered: {
                                     store.setAppearance("glass", glassSlider.value)
-                                    // Restore the `value:` binding that dragging severed, so a
-                                    // later store/hub push still moves the slider [S2]. Store
-                                    // now equals the slider, so this re-bind causes no jump.
-                                    glassSlider.value = Qt.binding(function() { store.revision; var g = store.appearance().glass; return g === undefined ? 0.55 : g })
+                                    glassSlider.value = Qt.binding(function() { return theme.glassOpacity })
                                 } }
                         }
                         Text { text: Math.round(glassSlider.value * 100) + "%"

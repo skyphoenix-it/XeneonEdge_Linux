@@ -733,5 +733,43 @@ Item {
             verify(gruv.visible, "expanding reveals all themes")
             win.apShowAllThemes = false
         }
+
+        // ── A: the "can't move the glass slider" bug. The handle must track the
+        // STABLE theme.glassOpacity, not store.revision — the Appearance preview's
+        // cpu/gpu/ram widgets bump store.revision every ~2s, and a revision-bound
+        // value snapped the handle back mid-drag. This test BITES on the old code
+        // (the old slider tracked the store, so it would not follow theme.glassOpacity).
+        function _glassSlider() {
+            return findPred(win, function (x) {
+                return x && typeof x.from === "number" && typeof x.to === "number"
+                       && typeof x.value === "number" && typeof x.moved === "function"
+                       && typeof x.pressed === "boolean" })
+        }
+        function test_glass_slider_tracks_theme_and_survives_metric_churn() {
+            _nav.currentIndex = 1                      // Appearance tab
+            var sl = _glassSlider()
+            verify(sl, "found the glass slider")
+            _theme.glassOpacity = 0.77
+            compare(sl.value, 0.77, "the glass slider tracks theme.glassOpacity (the fix)")
+            // A metric tick bumps store.revision WITHOUT changing glass (hist is ephemeral).
+            _store.setSetting("glassprobe", "hist", [1, 2, 3])
+            compare(sl.value, 0.77, "a metric-churn revision bump does NOT move the handle")
+            _theme.glassOpacity = 0.55                 // restore for later tests
+        }
+        function test_glass_slider_drag_commits_and_rebinds() {
+            _nav.currentIndex = 1
+            var sl = _glassSlider()
+            verify(sl, "found the glass slider")
+            // Offscreen Window → drive the real onMoved (see the button/switch idiom).
+            sl.value = 0.4; sl.moved()
+            compare(sl.value, 0.4, "the drag set the live value")
+            compare(_theme.glassOpacity, 0.4, "onMoved updated the live theme immediately")
+            // Debounced commit writes the store (~180ms).
+            tryVerify(function () { return _store.appearance().glass === 0.4 }, 2000)
+            // [S2] rebind: an external/hub push still moves the handle.
+            _store.setAppearance("glass", 0.15)
+            tryCompare(sl, "value", 0.15, 2000)
+            _theme.glassOpacity = 0.55
+        }
     }
 }
