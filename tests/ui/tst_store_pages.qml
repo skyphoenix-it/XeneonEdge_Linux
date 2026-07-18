@@ -8,7 +8,8 @@ import "../../ui/qml" as App
 // COVERS: fn:DashboardStore.appendPreset, fn:DashboardStore._dedupPageName
 // COVERS: fn:DashboardStore.pageHasRoomFor, fn:DashboardStore.pageColumns, fn:DashboardStore.setPageColumns
 // COVERS: fn:DashboardStore._sizeAtShort, fn:DashboardStore._addSizeFor
-// COVERS: fn:DashboardStore.pageIsFull, fn:DashboardStore.nextAddSize, fn:DashboardStore.addWouldFit
+// COVERS: fn:DashboardStore.pageIsFull, fn:DashboardStore.nextAddSize, fn:DashboardStore._fitSizeFor
+// COVERS: fn:DashboardStore._appendBlankPage, fn:DashboardStore.pageIndexForTile
 Item {
     width: 100; height: 100
     App.DashboardStore { id: store }
@@ -155,17 +156,50 @@ Item {
             verify(typeof store.setPageColumns === "function", "setPageColumns present")
             verify(typeof store._sizeAtShort === "function", "_sizeAtShort present")
             verify(typeof store._addSizeFor === "function", "_addSizeFor present")
+            verify(typeof store._fitSizeFor === "function", "_fitSizeFor present")
+            verify(typeof store._appendBlankPage === "function", "_appendBlankPage present")
+            verify(typeof store.pageIndexForTile === "function", "pageIndexForTile present")
         }
 
-        function test_page_refuses_overflow() {
+        // A full screen never scrolls AND never refuses: the next widget flows onto a
+        // NEW screen at its default size, so adding always succeeds.
+        function test_overflow_flows_to_a_new_screen() {
             store.load("blank")                 // one screen = 6 long half-cells
             verify(store.pageHasRoomFor(0, "1x1"), "an empty page has room")
-            verify(store.addTile(0, "cpu") !== null, "1st 1x1 fits")
-            verify(store.addTile(0, "gpu") !== null, "2nd 1x1 fits")
-            verify(store.addTile(0, "ram") !== null, "3rd 1x1 fits — page is now full")
-            verify(!store.pageHasRoomFor(0, "0.5x0.5"), "a full page has no room, not even for 0.5x0.5")
-            compare(store.addTile(0, "clock"), null, "adding to a full page is REFUSED (no overflow/scroll)")
-            compare(store.pages()[0].tiles.length, 3, "…and nothing was appended")
+            var a = store.addTile(0, "cpu")
+            var b = store.addTile(0, "gpu")
+            var c = store.addTile(0, "ram")     // 3× 1x1 = full
+            verify(a && b && c, "the three baselines were added")
+            compare(store.pageIndexForTile(a), 0, "all three landed on the first screen")
+            compare(store.pageIndexForTile(c), 0, "…still one screen so far")
+            verify(store.pageIsFull(0), "the screen is now full")
+            var overflow = store.addTile(0, "clock")   // no room here → new screen
+            verify(overflow !== null, "adding is NEVER refused (it flows to a new screen)")
+            compare(store.pageCount(), 2, "a new screen was appended")
+            compare(store.pageIndexForTile(overflow), 1, "the widget landed on the new screen")
+            compare(store.pages()[0].tiles.length, 3, "the first screen is untouched (no overflow on it)")
+            compare(store.pages()[1].tiles[0].size, store._defaultSizeFor("clock"),
+                    "on a fresh screen the widget takes its default size")
+        }
+
+        // When the preferred size does not fit but a SMALLER supported one does, the
+        // widget slots into the space left rather than starting a new screen.
+        function test_add_degrades_into_leftover_space() {
+            store.load("blank")
+            store.addTile(0, "cpu")             // 1x1  (long 0–2)
+            store.addTile(0, "gpu")             // 1x1  (long 2–4)
+            var d = store.addTile(0, "ram")     // 1x1  (long 4–6) → full
+            store.setTileSize(0, d, "1x0.5")    // shrink ram → frees a 1x0.5 gap at long 5–6
+            verify(!store.pageHasRoomFor(0, "1x1"), "no full-height 1x1 slot remains")
+            verify(store.pageHasRoomFor(0, "1x0.5"), "but a 1x0.5 gap does remain")
+            compare(store._fitSizeFor(0, "net"), "1x0.5",
+                    "_fitSizeFor degrades net's 1x1 default down to the 1x0.5 that fits")
+            var g = store.addTile(0, "net")     // default 1x1 won't fit → degrades to 1x0.5
+            compare(store.pageIndexForTile(g), 0, "it fit on the same screen, not a new one")
+            compare(store.pageCount(), 1, "no new screen was needed")
+            verify(store._sizes.area(store.pages()[0].tiles[3].size)
+                     < store._sizes.area(store._defaultSizeFor("net")),
+                   "…at a smaller-than-default size, degraded to fit the leftover space")
         }
 
         function test_resize_refuses_overflow() {
@@ -197,19 +231,18 @@ Item {
             verify(store._addSizeFor(0, "gpu").length > 0, "_addSizeFor returns a size")
         }
 
-        // The picker/add-affordance helpers built on top of pageHasRoomFor.
+        // The Hub add-slot helpers: pageIsFull gates the "new screen" hint, nextAddSize
+        // previews where/what the in-page "＋" ghost shows.
         function test_add_affordance_helpers() {
             store.load("blank")
             verify(!store.pageIsFull(0), "an empty page is not full")
-            verify(store.addWouldFit(0, "cpu"), "a cpu fits on an empty page")
             compare(store.nextAddSize(0), "1x1", "1-column add previews the baseline")
             store.setPageColumns(0, 2)
             compare(store.nextAddSize(0), "0.5x1", "2-column add previews a half-width size")
             store.setPageColumns(0, 1)                                                   // back to full width
             store.addTile(0, "cpu"); store.addTile(0, "gpu"); store.addTile(0, "ram")   // 3× 1x1 fills it
             verify(store.pageIsFull(0), "the page is now full")
-            verify(!store.addWouldFit(0, "clock"), "nothing more fits")
-            compare(store.nextAddSize(0), "", "a full page has no add-size to preview")
+            compare(store.nextAddSize(0), "", "a full page has no in-page slot to preview")
         }
     }
 }

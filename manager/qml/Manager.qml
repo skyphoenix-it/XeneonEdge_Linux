@@ -1688,22 +1688,22 @@ ApplicationWindow {
             ColumnLayout {
                 width: addPicker.availableWidth
                 spacing: 12
-                // One screen never scrolls: when the page is full, say so and disable
-                // the widgets that will not fit rather than letting a click do nothing.
+                // One screen never scrolls: when the page is full, the next widget just
+                // starts a new screen. Say so up front — helpful, not a blocker.
                 Rectangle {
                     Layout.fillWidth: true
                     visible: (store.structureRevision, store.pageIsFull(win.currentPageIndex))
                     implicitHeight: fullRowM.implicitHeight + 16
                     radius: m.radius
-                    color: Qt.rgba(m.danger.r, m.danger.g, m.danger.b, 0.12)
-                    border.width: 1; border.color: Qt.rgba(m.danger.r, m.danger.g, m.danger.b, 0.5)
+                    color: Qt.rgba(m.accent.r, m.accent.g, m.accent.b, 0.12)
+                    border.width: 1; border.color: Qt.rgba(m.accent.r, m.accent.g, m.accent.b, 0.45)
                     RowLayout {
                         id: fullRowM
                         anchors.fill: parent; anchors.margins: 8; spacing: 8
-                        AppIcon { name: "ui-warning"; size: 18; color: m.danger; Layout.alignment: Qt.AlignVCenter }
+                        AppIcon { name: "ui-add-page"; size: 18; color: m.accent; Layout.alignment: Qt.AlignVCenter }
                         Text {
                             Layout.fillWidth: true; wrapMode: Text.WordWrap
-                            text: "This screen is full. Remove or shrink a widget to make room — a page never scrolls."
+                            text: "This screen is full — your next widget will start a new screen."
                             color: m.textPrimary; font.pixelSize: 13
                         }
                     }
@@ -1720,10 +1720,7 @@ ApplicationWindow {
                                 model: catalog.inCategory(modelData)
                                 delegate: Rectangle {
                                     required property var modelData
-                                    readonly property bool fits: (store.structureRevision,
-                                        store.addWouldFit(win.currentPageIndex, modelData.type))
                                     width: 150; height: 84; radius: m.radius
-                                    opacity: fits ? 1.0 : 0.4
                                     color: itemMA.containsMouse ? m.panelAlt : m.bg
                                     border.width: 1; border.color: m.border
                                     ColumnLayout {
@@ -1733,9 +1730,18 @@ ApplicationWindow {
                                             color: m.textPrimary; font.pixelSize: 13 }
                                     }
                                     MouseArea { id: itemMA; anchors.fill: parent; hoverEnabled: true
-                                        enabled: parent.fits
                                         cursorShape: Qt.PointingHandCursor
-                                        onClicked: { store.addTile(win.currentPageIndex, modelData.type); addPicker.close() } }
+                                        // Adding never fails: fits this screen, or the store starts a
+                                        // new one. Follow the tile to whichever screen it landed on.
+                                        onClicked: {
+                                            var newId = store.addTile(win.currentPageIndex, modelData.type)
+                                            addPicker.close()
+                                            if (newId) {
+                                                var tp = store.pageIndexForTile(newId)
+                                                if (tp >= 0) win.currentPageIndex = tp
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }

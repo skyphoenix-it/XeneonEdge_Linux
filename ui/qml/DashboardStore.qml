@@ -605,11 +605,13 @@ Item {
     }
 
     // ── UI helpers for the add-widget affordances ────────────────────────────
-    // A page is full when not even the smallest widget (0.5x0.5) fits. Drives the
-    // Hub's edit-mode add slot and the picker's "page full" banner.
+    // A page is full when not even the smallest widget (0.5x0.5) fits — the next
+    // widget added here will start a NEW screen (see addTile). Drives the Hub's
+    // edit-mode add slot and the picker's "will start a new screen" hint.
     function pageIsFull(pageIdx) { return !pageHasRoomFor(pageIdx, "0.5x0.5") }
     // The size the edit-mode "add" ghost previews: the column-aware baseline if it
-    // fits, else the largest smaller size that still fits, else "" (page full).
+    // fits, else the largest smaller size that still fits, else "" (page full → the
+    // next widget lands on a new screen, so there is no slot to preview here).
     function nextAddSize(pageIdx) {
         var pref = (pageColumns(pageIdx) >= 2) ? "0.5x1" : store._sizes.baseline
         var order = [pref, "0.5x1", "0.5x0.5"]
@@ -617,20 +619,62 @@ Item {
             if (pageHasRoomFor(pageIdx, order[i])) return order[i]
         return ""
     }
-    // Would adding a NEW tile of `type` fit on this page? Drives per-item enabling
-    // in the add-widget picker so a full page's widgets read as unavailable rather
-    // than silently doing nothing when tapped.
-    function addWouldFit(pageIdx, type) { return pageHasRoomFor(pageIdx, _addSizeFor(pageIdx, type)) }
+    // The size a NEW `type` should take on `pageIdx`: its preferred (column-aware)
+    // size if that fits, else the LARGEST supported size smaller than it that fits,
+    // else "" — the page is too full for even the smallest, so the caller starts a
+    // new screen. This is what lets "add" degrade gracefully into the space left
+    // (a widget that would be 1x1 slots into a leftover 0.5x1 gap) instead of
+    // refusing, while never overflowing the one-screen budget.
+    function _fitSizeFor(pageIdx, type) {
+        var pref = _addSizeFor(pageIdx, type)
+        if (pageHasRoomFor(pageIdx, pref)) return pref
+        var fn = store._catalogFn("sizesFor")
+        var legal = fn ? fn(type) : []
+        var prefArea = store._sizes.area(pref)
+        var cands = []
+        for (var i = 0; i < legal.length; i++) {
+            var nm = legal[i]
+            if (!store._sizes.isLegal(nm)) continue
+            if (store._sizes.area(nm) >= prefArea) continue   // only sizes smaller than preferred
+            cands.push(nm)
+        }
+        cands.sort(function (a, b) { return store._sizes.area(b) - store._sizes.area(a) })  // largest first
+        for (var j = 0; j < cands.length; j++)
+            if (pageHasRoomFor(pageIdx, cands[j])) return cands[j]
+        return ""
+    }
+    // Append a fresh, blank single-column screen and return its index. No commit —
+    // the caller (addTile) commits once after placing the tile.
+    function _appendBlankPage() {
+        data.pages.push({ "name": _uniquePageName(), "tiles": [], "columns": 1 })
+        return data.pages.length - 1
+    }
+    // Which page holds `tileId`, or -1. Lets a caller follow a freshly-added tile to
+    // whatever screen it landed on (its own page, or a new one addTile created).
+    function pageIndexForTile(tileId) {
+        for (var p = 0; p < data.pages.length; p++) {
+            var tiles = data.pages[p].tiles || []
+            for (var t = 0; t < tiles.length; t++)
+                if (tiles[t].id === tileId) return p
+        }
+        return -1
+    }
 
-    // Add a tile — REFUSED when the page is already full (one screen never scrolls).
-    // Returns the new id, or null if there was no room. Size honours the page's
-    // column mode.
+    // Add a tile. It lands on `pageIdx` if it fits there — at its preferred size, or
+    // the largest smaller size that fits the space left. If NOTHING fits, a NEW
+    // screen is appended and the tile lands there at its default size. A page never
+    // scrolls, and adding never fails for lack of room (only a bad index returns
+    // null). Use pageIndexForTile(id) to follow the tile to its screen.
     function addTile(pageIdx, type) {
         if (pageIdx < 0 || pageIdx >= data.pages.length) return null
-        var size = _addSizeFor(pageIdx, type)
-        if (!pageHasRoomFor(pageIdx, size)) return null   // page full — do not overflow
+        var size = _fitSizeFor(pageIdx, type)
+        var target = pageIdx
+        if (size === "") {                    // this screen is full → start a new one
+            target = _appendBlankPage()
+            size = _defaultSizeFor(type)      // a fresh screen fits the default size
+        }
         var id = _newId(type)
-        data.pages[pageIdx].tiles.push({ "id": id, "type": type, "size": size })
+        data.pages[target].tiles.push({ "id": id, "type": type, "size": size })
         _commitStructure()
         return id
     }

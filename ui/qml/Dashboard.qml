@@ -1344,6 +1344,11 @@ Item {
                 }
             }
 
+            // Add widget (edit mode) — always reachable, even on a full screen where
+            // the in-page "＋" ghost is hidden; the store puts it here or on a new
+            // screen as it fits. Targets the page currently in view.
+            BarButton { iconName: "ui-plus"; visible: dashboard.editMode
+                        onClicked: { picker.pageIndex = swipeView.currentIndex; picker.shown = true } }
             // Add page (edit mode) — jump to the new page so the add lands visibly.
             BarButton { iconName: "ui-add-page"; visible: dashboard.editMode
                         onClicked: { store.addPage(""); swipeView.currentIndex = store.pageCount() - 1 } }
@@ -1647,23 +1652,22 @@ Item {
                         MouseArea { anchors.fill: parent; onClicked: picker.shown = false }
                     }
                 }
-                // A screen never scrolls: when it is full, say so plainly and point at
-                // the remedy (remove something, or shrink a widget) rather than letting
-                // taps land silently on widgets that cannot be added.
+                // A screen never scrolls, so when it is full the next widget simply
+                // starts a new screen. Say so up front — it is helpful, not a blocker.
                 Rectangle {
                     Layout.fillWidth: true
                     visible: (store.structureRevision, store.pageIsFull(picker.pageIndex))
                     implicitHeight: fullRow.implicitHeight + theme.spacingMd
                     radius: theme.radiusMd
-                    color: Qt.rgba(theme.warning.r, theme.warning.g, theme.warning.b, 0.14)
-                    border.width: 1; border.color: Qt.rgba(theme.warning.r, theme.warning.g, theme.warning.b, 0.5)
+                    color: Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.12)
+                    border.width: 1; border.color: Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.45)
                     RowLayout {
                         id: fullRow
                         anchors.fill: parent; anchors.margins: theme.spacingSm; spacing: theme.spacingSm
-                        AppIcon { name: "ui-warning"; size: 20; color: theme.warning }
+                        AppIcon { name: "ui-add-page"; size: 20; color: theme.accent }
                         Text {
                             Layout.fillWidth: true; wrapMode: Text.WordWrap
-                            text: "This screen is full. Remove or shrink a widget to make room — a page never scrolls."
+                            text: "This screen is full — your next widget will start a new screen."
                             font.pixelSize: 14; color: theme.textPrimary
                         }
                     }
@@ -1689,12 +1693,7 @@ Item {
                                         model: allowedItems
                                         delegate: Rectangle {
                                             required property var modelData
-                                            // A widget that will not fit on this (full/near-full) screen
-                                            // reads as unavailable rather than silently failing on tap.
-                                            readonly property bool fits: (store.structureRevision,
-                                                store.addWouldFit(picker.pageIndex, modelData.type))
                                             width: 200; height: theme.touchPrimary; radius: theme.radiusMd
-                                            opacity: fits ? 1.0 : 0.4
                                             // Touchscreens have no hover — react to `pressed` so a tap
                                             // gives real feedback (containsMouse alone did nothing).
                                             color: pickMA.pressed ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.22)
@@ -1717,8 +1716,16 @@ Item {
                                             }
                                             MouseArea {
                                                 id: pickMA; anchors.fill: parent; hoverEnabled: true
-                                                enabled: parent.fits
-                                                onClicked: { store.addTile(picker.pageIndex, modelData.type); picker.shown = false }
+                                                // Adding never fails: the tile fits this screen, or the
+                                                // store starts a new one. Follow it to wherever it landed.
+                                                onClicked: {
+                                                    var newId = store.addTile(picker.pageIndex, modelData.type)
+                                                    picker.shown = false
+                                                    if (newId) {
+                                                        var tp = store.pageIndexForTile(newId)
+                                                        if (tp >= 0) swipeView.currentIndex = tp
+                                                    }
+                                                }
                                             }
                                         }
                                     }
