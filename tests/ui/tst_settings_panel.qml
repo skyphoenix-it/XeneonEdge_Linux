@@ -108,17 +108,28 @@ Item {
         // ── Theme mode (segmented) ───────────────────────────────────────────
         function test_theme_mode_reflects_external_state() {
             root.themeMode = "midnight"
-            var d = delegateWhere(function (n) { return n.modelData.v === "midnight" })
+            var d = delegateWhere(function (n) { return n.modelData.k === "midnight" })
             verify(d !== null, "midnight theme swatch exists")
             verify(d.active, "the swatch matching root.themeMode is active")
         }
 
         function test_theme_mode_click_writes_and_applies() {
-            var d = delegateWhere(function (n) { return n.modelData.v === "midnight" })
+            var d = delegateWhere(function (n) { return n.modelData.k === "midnight" })
             clickTarget(d)
             compare(root.themeMode, "midnight", "tapping a theme swatch writes root.themeMode")
             verify(Qt.colorEqual(_theme.backgroundColor, "#0B1026"),
                    "…and applies the theme (background is the midnight tone)")
+        }
+
+        // Pro-gating: without a licence (no `license` context in the harness → free),
+        // a Pro theme is locked and tapping it must NOT apply — the on-device leak fix.
+        function test_pro_theme_is_gated_without_a_licence() {
+            root.themeMode = "dark"; _theme.applyTheme("dark")
+            var d = delegateWhere(function (n) { return n.modelData.k === "synthwave" })
+            verify(d !== null, "a Pro theme (synthwave) is listed")
+            verify(d.locked, "…and it is locked without a licence")
+            clickTarget(d)
+            compare(root.themeMode, "dark", "tapping a locked Pro theme does NOT apply it")
         }
 
         // ── Accent color ─────────────────────────────────────────────────────

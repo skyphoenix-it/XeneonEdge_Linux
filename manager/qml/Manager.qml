@@ -315,39 +315,12 @@ ApplicationWindow {
 
     property int currentPageIndex: 0
     // Appearance: the Edge theme is chosen from a compact dropdown (Hybrid design)
-    // instead of a 29-swatch grid that dominated the tab. This is the single source
-    // of the theme list — the dropdown and the tests both read it.
-    readonly property var apThemeModel: [
-        { k: "dark",          n: "Dark",       c1: "#161B22", c2: "#0A0E14" },
-        { k: "midnight",      n: "Midnight",   c1: "#1B1247", c2: "#070A1C" },
-        { k: "aurora",        n: "Aurora",     c1: "#0C2E3A", c2: "#111C40" },
-        { k: "sunset",        n: "Sunset",     c1: "#3A1230", c2: "#40161C" },
-        { k: "nebula",        n: "Nebula",     c1: "#2A1048", c2: "#120A2E" },
-        { k: "synthwave",     n: "Synthwave",  c1: "#2D0B45", c2: "#0F0524", pro: true },
-        { k: "cyberpunk",     n: "Cyberpunk",  c1: "#0A2A26", c2: "#020A08", pro: true },
-        { k: "deep_forest",   n: "Forest",     c1: "#143021", c2: "#06120A" },
-        { k: "deep_ocean",    n: "Ocean",      c1: "#0A2A3F", c2: "#020A14" },
-        { k: "ember",         n: "Ember",      c1: "#3A1509", c2: "#0F0705" },
-        { k: "vaporwave",     n: "Vaporwave",  c1: "#3A1A52", c2: "#140A20", pro: true },
-        { k: "rose_gold",     n: "Rose Gold",  c1: "#3A1E2C", c2: "#170C12" },
-        { k: "matrix",        n: "Matrix",     c1: "#0A160A", c2: "#000000", pro: true },
-        { k: "nord",          n: "Nord",       c1: "#3B4252", c2: "#272B35" },
-        { k: "dracula",       n: "Dracula",    c1: "#343746", c2: "#21222C" },
-        { k: "solarized",     n: "Solarized",  c1: "#073642", c2: "#00212B" },
-        { k: "gruvbox",       n: "Gruvbox",    c1: "#32302F", c2: "#1D2021" },
-        { k: "catppuccin",    n: "Catppuccin", c1: "#181825", c2: "#11111B" },
-        { k: "tokyonight",    n: "Tokyo Night",c1: "#24283B", c2: "#16161E" },
-        { k: "arch",          n: "Arch",       c1: "#1B2129", c2: "#14181D", pro: true },
-        { k: "cachyos",       n: "CachyOS",    c1: "#1C221A", c2: "#131611", pro: true },
-        { k: "debian",        n: "Debian",     c1: "#1F1922", c2: "#16121A", pro: true },
-        { k: "fedora",        n: "Fedora",     c1: "#152034", c2: "#0E1626", pro: true },
-        { k: "popos",         n: "Pop!_OS",    c1: "#262322", c2: "#1E1C1B", pro: true },
-        { k: "aubergine",     n: "Aubergine",  c1: "#3A0F2A", c2: "#2C0A20" },
-        { k: "crimson",       n: "Crimson",    c1: "#16080B", c2: "#0B0507" },
-        { k: "oled",          n: "OLED",       c1: "#0A0A0A", c2: "#000000" },
-        { k: "light",         n: "Light",      c1: "#F6F8FA", c2: "#E4E9F0" },
-        { k: "high_contrast", n: "Contrast",   c1: "#1A1A1A", c2: "#000000" }
-    ]
+    // instead of a 29-swatch grid that dominated the tab. The list itself is the
+    // SHARED catalogue in Theme.qml, so the Manager dropdown and the hub's picker
+    // present exactly the same themes, Pro flags and preview swatches (they used to
+    // be maintained separately and could drift). `apThemeModel` stays as the name
+    // the dropdown and tests read.
+    readonly property var apThemeModel: theme.themeCatalog
     function _themeDef(key) {
         for (var i = 0; i < apThemeModel.length; i++)
             if (apThemeModel[i].k === key) return apThemeModel[i]

@@ -152,66 +152,93 @@ Rectangle {
                         }
                     }
 
-                    // --- Theme mode (live gradient previews) ---
+                    // --- Theme (compact, grouped, Pro-gated) ---
+                    // Reads the SHARED catalogue in Theme.qml (same list the Manager's
+                    // dropdown shows), grouped into Standard / Premium / Distro /
+                    // Accessibility. A 29-tile grid was a long scroll on the panel; these
+                    // compact swatch chips scan faster and match the Manager.
+                    //
+                    // Pro gating: a Pro theme is locked unless `license.isPro`. The
+                    // `license` bridge is a context property on the device; it is absent
+                    // in the offscreen test harness, so read it defensively (→ treated as
+                    // free). Tapping a locked theme explains where to unlock it instead
+                    // of silently applying — the leak this fixes.
                     ColumnLayout {
+                        id: themeSection
                         Layout.fillWidth: true; spacing: theme.spacingSm
+                        property bool userIsPro: (typeof license !== "undefined") && license && license.isPro === true
+                        property string lockHint: ""
+                        function groupLabel(g) {
+                            return g === "Premium" ? "Premium (Pro)"
+                                 : g === "Distro"  ? "Distro-inspired (Pro)"
+                                 : g === "Accessibility" ? "Accessibility" : "Standard"
+                        }
                         Text { text: "Theme"; font.pixelSize: theme.fontLabel; font.bold: true; color: theme.textSecondary }
-                        Flow {
-                            Layout.fillWidth: true; spacing: theme.spacingMd
-                            Repeater {
-                                model: [
-                                    { v: "dark",          l: "Dark",      c1: "#161B22", c2: "#0A0E14" },
-                                    { v: "midnight",      l: "Midnight",  c1: "#1B1247", c2: "#070A1C" },
-                                    { v: "aurora",        l: "Aurora",    c1: "#0C2E3A", c2: "#111C40" },
-                                    { v: "sunset",        l: "Sunset",    c1: "#3A1230", c2: "#40161C" },
-                                    { v: "nebula",        l: "Nebula",    c1: "#2A1048", c2: "#120A2E" },
-                                    { v: "synthwave",     l: "Synthwave", c1: "#2D0B45", c2: "#0F0524" },
-                                    { v: "cyberpunk",     l: "Cyberpunk", c1: "#0A2A26", c2: "#020A08" },
-                                    { v: "deep_forest",   l: "Forest",    c1: "#143021", c2: "#06120A" },
-                                    { v: "deep_ocean",    l: "Ocean",     c1: "#0A2A3F", c2: "#020A14" },
-                                    { v: "ember",         l: "Ember",     c1: "#3A1509", c2: "#0F0705" },
-                                    { v: "vaporwave",     l: "Vaporwave", c1: "#3A1A52", c2: "#140A20" },
-                                    { v: "rose_gold",     l: "Rose Gold", c1: "#3A1E2C", c2: "#170C12" },
-                                    { v: "matrix",        l: "Matrix",    c1: "#0A160A", c2: "#000000" },
-                                    { v: "nord",          l: "Nord",      c1: "#3B4252", c2: "#272B35" },
-                                    { v: "dracula",       l: "Dracula",   c1: "#343746", c2: "#21222C" },
-                                    { v: "solarized",     l: "Solarized", c1: "#073642", c2: "#00212B" },
-                                    { v: "gruvbox",       l: "Gruvbox",   c1: "#32302F", c2: "#1D2021" },
-                                    { v: "catppuccin",    l: "Catppuccin",c1: "#181825", c2: "#11111B" },
-                                    { v: "tokyonight",    l: "Tokyo Night",c1: "#24283B", c2: "#16161E" },
-                                    { v: "arch", l: "Arch", c1: "#1B2129", c2: "#14181D" },
-                                    { v: "cachyos", l: "CachyOS", c1: "#1C221A", c2: "#131611" },
-                                    { v: "debian", l: "Debian", c1: "#1F1922", c2: "#16121A" },
-                                    { v: "fedora", l: "Fedora", c1: "#152034", c2: "#0E1626" },
-                                    { v: "popos", l: "Pop!_OS", c1: "#262322", c2: "#1E1C1B" },
-                                    { v: "aubergine", l: "Aubergine", c1: "#3A0F2A", c2: "#2C0A20" },
-                                    { v: "crimson", l: "Crimson", c1: "#16080B", c2: "#0B0507" },
-                                    { v: "oled",          l: "OLED",      c1: "#0A0A0A", c2: "#000000" },
-                                    { v: "light",         l: "Light",     c1: "#F6F8FA", c2: "#E4E9F0" },
-                                    { v: "high_contrast", l: "Contrast",  c1: "#1A1A1A", c2: "#000000" }
-                                ]
-                                delegate: Rectangle {
-                                    required property var modelData
-                                    width: 150; height: 84; radius: theme.radiusLg; clip: true
-                                    property bool active: root.themeMode === modelData.v
-                                    border.width: active ? 3 : 1
-                                    border.color: active ? theme.accent : theme.cardBorder
-                                    gradient: Gradient {
-                                        GradientStop { position: 0.0; color: modelData.c1 }
-                                        GradientStop { position: 1.0; color: modelData.c2 }
+                        Text {
+                            visible: themeSection.lockHint !== ""
+                            text: themeSection.lockHint; color: theme.accent
+                            font.pixelSize: theme.fontCaption; wrapMode: Text.WordWrap; Layout.fillWidth: true
+                        }
+                        Repeater {
+                            model: theme.themeGroupOrder
+                            delegate: ColumnLayout {
+                                required property string modelData
+                                readonly property var groupThemes: theme.themesInGroup(modelData)
+                                visible: groupThemes.length > 0
+                                Layout.fillWidth: true; spacing: theme.spacingSm
+                                Layout.topMargin: theme.spacingSm
+                                Text { text: themeSection.groupLabel(modelData); font.pixelSize: theme.fontCaption
+                                    font.bold: true; color: theme.textTertiary }
+                                Flow {
+                                    Layout.fillWidth: true; spacing: theme.spacingSm
+                                    Repeater {
+                                        model: groupThemes
+                                        delegate: Rectangle {
+                                            required property var modelData
+                                            readonly property bool active: root.themeMode === modelData.k
+                                            readonly property bool locked: (modelData.pro === true) && !themeSection.userIsPro
+                                            implicitWidth: chipRow.implicitWidth + 20; height: theme.touchTertiary
+                                            radius: theme.radiusMd
+                                            color: active ? Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.14)
+                                                          : theme.cardBackgroundAlt
+                                            border.width: active ? 2 : 1
+                                            border.color: active ? theme.accent : theme.cardBorder
+                                            opacity: locked ? 0.55 : 1.0
+                                            scale: chipMA.pressed ? 0.97 : 1.0
+                                            Behavior on scale { NumberAnimation { duration: theme.motionFast } }
+                                            RowLayout {
+                                                id: chipRow; anchors.centerIn: parent; spacing: 8
+                                                Rectangle {
+                                                    width: 22; height: 22; radius: 5; border.width: 1; border.color: theme.cardBorder
+                                                    gradient: Gradient {
+                                                        GradientStop { position: 0.0; color: modelData.c1 }
+                                                        GradientStop { position: 1.0; color: modelData.c2 } }
+                                                }
+                                                Text { text: modelData.n; color: theme.textPrimary; font.pixelSize: theme.fontLabel }
+                                                Rectangle {
+                                                    visible: modelData.pro === true
+                                                    implicitWidth: proBadge.implicitWidth + 10; implicitHeight: 16; radius: 8
+                                                    color: locked ? Qt.rgba(theme.textSecondary.r, theme.textSecondary.g, theme.textSecondary.b, 0.25)
+                                                                  : Qt.rgba(theme.accent.r, theme.accent.g, theme.accent.b, 0.22)
+                                                    Text { id: proBadge; anchors.centerIn: parent; text: "PRO"
+                                                        color: locked ? theme.textSecondary : theme.accent
+                                                        font.pixelSize: 9; font.bold: true }
+                                                }
+                                                AppIcon { visible: active; name: "ui-check"; size: 16; color: theme.accent }
+                                            }
+                                            MouseArea {
+                                                id: chipMA; anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                                onClicked: {
+                                                    if (locked) {
+                                                        themeSection.lockHint = "“" + modelData.n + "” is a Pro theme — add your licence in the EdgeHub Manager to use it."
+                                                        return
+                                                    }
+                                                    themeSection.lockHint = ""
+                                                    root.themeMode = modelData.k; theme.applyTheme(modelData.k)
+                                                }
+                                            }
+                                        }
                                     }
-                                    Text {
-                                        anchors.left: parent.left; anchors.bottom: parent.bottom; anchors.margins: 10
-                                        text: modelData.l; font.pixelSize: 15; font.bold: true
-                                        color: modelData.v === "light" ? "#1F2328" : "#FFFFFF"
-                                    }
-                                    AppIcon {
-                                        visible: parent.active
-                                        anchors.top: parent.top; anchors.right: parent.right; anchors.margins: 8
-                                        name: "ui-check"; size: 22; color: theme.accent
-                                    }
-                                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                        onClicked: { root.themeMode = modelData.v; theme.applyTheme(modelData.v) } }
                                 }
                             }
                         }

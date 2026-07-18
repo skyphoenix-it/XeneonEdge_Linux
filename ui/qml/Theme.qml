@@ -261,6 +261,57 @@ QtObject {
     // so reduce-motion collapses them all to an instant jump in one place.
     property int motionValue: effectiveReduceMotion ? 0 : 400
 
+    // ── Theme catalogue — the ONE source of the selectable theme list ─────────
+    // key, display name, two preview-gradient colours, whether it needs Pro, and a
+    // group for the pickers to section by. Both the hub's SettingsPanel and the
+    // Manager's theme dropdown read THIS, so the list, the Pro flags and the preview
+    // swatches can never drift between the two surfaces (they used to be maintained
+    // in three separate places). The token mapping still lives in applyTheme(); this
+    // is only the catalogue the pickers present.
+    readonly property var themeCatalog: [
+        { k: "dark",          n: "Dark",       c1: "#161B22", c2: "#0A0E14", group: "Standard" },
+        { k: "midnight",      n: "Midnight",   c1: "#1B1247", c2: "#070A1C", group: "Standard" },
+        { k: "aurora",        n: "Aurora",     c1: "#0C2E3A", c2: "#111C40", group: "Standard" },
+        { k: "sunset",        n: "Sunset",     c1: "#3A1230", c2: "#40161C", group: "Standard" },
+        { k: "nebula",        n: "Nebula",     c1: "#2A1048", c2: "#120A2E", group: "Standard" },
+        { k: "deep_forest",   n: "Forest",     c1: "#143021", c2: "#06120A", group: "Standard" },
+        { k: "deep_ocean",    n: "Ocean",      c1: "#0A2A3F", c2: "#020A14", group: "Standard" },
+        { k: "ember",         n: "Ember",      c1: "#3A1509", c2: "#0F0705", group: "Standard" },
+        { k: "rose_gold",     n: "Rose Gold",  c1: "#3A1E2C", c2: "#170C12", group: "Standard" },
+        { k: "nord",          n: "Nord",       c1: "#3B4252", c2: "#272B35", group: "Standard" },
+        { k: "dracula",       n: "Dracula",    c1: "#343746", c2: "#21222C", group: "Standard" },
+        { k: "solarized",     n: "Solarized",  c1: "#073642", c2: "#00212B", group: "Standard" },
+        { k: "gruvbox",       n: "Gruvbox",    c1: "#32302F", c2: "#1D2021", group: "Standard" },
+        { k: "catppuccin",    n: "Catppuccin", c1: "#181825", c2: "#11111B", group: "Standard" },
+        { k: "tokyonight",    n: "Tokyo Night",c1: "#24283B", c2: "#16161E", group: "Standard" },
+        { k: "aubergine",     n: "Aubergine",  c1: "#3A0F2A", c2: "#2C0A20", group: "Standard" },
+        { k: "crimson",       n: "Crimson",    c1: "#16080B", c2: "#0B0507", group: "Standard" },
+        { k: "oled",          n: "OLED",       c1: "#0A0A0A", c2: "#000000", group: "Standard" },
+        { k: "light",         n: "Light",      c1: "#F6F8FA", c2: "#E4E9F0", group: "Standard" },
+        { k: "synthwave",     n: "Synthwave",  c1: "#2D0B45", c2: "#0F0524", pro: true, group: "Premium" },
+        { k: "cyberpunk",     n: "Cyberpunk",  c1: "#0A2A26", c2: "#020A08", pro: true, group: "Premium" },
+        { k: "vaporwave",     n: "Vaporwave",  c1: "#3A1A52", c2: "#140A20", pro: true, group: "Premium" },
+        { k: "matrix",        n: "Matrix",     c1: "#0A160A", c2: "#000000", pro: true, group: "Premium" },
+        { k: "arch",          n: "Arch",       c1: "#1B2129", c2: "#14181D", pro: true, group: "Distro" },
+        { k: "cachyos",       n: "CachyOS",    c1: "#1C221A", c2: "#131611", pro: true, group: "Distro" },
+        { k: "debian",        n: "Debian",     c1: "#1F1922", c2: "#16121A", pro: true, group: "Distro" },
+        { k: "fedora",        n: "Fedora",     c1: "#152034", c2: "#0E1626", pro: true, group: "Distro" },
+        { k: "popos",         n: "Pop!_OS",    c1: "#262322", c2: "#1E1C1B", pro: true, group: "Distro" },
+        { k: "high_contrast", n: "Contrast",   c1: "#1A1A1A", c2: "#000000", group: "Accessibility" }
+    ]
+    // Group order for the pickers (only groups that exist are shown).
+    readonly property var themeGroupOrder: ["Standard", "Premium", "Distro", "Accessibility"]
+    function themeDef(key) {
+        for (var i = 0; i < themeCatalog.length; i++)
+            if (themeCatalog[i].k === key) return themeCatalog[i]
+        return null
+    }
+    function themesInGroup(group) {
+        return themeCatalog.filter(function (t) { return t.group === group })
+    }
+    // Is `key` a Pro-only theme? (Reads the catalogue's pro flag.)
+    function themeIsPro(key) { var d = themeDef(key); return !!(d && d.pro) }
+
     function applyAccent(name) {
         var p = accentPresets[name] || accentPresets["blue"]
         accent = p.a; accent2 = p.b; accentName = name
