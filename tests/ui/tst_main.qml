@@ -152,7 +152,12 @@ Item {
             win.orientationMode = "auto"
             win.sensorRotation = -1
             win._stableSensorRotation = -1
-            compare(win.contentRotation, 0, "auto with no sensor reading stays upright")
+            // No reading yet → default to LANDSCAPE (the Edge's primary orientation),
+            // derived from the window aspect so it's right on either OS display config.
+            win.width = 300; win.height = 500     // portrait window → rotate 90° to landscape
+            compare(win.contentRotation, 90, "auto, no reading, portrait window → landscape (90°)")
+            win.width = 500; win.height = 300     // landscape window → already landscape
+            compare(win.contentRotation, 0, "auto, no reading, landscape window → landscape (0°)")
             win.sensorRotation = 90               // first reading applies immediately
             compare(win._stableSensorRotation, 90, "first sensor reading applied promptly")
             compare(win.contentRotation, 90, "auto follows the sensor to 90°")

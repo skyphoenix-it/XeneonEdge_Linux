@@ -186,8 +186,9 @@ void OrientationSensor::queryInitialOrientation() {
         // Neither GET_REPORT worked (the FIFO test seam lands here too). Not fatal:
         // the first physical rotation still corrects the UI via a pushed report.
         qWarning() << "OrientationSensor: could not read the current orientation at "
-                      "startup (panel answered no GET_REPORT); the view will correct "
-                      "itself on the first rotation.";
+                      "startup (panel answered no GET_REPORT); using the remembered "
+                      "orientation if any, else the default landscape, and following "
+                      "the first physical rotation.";
         return;
     }
     // GCOVR_EXCL_START (a successful GET_REPORT needs a real hidraw node; over the

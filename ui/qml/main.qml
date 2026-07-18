@@ -142,7 +142,15 @@ ApplicationWindow {
         case "landscape": return 90
         case "inverted-portrait": return 180
         case "inverted-landscape": return 270
-        default: return _stableSensorRotation >= 0 ? _stableSensorRotation : 0   // auto
+        // Auto: follow the sensor once it has reported. Until then (first boot on a
+        // panel that answers no startup GET_REPORT, before any physical rotation),
+        // default to LANDSCAPE — the Edge's primary orientation — rather than sitting
+        // in portrait. Derived from the window aspect so it's correct whether the OS
+        // exposes the panel as portrait (720x2560 → rotate 90 to landscape) or already
+        // landscape (2560x720 → 0). The sensor overrides this the moment it reports,
+        // and the last real orientation is remembered across runs (OrientationSensor).
+        default: return _stableSensorRotation >= 0 ? _stableSensorRotation
+                                                   : (root.height > root.width ? 90 : 0)
         }
     }
 
