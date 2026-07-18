@@ -773,5 +773,104 @@ Item {
             tryCompare(sl, "value", 0.15, 2000)
             _theme.glassOpacity = 0.55
         }
+
+        // ── F: exercise every remaining Manager control's INPUT path ────────────
+        // (offscreen Window → drive the real signal, per the button/switch idiom.)
+        function _clickArea(node) {
+            return findPred(node, function (x) {
+                return x && typeof x.clicked === "function" && x.hasOwnProperty("hoverEnabled") })
+        }
+        function test_accent_swatch_click_commits() {
+            _nav.currentIndex = 1
+            _store.setAppearance("accent", "blue")
+            var sw = findPred(win, function (x) {
+                return x && x.modelData && x.modelData.c !== undefined
+                       && x.modelData.name === "green" && x.hasOwnProperty("sel") })
+            verify(sw, "found the green accent swatch")
+            _clickArea(sw).clicked(null)
+            compare(_store.appearance().accent, "green", "clicking an accent commits it")
+            _store.setAppearance("accent", "blue")
+        }
+        function _chromeSwatch(k) {   // Manager-window-style delegate (modelData {k,l} + sel)
+            return findPred(win, function (x) {
+                return x && x.modelData && x.modelData.k === k && x.modelData.l !== undefined
+                       && x.hasOwnProperty("sel") })
+        }
+        function test_manager_window_style_swatch_click() {
+            _nav.currentIndex = 1                      // Appearance tab
+            var light = _chromeSwatch("light")
+            verify(light, "found the Light Manager-window-style swatch")
+            _clickArea(light).clicked(null)
+            // appSettings is Manager-internal; assert via the swatch's own selection.
+            tryVerify(function () { return _chromeSwatch("light").sel === true }, 2000)
+            _clickArea(_chromeSwatch("default")).clicked(null)   // restore
+            tryVerify(function () { return _chromeSwatch("default").sel === true }, 2000)
+        }
+        function test_animated_bg_switch_toggles_store() {
+            _nav.currentIndex = 1
+            var sw = findSwitch("Animated background")
+            verify(sw, "found the animated-background switch")
+            var was = _store.appearance().animatedBg === true
+            sw.checked = !was; sw.toggled()
+            compare(_store.appearance().animatedBg, !was, "toggling animated background persists")
+        }
+        function test_reduce_motion_switch_toggles_store() {
+            _nav.currentIndex = 1
+            var sw = findSwitch("Reduce motion")
+            verify(sw, "found the reduce-motion switch")
+            sw.checked = true; sw.toggled()
+            compare(_store.appearance().reduceMotion, true, "reduce motion persists on")
+            sw.checked = false; sw.toggled()
+            compare(_store.appearance().reduceMotion, false, "…and off")
+        }
+        function test_autostart_switch_calls_backend() {
+            _nav.currentIndex = 3
+            var sw = findSwitch("Start the hub automatically on login")
+            verify(sw, "found the autostart switch")
+            backend.autostart = false
+            sw.checked = true; sw.toggled()
+            compare(backend.autostart, true, "toggling autostart calls the backend")
+            sw.checked = false; sw.toggled()
+            compare(backend.autostart, false, "…and back off")
+        }
+        function test_orientation_swatch_click_commits() {
+            _nav.currentIndex = 3
+            _store.setAppearance("orientation", "auto")
+            var sw = findPred(win, function (x) {
+                return x && x.modelData && x.modelData.v === "portrait" && x.modelData.l === "Portrait"
+                       && x.hasOwnProperty("sel") })
+            verify(sw, "found the Portrait orientation chip")
+            _clickArea(sw).clicked(null)
+            compare(_store.appearance().orientation, "portrait", "clicking an orientation commits it")
+            _store.setAppearance("orientation", "auto")
+        }
+        function test_background_style_chip_commits() {
+            _nav.currentIndex = 1
+            var bp = findPred(win, function (x) {
+                return x && typeof x.pickStyle === "function" && x.hasOwnProperty("pageIndex") && x.pageIndex === -1 })
+            verify(bp, "found the Appearance background picker")
+            bp.pickStyle("waves")
+            compare(_store.appearance().bgStyle, "waves", "picking a background style commits it")
+            compare(_store.appearance().wallpaper, "", "…and clears any wallpaper (mutually exclusive)")
+            bp.pickStyle("orbs")
+        }
+        function test_diagnostics_show_config_toggle() {
+            _nav.currentIndex = 4                                  // About tab
+            var show = findButton("Show config")
+            verify(show, "the Diagnostics 'Show config' button is present")
+            show.clicked()
+            verify(findButton("Hide config"), "clicking reveals the config (button flips to Hide)")
+            findButton("Hide config").clicked()
+            verify(findButton("Show config"), "…and hides again")
+        }
+        function test_nav_chip_click_switches_tab() {
+            _nav.currentIndex = 0
+            var chip = findPred(win, function (x) {
+                return x && x.modelData && x.modelData.l === "Images" && x.modelData.i !== undefined })
+            verify(chip, "found the Images nav chip")
+            _clickArea(chip).clicked(null)
+            compare(_nav.currentIndex, 2, "clicking a nav chip switches to that tab")
+            _nav.currentIndex = 0
+        }
     }
 }

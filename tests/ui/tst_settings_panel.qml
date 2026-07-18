@@ -164,6 +164,37 @@ Item {
             verify(findText(panel, "25%") !== null, "the percentage label reflects the value")
         }
 
+        // The slider must actually DRAG (the class of bug the Manager glass slider
+        // shipped with — no test anywhere dragged a slider). Real mouse input.
+        function test_glass_slider_drags_commits_and_rebinds() {
+            var slider = findPred(panel, function (n) {
+                return n.from !== undefined && n.to !== undefined && n.value !== undefined && n.stepSize !== undefined
+            })
+            verify(slider !== null, "glass slider present")
+            bringIntoView(slider)
+            root.glassOpacity = 0.3
+            tryVerify(function () { return Math.abs(slider.value - 0.3) < 0.02 }, 2000)
+            var y = slider.height / 2
+            mousePress(slider, slider.width * 0.3, y)
+            mouseMove(slider, slider.width * 0.85, y)
+            mouseRelease(slider, slider.width * 0.85, y)
+            verify(slider.value > 0.45, "dragging the handle right raised the value to " + slider.value.toFixed(2))
+            fuzzyCompare(root.glassOpacity, slider.value, 0.001, "onMoved committed the dragged value to the bound sink")
+            // [S2] rebind: an external push still moves the handle after the drag.
+            root.glassOpacity = 0.15
+            tryVerify(function () { return Math.abs(slider.value - 0.15) < 0.02 }, 2000)
+        }
+
+        function test_update_check_switch_writes_store() {
+            var sw = switchForLabel("Check for updates")
+            verify(sw !== null, "found the update-check switch")
+            compare(sw.checked, false, "off by default (zero-egress default)")
+            clickTarget(sw)
+            compare(store.appearance().updateCheck, true, "toggling writes updateCheck to the store")
+            clickTarget(sw)
+            compare(store.appearance().updateCheck === true, false, "…and back off")
+        }
+
         // ── Toggles: glow / animated background / reduce motion ──────────────
         function switchForLabel(labelText) {
             var t = findText(panel, labelText)

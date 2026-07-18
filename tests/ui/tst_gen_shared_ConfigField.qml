@@ -655,5 +655,22 @@ Item {
             compare(doneCount(), 1, "exactly one row toggled after the rebuild")
             compare(items[1].done, true, "the rebuilt second row toggled correctly")
         }
+
+        // The slider FIELD must actually drag and write through (no test dragged a
+        // slider before — the class of bug the glass slider shipped with).
+        function test_slider_field_drags_and_writes() {
+            var slider = findChild(cfSlider, "control")
+            verify(slider && slider.from !== undefined && typeof slider.moved === "function",
+                   "the slider field renders a Slider")
+            cstore.setSetting("cf", "forecastDays", 3)   // min
+            tryVerify(function () { return Math.abs(slider.value - 3) < 0.01 }, 2000)
+            var y = slider.height / 2
+            mousePress(slider, slider.width * 0.1, y)
+            mouseMove(slider, slider.width * 0.95, y)
+            mouseRelease(slider, slider.width * 0.95, y)
+            verify(slider.value > 3, "dragging the slider field raised the value to " + slider.value)
+            compare(cstore.settingsFor("cf").forecastDays, slider.value,
+                    "the drag wrote the value through to the store")
+        }
     }
 }
