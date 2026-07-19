@@ -305,10 +305,27 @@ cat build/gui-logs/summary.txt      # per-file pass/fail
 cat build/gui-logs/failures.txt     # the FAIL! lines
 ```
 
-## OPEN ITEMS — owner review 2026-07-19 (r213), NOT yet fixed
+## OWNER-REVIEW ITEMS O1-O4 — ALL DONE (r217, 2026-07-19)
 
-All four confirmed with file:line evidence. None implemented — recorded here so a
-fresh session can execute cleanly.
+- [x] O1 — hub mirrors the Manager's selected screen. New setActivePage message +
+      currentPage in getUiState. manager_page_mirror_test.py 8/8 real HW (select
+      each chip -> hub follows; add screen -> lands on new, not 0).
+- [x] O2 — Manager preview adapts to orientation: beside config in portrait,
+      full-width ABOVE it in landscape (GridLayout column flip). Screenshot-
+      verified both ways; the squeezed strip is gone. The reflection test now
+      also asserts this.
+- [x] O3 — tst_resize_matrix.qml: all 30 widget types x every legal size (149
+      combos) round-trip exactly. Failability proven. No coercion bugs.
+- [x] O4 — tst_widget_config_values.qml: CPU config keys each drive a real
+      rendered observable. Failability proven. No inert key.
+
+Full suite green on r217: 238 Rust / 21 ctest / 88 QML / 0; six real-HW suites
+(build-up 64, tabs 9, boundary 20, reflection 7, mirror 8, all widget/config
+offscreen). Zero global_oom throughout.
+
+---
+
+## OPEN ITEMS — owner review 2026-07-19 (r213) — RESOLVED, see above
 
 ### O1 — Hub does not mirror the Manager's SELECTED screen (functional)
 Owner: "adding screens via the Manager always jumps to screen #1; the hub never
