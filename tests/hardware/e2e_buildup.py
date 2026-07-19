@@ -163,6 +163,32 @@ def main():
                         "want %d tiles incl %s, hub has %d: %s" % (want, wtype, len(tiles), types))
             b.step("widget-add-%d-%s" % (i, wtype), mut, ver)
 
+        # ── 2b. SCREENS: remove them again, one at a time ────────────────────
+        # Adding was covered above; REMOVAL is the direction that strands state
+        # (a page's tiles, the current-page index, the dying-row sweep in
+        # Dashboard.qml). Walk back down to a single screen and check the hub
+        # agrees at every step.
+        for i in range(len(names), 0, -1):
+            want = i  # Blank + (i-1) remaining
+
+            def mut(keep=i - 1):
+                h.set_state(doc([page("Blank", [])] +
+                                [page(names[k], []) for k in range(keep)]))
+
+            def ver(st, want=want):
+                got = len(pages_of(st))
+                return got == want, "expected %d screens after removal, hub reports %d" % (want, got)
+            b.step("screen-remove-down-to-%d" % want, mut, ver)
+
+        b.step("screens-fully-stripped",
+               lambda: h.set_state(doc([page("Blank", [])])),
+               lambda st: (len(pages_of(st)) == 1 and not pages_of(st)[0].get("tiles"),
+                           "back to one empty screen: pages=%d" % len(pages_of(st))))
+
+        # Re-seed the working layout for the appearance walk below.
+        h.set_state(doc([page("Blank", []), page("Home", list(placed))]))
+        time.sleep(0.4)
+
         # A stable layout to mutate appearance against, from here on.
         base = [page("Blank", []), page("Home", list(placed))]
 

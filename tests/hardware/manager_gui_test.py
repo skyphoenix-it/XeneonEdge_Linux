@@ -79,6 +79,29 @@ class ManagerGui:
         self.p.tap(cx, cy)
         time.sleep(settle)
 
+    # Sidebar row centres, measured on a real 1440x1300 capture.
+    ROW_Y = {"Screens": 164, "Look": 220, "Images": 276, "Device": 332, "About": 388}
+    ROW_X = 120
+
+    @classmethod
+    def active_row(cls, path):
+        """Which sidebar row is selected, read from the accent fill.
+
+        The selected row is filled with the accent (~rgb(237,109,31)); the rest
+        are the cream page background (~rgb(255,253,250)). Distinctness alone
+        proved the screen CHANGED but not that it changed to the tab we asked
+        for — and the labels were provably wrong once already (a frame saved as
+        tab-1-look actually showed Device). This asserts identity, not novelty.
+        """
+        from PIL import Image
+        im = Image.open(path).convert("RGB")
+        hits = []
+        for name, y in cls.ROW_Y.items():
+            r, g, b = im.getpixel((cls.ROW_X, y))
+            if r > 180 and g < 160 and b < 130:
+                hits.append(name)
+        return hits[0] if len(hits) == 1 else (hits or None)
+
     @staticmethod
     def _sig(path):
         from PIL import Image
@@ -179,9 +202,15 @@ def main():
                 continue
             sig = gui._sig(p)
             dup = sigs.get(sig)
-            h.check("manager-tab-%s" % name.lower(), dup is None,
-                    "distinct screen" if dup is None
-                    else "IDENTICAL to '%s' — the click did not change tabs" % dup)
+            active = gui.active_row(p)
+            ok = (dup is None) and (active == name)
+            if dup is not None:
+                why = "IDENTICAL to '%s' — the click did not change tabs" % dup
+            elif active != name:
+                why = "clicked '%s' but the SELECTED row is %r" % (name, active)
+            else:
+                why = "selected row is '%s'" % name
+            h.check("manager-tab-%s" % name.lower(), ok, why)
             sigs.setdefault(sig, name)
 
         # ── the integration assertion: Manager click -> hub state ────────────
