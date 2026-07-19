@@ -304,3 +304,65 @@ RUN_MEM_MAX_MB=2048 RUN_AS_MAX_MB=12288 RUN_TIMEOUT=900 \
 cat build/gui-logs/summary.txt      # per-file pass/fail
 cat build/gui-logs/failures.txt     # the FAIL! lines
 ```
+
+## OPEN ITEMS — owner review 2026-07-19 (r213), NOT yet fixed
+
+All four confirmed with file:line evidence. None implemented — recorded here so a
+fresh session can execute cleanly.
+
+### O1 — Hub does not mirror the Manager's SELECTED screen (functional)
+Owner: "adding screens via the Manager always jumps to screen #1; the hub never
+mirrors what is selected on the Manager — always screen #1."
+- Root cause: there is NO "current/active page" anywhere in the protocol or
+  state. `grep currentPage app/src/control_server.cpp config_bridge.h` = empty.
+  `manager/qml/Manager.qml:409 onCurrentPageIndexChanged` syncs only the rename
+  field — it sends nothing to the hub. The hub's SwipeView model is bound to
+  `store.structureRevision -> pageCount()` (Dashboard.qml:726), so adding/removing
+  a page RESETS currentIndex to 0. `applyExternalState` (Dashboard.qml:492) does
+  NOT itself reset — the model reset does.
+- Why untested: getUiState exposes no current-page field, so nothing can observe
+  which page the hub shows. Add that field first (also unblocks the test).
+- Fix plan:
+  1. Add `activePage` to the pushed ui_state (Manager sets it = currentPageIndex).
+  2. Dashboard.applyExternalState reads state.activePage and sets
+     swipeView.currentIndex (clamped), instead of the model reset winning.
+  3. Preserve current page across live edits that don't change page count.
+  4. getUiState reply includes the hub's current page, so a test can assert
+     "select screen 3 in Manager -> hub shows screen 3".
+  5. Real-HW test: manager_reflection or a new one — click screen chip N in the
+     Manager, assert the hub's reported/rendered page == N.
+
+### O2 — Manager preview squeezed in landscape; layout should adapt to orientation
+Owner: landscape hub preview is squeezed; wants preview ABOVE the config when
+horizontal, BESIDE it when vertical (dynamic by hub orientation).
+- Root cause: the Screens tab is a `RowLayout` (Manager.qml:559) — preview always
+  beside config. It widens the preview for landscape (Manager.qml:774,
+  `Layout.preferredWidth: edgeClone.landscape ? 780 : 440`) but 2560x720 at 780px
+  wide is only ~220px tall — still a squeezed strip.
+- Fix plan: make the Screens tab switch RowLayout<->ColumnLayout on
+  `edgeClone.landscape` — landscape puts the wide preview full-width ABOVE the
+  config column; portrait keeps it beside. Give the landscape preview the full
+  content width so its aspect is correct. UX change; screenshot-verify both.
+
+### O3 — Widget RESIZE not tested for all widgets / not via the drag handle
+- Current: tst_store_tiles resizes at the store level; e2e_buildup resizes ONE
+  widget (clock) through its 5 legal sizes. tst_gui...dialogs:339 only checks the
+  resize HANDLE EXISTS. No test resizes every widget type, and none drives the
+  real drag-handle resize in the Manager/Dashboard.
+- Fix plan: (a) a matrix test that, for each of the 30 types, sets each of its
+  declared legal sizes and asserts the hub reports it (extend e2e_buildup or a
+  new store-matrix test); (b) a real-HW drag-the-handle test in the Manager
+  EdgeClone, asserting the tile's size changes on the hub.
+
+### O4 — Widget CONFIGURATION not tested (hub-side or Manager-side)
+- `grep WidgetConfigDialog tests/gui/*.qml` = EMPTY. No test edits a widget's
+  config and asserts the effect. WidgetConfigDialog is 15.9 KB of shipped UI with
+  zero value-level coverage in the compositor; the hub's on-panel config overlay
+  likewise.
+- Fix plan: for a representative widget (CPU: "Show temperature" toggle, "Warn
+  above" slider, custom title, accent), drive the config — via the Manager dialog
+  AND via the hub's on-panel overlay — and assert the change reaches the widget's
+  settings in the hub state and renders. Then extend to a few more types.
+
+Suggested order toward RC: O1 (functional bug) -> O4 (config, highest untested
+risk) -> O3 (resize matrix) -> O2 (layout UX).
