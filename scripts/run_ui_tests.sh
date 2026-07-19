@@ -19,12 +19,36 @@ fi
 IMPORTS=(-import ui/qml -import ui/qml/widgets -import manager/qml -import tests/ui)
 export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-offscreen}"
 
+# Both shipped binaries pin the Controls style (app/src/main.cpp:271 and
+# manager/src/main.cpp:116 call QQuickStyle::setStyle("Fusion")). Without this
+# the suite runs under the user's desktop style (Breeze here), so every control
+# under test is a DIFFERENT control than ships — different indicator geometry,
+# different colours, different implicit sizes. A pixel assertion tuned to Fusion
+# then fails for a reason that has nothing to do with the product.
+export QT_QUICK_CONTROLS_STYLE=Fusion
+
+# Every runner is bounded in time and memory. A QML test that leaks must fail
+# ITSELF, never the machine — on 2026-07-19 an unbounded qmltestrunner reached
+# 18.8 GB and the resulting system-wide OOM killed the developer's IDE.
+# tst_manager.qml is the heaviest file here (observed peaks of ~6 GB), so the
+# ceiling is set above that but far below anything that endangers the host.
+# shellcheck source=lib/run_bounded.sh
+. "$PROJECT_DIR/scripts/lib/run_bounded.sh"
+RUN_TIMEOUT=${RUN_TIMEOUT:-600}
+RUN_MEM_MAX_MB=${RUN_MEM_MAX_MB:-8192}
+
 fail=0
 for t in tests/ui/tst_*.qml; do
     echo "==> $t"
-    if ! "$QMLTESTRUNNER" -input "$t" "${IMPORTS[@]}"; then
-        fail=1
-    fi
+    # `set -e` must not skip the bookkeeping below, so capture rc explicitly.
+    rc=0
+    run_bounded "$QMLTESTRUNNER" -input "$t" "${IMPORTS[@]}" || rc=$?
+    case "$rc" in
+        0)  ;;
+        97) echo "!! $t MEMKILLed (>${RUN_MEM_MAX_MB} MiB RSS) — treat as a leak"; fail=1 ;;
+        98) echo "!! $t TIMEKILLed (>${RUN_TIMEOUT}s) — treat as a hang"; fail=1 ;;
+        *)  fail=1 ;;
+    esac
 done
 
 [ "$fail" -eq 0 ] && echo "ALL UI TESTS PASSED" || { echo "SOME UI TESTS FAILED"; exit 1; }

@@ -82,7 +82,14 @@ cmake -B "${BUILD_DIR}" \
 # Step 3: Build
 echo ""
 echo "==> Building..."
-cmake --build "${BUILD_DIR}" -- -j"$(nproc)"
+# Parallel Qt/LTO compilation is the largest steady-state memory consumer in the
+# repo: two 25 MB generated qrc_wallpapers.cpp translation units plus a full Qt
+# link. `-j$(nproc)` scales peak RAM with core count, which on a many-core box
+# is a classic local OOM. Cap the job count and let make back off under load.
+# Override with BUILD_JOBS=N.
+BUILD_JOBS="${BUILD_JOBS:-$(nproc)}"
+[ "$BUILD_JOBS" -gt 16 ] && BUILD_JOBS=16
+cmake --build "${BUILD_DIR}" -- -j"${BUILD_JOBS}" -l"$(nproc)"
 
 echo ""
 echo "==> Build complete!"

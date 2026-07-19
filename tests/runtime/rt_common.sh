@@ -57,11 +57,18 @@ rt_run_hub() {
     # --foreground: timeout signals ONLY the hub, not a whole new process
     # group — without it the group-kill also nukes the invoking subshell and
     # bash prints an alarming (but expected) "Killed" job notice for every run.
-    env "$@" \
+    # ulimit -v: an address-space ceiling inherited by the hub and anything it
+    # spawns. `timeout` already bounds the clock; this bounds memory. A runaway
+    # hub then fails its own allocation and aborts, instead of growing until the
+    # kernel fires a SYSTEM-WIDE OOM and picks an unrelated victim (on
+    # 2026-07-19 that victim was the developer's IDE). Deliberately NOT a cgroup
+    # cap — see scripts/lib/run_bounded.sh for why.
+    ( ulimit -v $(( ${RT_HUB_AS_MAX_MB:-8192} * 1024 )) 2>/dev/null
+      exec env "$@" \
         XDG_CONFIG_HOME="$root/config" XDG_RUNTIME_DIR="$root/run" \
         QT_QPA_PLATFORM=offscreen \
         timeout --foreground -s KILL "$secs" "$HUB" --windowed \
-            ${RT_HUB_ARGS[@]+"${RT_HUB_ARGS[@]}"} >"$root/hub.log" 2>&1
+            ${RT_HUB_ARGS[@]+"${RT_HUB_ARGS[@]}"} ) >"$root/hub.log" 2>&1
     RT_RC=$?
 }
 

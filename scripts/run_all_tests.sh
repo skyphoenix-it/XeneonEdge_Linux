@@ -60,6 +60,11 @@ fi
 # 4. QML behavior-matrix coverage gate.
 run_suite "QML behavior matrix (qml_coverage.py)" python3 "$PROJECT_DIR/scripts/qml_coverage.py"
 
+# Static guard against the scene-graph walk bug that caused a system-wide OOM on
+# 2026-07-19 (three independent copies; 18.8 GB and 20 GB RSS). Cheap and fast —
+# keep it ahead of the heavy suites so a reintroduction fails in seconds.
+run_suite "Tree-walk memory guard (check_tree_walks.py)" python3 "$PROJECT_DIR/scripts/check_tree_walks.py"
+
 # 4b. Egress lint — raw XMLHttpRequest may only live in the NetHub gate.
 run_suite "Egress lint (no raw XHR)" bash "$PROJECT_DIR/scripts/check_no_raw_xhr.sh"
 run_suite "Live-test lint (no inert test_*_data)" bash "$PROJECT_DIR/scripts/check_live_tests.sh"

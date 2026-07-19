@@ -75,8 +75,12 @@ function(add_qt_test name)
     set(_run "${SOCK_ROOT}/${name}")
     file(MAKE_DIRECTORY "${_tmp}/config" "${_run}")
 
+    # TIMEOUT: without it these inherit CTest's 1500 s default, so a test that
+    # wedges an event loop (config_bridge, control_server) hangs a run for 25
+    # minutes. 120 s is ~40x the slowest of these in practice.
     add_test(NAME ${name} COMMAND ${name})
     set_tests_properties(${name} PROPERTIES
+        TIMEOUT 120
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;XDG_CONFIG_HOME=${_tmp}/config;XDG_RUNTIME_DIR=${_run};HOME=${_tmp}")
 endfunction()
 

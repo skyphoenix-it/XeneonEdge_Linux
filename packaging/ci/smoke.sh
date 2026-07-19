@@ -19,15 +19,28 @@ echo "--- xeneon-edge-hub --version"
 xeneon-edge-hub --version 2>&1 | head -3
 
 LOG="$(mktemp)"
+# Reap the hub and the temp log on ANY exit path, including SIGINT/SIGTERM.
+# Without this a CI timeout or a Ctrl-C orphans a running GUI hub.
+cleanup_smoke() { [ -n "${PID:-}" ] && kill -9 "$PID" 2>/dev/null; rm -f "$LOG"; }
+trap cleanup_smoke EXIT INT TERM
+
 echo "--- launching dashboard offscreen (10s)"
-xeneon-edge-hub >"$LOG" 2>&1 &
+# Address-space ceiling: a runaway hub must fail its own allocation rather than
+# grow until the kernel fires a system-wide OOM. See scripts/lib/run_bounded.sh.
+( ulimit -v $(( ${SMOKE_AS_MAX_MB:-8192} * 1024 )) 2>/dev/null
+  exec xeneon-edge-hub ) >"$LOG" 2>&1 &
 PID=$!
 sleep 10
 
 RC=0
 if kill -0 "$PID" 2>/dev/null; then
   echo "RESULT: still running after 10s"
+  # SIGTERM first, but never wait on it unboundedly: the hub's graceful-shutdown
+  # handler is documented to hang on sensor/socket teardown (tests/runtime/
+  # rt_common.sh). Escalate to SIGKILL rather than blocking forever in `wait`.
   kill -TERM "$PID" 2>/dev/null
+  for _ in $(seq 1 20); do kill -0 "$PID" 2>/dev/null || break; sleep 0.5; done
+  kill -9 "$PID" 2>/dev/null
   wait "$PID" 2>/dev/null
 else
   wait "$PID" 2>/dev/null
