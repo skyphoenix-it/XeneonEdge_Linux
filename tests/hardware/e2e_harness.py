@@ -411,15 +411,51 @@ class E2E:
 
     # ── screenshots ────────────────────────────────────────────────────────
     def grab(self, path):
-        full = os.path.join(self.work, "_full.png")
-        subprocess.run(["spectacle", "-b", "-n", "-f", "-o", full],
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        """Grab the full canvas and crop to the Edge rect.
+
+        Spectacle is a SINGLE-INSTANCE KDE app and `-b` returns rc=0 whether or
+        not it actually captured. Reusing one `_full.png` across rapid calls
+        therefore produced silent staleness: a second grab <1s after the first
+        would leave the PREVIOUS file in place, so two different UI states
+        compared byte-identical. That is what made verify_target_window report
+        "colour distance 0" and refuse injection on a hub that was rendering
+        perfectly — measured on the real panel 2026-07-19.
+
+        So: unique filename per grab, delete before capture, and WAIT for the
+        file to actually appear rather than trusting the exit code.
+        """
+        self._grab_seq = getattr(self, "_grab_seq", 0) + 1
+        full = os.path.join(self.work, "_full_%03d.png" % self._grab_seq)
+        try:
+            os.unlink(full)
+        except OSError:
+            pass
+        for attempt in (1, 2):
+            subprocess.run(["spectacle", "-b", "-n", "-f", "-o", full],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            for _ in range(30):                       # up to 3 s
+                if os.path.exists(full) and os.path.getsize(full) > 0:
+                    break
+                time.sleep(0.1)
+            if os.path.exists(full) and os.path.getsize(full) > 0:
+                break
+            if attempt == 1:
+                time.sleep(1.0)                       # let the previous instance exit
+        if not (os.path.exists(full) and os.path.getsize(full) > 0):
+            print("  grab failed: spectacle produced no file at", full)
+            return False
         try:
             from PIL import Image
             Image.open(full).crop((self.ex, self.ey, self.ex + self.ew, self.ey + self.eh)).save(path)
-            return os.path.exists(path)
         except Exception as e:
-            print("  grab failed:", e); return False
+            print("  grab failed:", e)
+            return False
+        finally:
+            try:
+                os.unlink(full)                       # full-canvas frames are large
+            except OSError:
+                pass
+        return os.path.exists(path)
 
 
 # ── config helpers (build ui_state docs) ──────────────────────────────────
