@@ -53,10 +53,21 @@ const KEY_PREFIX: &str = "XE1";
 
 /// The Ed25519 public key that licences are verified against.
 ///
-/// ARMED (2026-07-17): the real issuer public key is embedded below. The private
-/// seed lives only in the owner's password manager — it is NOT in this repo, NOT
-/// the project's GPG release key (`93CDC77EACF98990`), and never touches CI.
-/// Licence signing is fully offline (`tools/license-tool`).
+/// ARMED (2026-07-19, ROTATED): the real issuer public key is embedded below.
+/// The private seed lives only in the owner's password manager (Bitwarden) — it
+/// is NOT in this repo, NOT the project's GPG release key (`93CDC77EACF98990`),
+/// and never touches CI. Licence signing is fully offline (`tools/license-tool`).
+///
+/// ROTATION NOTE. This replaces the key armed on 2026-07-17 by `38df26c`, whose
+/// seed was generated in an agent session and was never held by the owner. An
+/// issuer key whose seed the owner does not control cannot mint licences, so it
+/// was not shippable. The rotation was safe precisely because it happened before
+/// first sale: no store product existed and no licence had been issued, so there
+/// was nothing to invalidate.
+///
+/// If this key is ever rotated AGAIN after a sale, understand the cost first:
+/// every licence signed with the retired seed stops verifying, and the only
+/// remedy is re-issuing keys to every existing customer alongside an app update.
 ///
 /// The all-zero form is kept commented as the "unissued" sentinel: [`issuer_key`]
 /// still returns `None` for all-zero (a small-order point that must never be
@@ -65,8 +76,8 @@ const KEY_PREFIX: &str = "XE1";
 /// is_armed_and_valid` guards against that regression.
 //const ISSUER_PUBLIC_KEY: [u8; 32] = [0u8; 32];
 const ISSUER_PUBLIC_KEY: [u8; 32] = [
-    82, 190, 225, 48, 160, 218, 44, 176, 68, 219, 18, 251, 105, 106, 130, 233, 54, 157, 51, 220,
-    45, 28, 54, 226, 250, 16, 76, 43, 181, 177, 118, 89,
+    183, 198, 221, 102, 177, 136, 154, 209, 91, 2, 101, 32, 144, 232, 227, 156, 240, 15, 251, 13,
+    123, 96, 98, 122, 235, 102, 219, 75, 211, 202, 88, 26,
 ];
 
 /// What a licence unlocks.
