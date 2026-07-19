@@ -12,7 +12,14 @@ import QtQuick.Layouts
 // Optional: uploadedImages = [{ label, source }] to include the user's images.
 Item {
     id: bp
-    property var store
+    // Named `st`, NOT `store`: a call site binding `store: store` from an
+    // enclosing scope resolves the RHS to this component's OWN property (the QML
+    // self-binding trap), leaving it undefined — every write then threw
+    // "Cannot call method 'setAppearance' of undefined" and the picker silently
+    // did nothing. That is exactly what happened in the hub's SettingsPanel, so
+    // the on-panel Background picker could not change the background at all.
+    // WidgetConfigPanel/ConfigField already use `st` for this reason.
+    property var st
     property int pageIndex: -1          // <0 = global default; >=0 = that page
     property var col
     property var bgCatalog
@@ -31,17 +38,17 @@ Item {
     // make the selected chip's label vanish; fall back to the historic literal.
     function onAccent() { return (col && col.textOnAccent) ? col.textOnAccent : "#0D1117" }
 
-    // ── Current selection (reactive on store.revision) ──
+    // ── Current selection (reactive on st.revision) ──
     // Returns { kind: "global"|"style"|"wallpaper", val }.
     function current() {
         if (!store) return { kind: "global" }   // before the store is wired in
-        store.revision
+        st.revision
         if (pageIndex < 0) {
-            var a = store.appearance() || ({})
+            var a = st.appearance() || ({})
             if (a.wallpaper) return { kind: "wallpaper", val: a.wallpaper }
             return { kind: "style", val: a.bgStyle || "orbs" }
         }
-        var p = store.pageBackground(pageIndex) || ({})
+        var p = st.pageBackground(pageIndex) || ({})
         if (p.wallpaper) return { kind: "wallpaper", val: p.wallpaper }
         if (p.style) return { kind: "style", val: p.style }
         return { kind: "global" }
@@ -52,16 +59,16 @@ Item {
 
     // ── Mutually-exclusive writes ──
     function pickStyle(v) {
-        if (pageIndex < 0) { store.setAppearance("bgStyle", v); store.setAppearance("wallpaper", "") }
-        else { store.setPageBackground(pageIndex, "style", v); store.setPageBackground(pageIndex, "wallpaper", "") }
+        if (pageIndex < 0) { st.setAppearance("bgStyle", v); st.setAppearance("wallpaper", "") }
+        else { st.setPageBackground(pageIndex, "style", v); st.setPageBackground(pageIndex, "wallpaper", "") }
     }
     function pickWallpaper(src) {
-        if (pageIndex < 0) store.setAppearance("wallpaper", src)
-        else store.setPageBackground(pageIndex, "wallpaper", src)
+        if (pageIndex < 0) st.setAppearance("wallpaper", src)
+        else st.setPageBackground(pageIndex, "wallpaper", src)
     }
     function useGlobal() {   // pages only: drop the override
-        store.setPageBackground(pageIndex, "style", "")
-        store.setPageBackground(pageIndex, "wallpaper", "")
+        st.setPageBackground(pageIndex, "style", "")
+        st.setPageBackground(pageIndex, "wallpaper", "")
     }
 
     ColumnLayout {

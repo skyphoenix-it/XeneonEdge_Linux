@@ -295,7 +295,7 @@ Rectangle {
                             // picker there instead of letting taps silently no-op.
                             enabled: theme.decorative
                             opacity: theme.decorative ? 1.0 : 0.4
-                            store: store; pageIndex: -1; col: panel.pickerCol
+                            st: store; pageIndex: -1; col: panel.pickerCol
                             bgCatalog: bgCatalog; wpCatalog: wallpapers
                         }
                     }

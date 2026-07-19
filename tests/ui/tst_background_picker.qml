@@ -15,8 +15,8 @@ Item {
     App.BackgroundCatalog { id: bgc }
     App.WallpaperCatalog { id: wpc }
 
-    W.BackgroundPicker { id: gp; store: store; pageIndex: -1; col: parent.col; bgCatalog: bgc; wpCatalog: wpc }
-    W.BackgroundPicker { id: pp; store: store; pageIndex: 0;  col: parent.col; bgCatalog: bgc; wpCatalog: wpc }
+    W.BackgroundPicker { id: gp; st: store; pageIndex: -1; col: parent.col; bgCatalog: bgc; wpCatalog: wpc }
+    W.BackgroundPicker { id: pp; st: store; pageIndex: 0;  col: parent.col; bgCatalog: bgc; wpCatalog: wpc }
 
     TestCase {
         name: "BackgroundPicker"

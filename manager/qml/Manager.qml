@@ -934,7 +934,7 @@ ApplicationWindow {
                                     color: m.textSecondary; font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.WordWrap }
                                 BackgroundPicker {
                                     Layout.fillWidth: true
-                                    store: store; pageIndex: win.currentPageIndex; col: win.mCol
+                                    st: store; pageIndex: win.currentPageIndex; col: win.mCol
                                     bgCatalog: bgCatalog; wpCatalog: bundledWallpapers; uploadedImages: win.uploadedWallpapers
                                 }
                                 Item { Layout.preferredHeight: 8 }
@@ -1183,7 +1183,7 @@ ApplicationWindow {
                             color: m.danger; font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.WordWrap } }
                     BackgroundPicker {
                         Layout.fillWidth: true
-                        store: store; pageIndex: -1; col: win.mCol
+                        st: store; pageIndex: -1; col: win.mCol
                         bgCatalog: bgCatalog; wpCatalog: bundledWallpapers; uploadedImages: win.uploadedWallpapers
                         // Hover a style chip → preview it live in the clone without
                         // committing (finally makes the tab's "hover to try" true for
