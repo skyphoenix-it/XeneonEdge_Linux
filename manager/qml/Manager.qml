@@ -1778,7 +1778,13 @@ ApplicationWindow {
                                                    ? ", " + win.licStatus.issuedTo : "") + " - premium unlocked.")
                                             : win.licStatus.state === "expired"
                                               ? "Renew to keep the premium extras. Your dashboards keep working."
-                                            : "Everything works. Pro adds premium themes, preset packs and custom widgets."
+                                            // ACCURATE, not aspirational: the ONLY thing the licence
+                                            // gates is 9 themes (4 Premium + 5 Inspired). Preset screens
+                                            // and user widgets are NOT gated — UserWidgetCatalog does no
+                                            // licence check and PresetCatalog has no pro flag. Promising
+                                            // those here is exactly what makes a buyer feel misled once
+                                            // they find they already had them.
+                                            : "Everything works. Pro adds 9 extra themes and supports development."
                                         color: m.textSecondary; font.pixelSize: 12
                                         Layout.fillWidth: true; wrapMode: Text.WordWrap
                                     }
