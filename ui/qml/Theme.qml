@@ -292,15 +292,15 @@ QtObject {
         { k: "cyberpunk",     n: "Cyberpunk",  c1: "#0A2A26", c2: "#020A08", pro: true, group: "Premium" },
         { k: "vaporwave",     n: "Vaporwave",  c1: "#3A1A52", c2: "#140A20", pro: true, group: "Premium" },
         { k: "matrix",        n: "Matrix",     c1: "#0A160A", c2: "#000000", pro: true, group: "Premium" },
-        { k: "arch",          n: "Arch",       c1: "#1B2129", c2: "#14181D", pro: true, group: "Distro" },
-        { k: "cachyos",       n: "CachyOS",    c1: "#1C221A", c2: "#131611", pro: true, group: "Distro" },
-        { k: "debian",        n: "Debian",     c1: "#1F1922", c2: "#16121A", pro: true, group: "Distro" },
-        { k: "fedora",        n: "Fedora",     c1: "#152034", c2: "#0E1626", pro: true, group: "Distro" },
-        { k: "popos",         n: "Pop!_OS",    c1: "#262322", c2: "#1E1C1B", pro: true, group: "Distro" },
+        { k: "arch",          n: "Keystone",   c1: "#1B2129", c2: "#14181D", pro: true, group: "Inspired" },
+        { k: "cachyos",       n: "Cascade",    c1: "#1C221A", c2: "#131611", pro: true, group: "Inspired" },
+        { k: "debian",        n: "Swirl",      c1: "#1F1922", c2: "#16121A", pro: true, group: "Inspired" },
+        { k: "fedora",        n: "Trilby",     c1: "#152034", c2: "#0E1626", pro: true, group: "Inspired" },
+        { k: "popos",         n: "Fizz",       c1: "#262322", c2: "#1E1C1B", pro: true, group: "Inspired" },
         { k: "high_contrast", n: "Contrast",   c1: "#1A1A1A", c2: "#000000", group: "Accessibility" }
     ]
     // Group order for the pickers (only groups that exist are shown).
-    readonly property var themeGroupOrder: ["Standard", "Premium", "Distro", "Accessibility"]
+    readonly property var themeGroupOrder: ["Standard", "Premium", "Inspired", "Accessibility"]
     function themeDef(key) {
         for (var i = 0; i < themeCatalog.length; i++)
             if (themeCatalog[i].k === key) return themeCatalog[i]
@@ -432,15 +432,29 @@ QtObject {
         // *palette inspired by* a look and nothing else: no logo, no glyph, no
         // traced or approximated mark, anywhere in the theme or its assets.
         //
-        // Two naming registers, and the difference is deliberate:
-        //  • Descriptive names below (arch/cachyos/debian/fedora/popos) name
-        //    community projects with published, permissive guidelines, where
-        //    naming a palette after the look it evokes is nominative use.
-        //  • `aubergine` and `crimson` evoke looks whose owners actively enforce
-        //    their marks against commercial use. They are named for their colours
-        //    and MUST stay that way: do not reintroduce the project name into the
-        //    case label, the UI string, or a comment. The colour is the whole
-        //    point; the name would be the whole liability.
+        // NAMING POLICY (owner decision, 2026-07-19) — no project name is used as
+        // a user-visible label, for ANY of these, regardless of how permissive
+        // that project's guidelines are. Nominative use is probably defensible;
+        // it is not worth defending. Instead each display name LEANS ON THE
+        // NAMING SCHEME the project itself used, without borrowing the name:
+        //
+        //    key       shown as    the scheme it leans on
+        //    fedora    Trilby      a fedora is a hat; a trilby is a different hat
+        //    arch      Keystone    an arch is architecture; so is a keystone
+        //    debian    Swirl       names the visual motif, not the project
+        //    cachyos   Cascade     evokes cache/flow, not the project
+        //    popos     Fizz        evokes "pop", not the project
+        //
+        // `aubergine` and `crimson` were already named for their colours because
+        // their owners actively enforce against commercial use. Same rule, and it
+        // now applies uniformly: do not reintroduce ANY project name into a case
+        // label, a UI string, or a comment presented to the user. The colour is
+        // the whole point; the name would be the whole liability.
+        //
+        // The `k:` KEYS deliberately keep their original spelling. They are
+        // internal identifiers only — persisted in config.toml and switched on
+        // below — never rendered. Renaming them would break every existing user's
+        // saved theme for zero legal benefit.
         //
         // Each carries its hue in the SURFACES (backgrounds, card fills, borders)
         // rather than in `accent` — applyTheme deliberately ends by re-applying

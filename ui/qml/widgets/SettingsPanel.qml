@@ -169,8 +169,12 @@ Rectangle {
                         property bool userIsPro: (typeof license !== "undefined") && license && license.isPro === true
                         property string lockHint: ""
                         function groupLabel(g) {
+                            // "Inspired", never "Distro-inspired": see the naming
+                            // policy in ui/qml/Theme.qml. No project name — and no
+                            // phrase that re-asserts the association — appears in a
+                            // user-visible string.
                             return g === "Premium" ? "Premium (Pro)"
-                                 : g === "Distro"  ? "Distro-inspired (Pro)"
+                                 : g === "Inspired" ? "Inspired (Pro)"
                                  : g === "Accessibility" ? "Accessibility" : "Standard"
                         }
                         Text { text: "Theme"; font.pixelSize: theme.fontLabel; font.bold: true; color: theme.textSecondary }
