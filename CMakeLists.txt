@@ -20,6 +20,31 @@ if(NOT XENEON_GIT_VERSION)
 endif()
 message(STATUS "Xeneon build version: ${XENEON_GIT_VERSION}")
 
+# Re-run `git describe` on every BUILD, not only on configure.
+#
+# execute_process() above runs at CONFIGURE time, so `cmake --build` alone bakes
+# in whatever the version was when the build dir was last configured. Every
+# incremental dev build therefore reported a stale version — the exact confusion
+# that had a test run reporting r190 while r200 was installed. This target makes
+# a reconfigure happen whenever HEAD moves, so the version tracks the tree.
+if(NOT (DEFINED XENEON_VERSION_OVERRIDE AND XENEON_VERSION_OVERRIDE))
+    find_package(Git QUIET)
+    if(GIT_FOUND AND EXISTS "${CMAKE_SOURCE_DIR}/.git")
+        # Touching CMakeLists when HEAD changes forces CMake to re-run its own
+        # configure step, which re-evaluates git describe. Cheap, and it uses
+        # CMake's normal dependency machinery instead of a second version path
+        # that could disagree with the first.
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+                     "${CMAKE_SOURCE_DIR}/.git/HEAD")
+        if(EXISTS "${CMAKE_SOURCE_DIR}/.git/refs/heads")
+            file(GLOB _xe_heads "${CMAKE_SOURCE_DIR}/.git/refs/heads/*")
+            foreach(_h ${_xe_heads})
+                set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_h}")
+            endforeach()
+        endif()
+    endif()
+endif()
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)

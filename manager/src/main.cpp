@@ -120,10 +120,35 @@ int main(int argc, char* argv[]) {
     // gates that behind this flag. Local read only — no network path is opened.
     qputenv("QML_XHR_ALLOW_FILE_READ", "1");
 
+    // --version BEFORE QGuiApplication: the Manager used to ignore the flag and
+    // just launch the GUI, so anything asking it "which build are you?" got a
+    // window instead of an answer (and blocked). A test that cannot ask a binary
+    // its version cannot refuse to test a stale one.
+    for (int i = 1; i < argc; ++i) {
+        const QByteArray a(argv[i]);
+        if (a == "--version" || a == "-v") {
+#ifdef XENEON_VERSION
+            std::printf("Xeneon Edge Manager %s\n", XENEON_VERSION);
+#else
+            std::printf("Xeneon Edge Manager 0.1.0\n");
+#endif
+            return 0;
+        }
+    }
+
     xeneon_logging_init("info");
     QGuiApplication app(argc, argv);
     app.setApplicationName("Xeneon Edge Manager");
-    app.setApplicationVersion("0.1.0");
+    // XENEON_VERSION, not a literal: CMakeLists passes the git-describe string
+    // (or the packaged pkgver via XENEON_VERSION_OVERRIDE). This used to be a
+    // hardcoded "0.1.0", so `--version` reported 0.1.0 for EVERY build ever
+    // made — dev, packaged, and release alike — which made it impossible to
+    // tell which build you were actually running or testing.
+#ifdef XENEON_VERSION
+    app.setApplicationVersion(QStringLiteral(XENEON_VERSION));
+#else
+    app.setApplicationVersion(QStringLiteral("0.1.0"));
+#endif
     app.setOrganizationName("xeneon-edge-hub");
 
     // Fusion style so Switch/Button/Slider render properly on the desktop, with a

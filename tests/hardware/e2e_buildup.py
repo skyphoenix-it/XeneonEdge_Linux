@@ -38,7 +38,7 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
-from e2e_harness import E2E, doc, page, tile  # noqa: E402
+from e2e_harness import E2E, assert_binaries_current, doc, page, tile  # noqa: E402
 
 # One widget per family we care about, in the order a user would plausibly add
 # them. Deliberately spans metric widgets (need the Rust core), time widgets
@@ -103,6 +103,11 @@ def appearance_of(st):
 
 
 def main():
+    try:
+        print("  binaries under test: %s" % assert_binaries_current())
+    except RuntimeError as e:
+        print("!!", e)
+        return 2
     h = E2E(workdir=tempfile.mkdtemp(prefix="edge-buildup-"))
     b = BuildUp(h)
     try:

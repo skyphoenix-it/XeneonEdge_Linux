@@ -113,6 +113,44 @@ def _wait_stable(path, tries=40, quiet=0.25):
     return False
 
 
+
+def assert_binaries_current(binaries=(HUB, MANAGER)):
+    """Refuse to test a binary that does not match the working tree.
+
+    A real-hardware run reported results for r190 while r200 was installed,
+    because `cmake --build` alone never re-ran git describe (fixed in
+    CMakeLists) AND --version was a hardcoded "0.1.0" (fixed in both mains).
+    Testing a stale binary and reporting it as current is worse than not
+    testing: every conclusion drawn from that run is about code nobody is
+    running.
+
+    Raises RuntimeError with what to do about it.
+    """
+    want = subprocess.run(["git", "describe", "--tags", "--always", "--dirty"],
+                          cwd=REPO, capture_output=True, text=True).stdout.strip()
+    if not want:
+        return None                      # no git (packaged tree) — nothing to check
+    for b in binaries:
+        if not os.path.exists(b):
+            raise RuntimeError("missing binary %s — run ./scripts/build.sh" % b)
+        try:
+            got = subprocess.run([b, "--version"], capture_output=True,
+                                 text=True, timeout=10).stdout.strip()
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(
+                "%s did not answer --version within 10s — it probably launched "
+                "its GUI instead of printing a version. Fix the binary; a "
+                "version check that hangs is worse than none."
+                % os.path.basename(b))
+        if want not in got:
+            raise RuntimeError(
+                "STALE BINARY: %s reports %r but the tree is %r.\n"
+                "  Rebuild before testing:  cmake -S . -B build && cmake --build build\n"
+                "  (configure, not just build — git describe is evaluated at configure time)"
+                % (os.path.basename(b), got, want))
+    return want
+
+
 class E2E:
     def __init__(self, workdir):
         self.work = workdir

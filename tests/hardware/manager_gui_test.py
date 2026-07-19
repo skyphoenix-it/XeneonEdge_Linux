@@ -51,7 +51,8 @@ sys.path.insert(0, HERE)
 import desktop_target as dt          # noqa: E402
 import input_guard                   # noqa: E402
 import uinput_touch as u             # noqa: E402
-from e2e_harness import E2E, MANAGER, doc, page, tile   # noqa: E402
+from e2e_harness import (E2E, MANAGER, assert_binaries_current,  # noqa: E402
+                         doc, page, tile)
 
 
 class ManagerGui:
@@ -110,6 +111,14 @@ def main():
     try:
         dt.require_desktop_gate()
     except dt.DesktopGateError as e:
+        print("!!", e)
+        return 2
+
+    # Fail before launching anything if the binaries are not the working tree.
+    try:
+        ver = assert_binaries_current()
+        print("  binaries under test: %s" % ver)
+    except RuntimeError as e:
         print("!!", e)
         return 2
 

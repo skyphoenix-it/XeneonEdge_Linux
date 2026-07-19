@@ -263,7 +263,16 @@ int main(int argc, char *argv[]) {
 
     QGuiApplication app(argc, argv);
     app.setApplicationName("Xeneon Edge Linux Hub");
-    app.setApplicationVersion("0.1.0");
+    // XENEON_VERSION, not a literal: CMakeLists passes the git-describe string
+    // (or the packaged pkgver via XENEON_VERSION_OVERRIDE). This used to be a
+    // hardcoded "0.1.0", so `--version` reported 0.1.0 for EVERY build ever
+    // made — dev, packaged, and release alike — which made it impossible to
+    // tell which build you were actually running or testing.
+#ifdef XENEON_VERSION
+    app.setApplicationVersion(QStringLiteral(XENEON_VERSION));
+#else
+    app.setApplicationVersion(QStringLiteral("0.1.0"));
+#endif
     app.setOrganizationName("xeneon-edge-hub");
 
     // Fusion style + dark palette so on-device config controls (Switch/Slider/
