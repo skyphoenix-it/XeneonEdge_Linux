@@ -244,6 +244,43 @@ bug. Classify every one of the 210 before fixing anything:
       completely broken tab bar. Real coverage already lives at
       `tests/gui/tst_gui_mgr_nav.qml:137-217`.
 
+## VALIDATION SWEEP — 2026-07-19 (pre-RC)
+
+| Suite | Result |
+|---|---|
+| Rust unit + property (`cargo test --lib`) | **238 / 238** |
+| C++ `ctest` | **21 / 21** |
+| QML offscreen (`run_ui_tests.sh`, 88 files) | **0 failures** |
+| Runtime E2E (real hub binary, headless) | **9 / 9** |
+| Static tree-walk guard | clean |
+| QML behaviour coverage | **97.2%** (gate 95) |
+| GUI suite (real KWin) | **1456 pass / 110 fail** |
+
+GUI suite trajectory: 1356/210 -> 1412/154 -> **1456/110**. Zero OOM, zero
+sentinel trips, zero global_oom across every run.
+
+### Fixed since the triage
+- Group A (80 rows) — `win.visible` vs `visibility: Window.Hidden`; window never
+  mapped so no synthetic input landed at all.
+- Group F (20 rows) + 24 more in mgr_theme_accent — GuiUtil now walks the QQC2
+  `contentItem`/`header`/`footer` axes, so a search rooted at a Dialog can reach
+  its content. Safe ONLY because of the visited-set from the OOM fix.
+- Group J (1 row) — Fusion pinned in all runners. Zero measured impact; kept
+  because the suite must test what ships.
+
+### Still open (110)
+- `shell_wallpaper_presets` 40 — group B. `verify(bd.visible)` precondition.
+  THREE hypotheses now disproved: store key (store->root only syncs at load),
+  window property post-load, and `theme.decorative` (defaults true). STOP
+  GUESSING — instrument all three terms of `Dashboard.qml:165` and check what
+  `findBackdrop()` actually returns.
+- `mgr_theme_accent` 28 — group C, theme popup viewport/scroll.
+- `mgr_nav` 11 — wheel events not delivered under the synthetic runner.
+- `shell_nav_edit` 10, `mgr_edgeclone` 9, `w_media_data` 9 (UNKNOWN-1: evidence
+  PNGs show the wrong widget — suspect grab plumbing), `mgr_bg_glass` 2.
+- `w_focus_habits` — deterministic SIGSEGV after exactly 76 tests. NOT the
+  bounds, NOT memory (517 MB peak). Qt 6.11.1 V4 or harness accumulation.
+
 ## PHASE STATE
 
 - [x] Phase 0 — recovery + hardening (3 leaks fixed, bounds, static guard)
