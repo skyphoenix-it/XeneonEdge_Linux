@@ -141,6 +141,12 @@ jobs:
         run: bash scripts/check_ui_links.sh
       - name: Icon lint (every widget type has a bundled, registered icon)
         run: bash scripts/check_widget_icons.sh
+      # The Manager is tested against a REAL hub on REAL hardware, never inside
+      # a nested compositor with a stubbed backend. That layer added no fidelity
+      # and silently corrupted pixel assertions (grabImage ignores item
+      # position), so it reported bugs that did not exist.
+      - name: No Manager tests under a nested compositor
+        run: bash scripts/check_no_manager_compositor_tests.sh
       # Guards the scene-graph walk bug that OOMed the developer's machine
       # (18.8 GB / 20 GB RSS, three independent copies). It lived only in
       # run_all_tests.sh — i.e. it gated nothing anyone was forced to run.
