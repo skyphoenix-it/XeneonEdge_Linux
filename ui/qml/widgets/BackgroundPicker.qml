@@ -7,7 +7,7 @@ import QtQuick.Layouts
 // (pageIndex < 0) or a PER-PAGE override (pageIndex >= 0), which makes the
 // precedence explicit ("Use global" vs a specific pick for this page).
 //
-// Required: store, col (tokens: textPrimary/textSecondary/panel/panelAlt/border/
+// Required: st, col (tokens: textPrimary/textSecondary/panel/panelAlt/border/
 // accent/radius), bgCatalog (BackgroundCatalog), wpCatalog (WallpaperCatalog).
 // Optional: uploadedImages = [{ label, source }] to include the user's images.
 Item {
@@ -41,7 +41,7 @@ Item {
     // ── Current selection (reactive on st.revision) ──
     // Returns { kind: "global"|"style"|"wallpaper", val }.
     function current() {
-        if (!store) return { kind: "global" }   // before the store is wired in
+        if (!st) return { kind: "global" }      // before the store is wired in
         st.revision
         if (pageIndex < 0) {
             var a = st.appearance() || ({})
