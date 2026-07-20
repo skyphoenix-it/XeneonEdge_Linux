@@ -43,6 +43,7 @@ sys.path.insert(0, HERE)
 import desktop_target as dt          # noqa: E402
 import input_guard                   # noqa: E402
 import uinput_touch as u             # noqa: E402
+import manager_window as mw          # noqa: E402
 from e2e_harness import (E2E, MANAGER, assert_binaries_current,  # noqa: E402
                          doc, page, tile)
 
@@ -124,6 +125,12 @@ def main():
         guard.require_user_idle()
         cw, ch = dt.canvas_size()
         p = u.VPointer(cw, ch, (x, y, w, hgt), guard=guard)
+        # OCCLUSION GUARD: the clamp confines events to the Manager's
+        # rect but does not prove the Manager is the window receiving
+        # them there. It was not, once: a browser raised itself over the
+        # Manager and five clicks went into a docs page. Refuses to emit
+        # unless a sidebar row carries the accent. See manager_window.py.
+        p = mw.guard_pointer(p, rect, work)
 
         def click(fx, fy, settle=0.7):
             p.tap(x + int(w * fx), y + int(hgt * fy)); time.sleep(settle)
