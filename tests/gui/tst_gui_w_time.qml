@@ -39,7 +39,7 @@ Item {
         property var tz: null
 
         function snap(item, name) {
-            var img = grabImage(item)
+            var img = G.grabItem(this, item, root)
             img.save("gui-evidence/wtime_" + name + ".png")
             return img
         }

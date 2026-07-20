@@ -14,7 +14,7 @@ import "GuiUtil.js" as G
 //   • Wallpaper selection is driven by a REAL BackgroundPicker hosted in THIS
 //     (the test) window, bound to the shell's OWN store — clicking a thumbnail
 //     mutates the shell store, and the shell's page background re-renders. The
-//     picker and the shell are separate KWin surfaces, so grabImage(dashboard)
+//     picker and the shell are separate KWin surfaces, so grabbing the dashboard
 //     samples the live background without the picker bleeding into the frame.
 //   • Wallpaper qrc PNGs do NOT load under qmltestrunner, so a wallpaper's
 //     VISIBLE effect is that it SUPPRESSES the animated backdrop (backdrop
@@ -143,7 +143,7 @@ Item {
         property var store: null
         property var bd: null
 
-        function snap(item, n) { var i = grabImage(item); i.save("gui-evidence/shellbg_" + n + ".png"); return i }
+        function snap(item, n) { var i = G.grabItem(this, item, win.contentItem); i.save("gui-evidence/shellbg_" + n + ".png"); return i }
 
         function initTestCase() {
             var c = Qt.createComponent("../../ui/qml/main.qml")
@@ -171,7 +171,13 @@ Item {
             }, 6000, "Dashboard + store loaded")
             bd = root.findBackdrop(dash)
             verify(bd !== null, "found the BackdropLayer")
-            bpick.store = store                // wire the picker to the shell store
+            // `st`, not `store`: c02c40f renamed BackgroundPicker's store property
+            // to escape the QML self-binding trap (`store: store` resolving to the
+            // component's own undefined property). The DECLARATION above was
+            // updated then; this runtime assignment was missed, so every test in
+            // this TestCase died in initTestCase on "Cannot assign to non-existent
+            // property". tests/ui was fixed in a3f94ca; tests/gui was not.
+            bpick.st = store                   // wire the picker to the shell store
         }
         function cleanupTestCase() { if (win) win.destroy() }
 
@@ -239,7 +245,7 @@ Item {
             store.setAppearance("wallpaper", "")
             store.setAppearance("bgStyle", d.animated ? "none" : "orbs")
             wait(200)
-            var before = grabImage(dash)
+            var before = G.grabItem(this, dash, win.contentItem)
             var chip = root.chipFor(d.label)
             verify(chip !== null, "style chip present: " + d.label)
             mouseClick(chip, chip.width / 2, chip.height / 2)
@@ -294,7 +300,7 @@ Item {
             bpick.pageIndex = 1
             var g0
             sw.goToPage(0); tryVerify(function () { return sw.currentIndex === 0 }, 3000); wait(150)
-            g0 = grabImage(dash)
+            g0 = G.grabItem(this, dash, win.contentItem)
             var chip = root.chipFor("Waves")   // per-page override on page 1
             bpick.pageIndex = 1
             // apply the override via the per-page picker method (page 1) then verify store
@@ -346,7 +352,7 @@ Item {
             store.setPageBackground(1, "style", "grid")
             var sw = root.findSwipe(win)
             sw.goToPage(0); tryVerify(function () { return sw.currentIndex === 0 }, 3000); wait(150)
-            var g0 = grabImage(dash)
+            var g0 = G.grabItem(this, dash, win.contentItem)
             sw.goToPage(1); tryVerify(function () { return sw.currentIndex === 1 }, 3000); wait(150)
             var g1 = snap(dash, "switch_page1_grid")
             verify(root.pxDiff(g0, g1) >= 1, "the background follows the current page")
@@ -366,7 +372,7 @@ Item {
             var hc = snap(dash, "highcontrast")
             // restore a normal theme for cleanliness
             store.setAppearance("themeMode", "midnight"); dash.applyAppearance(); wait(150)
-            var normal = grabImage(dash)
+            var normal = G.grabItem(this, dash, win.contentItem)
             verify(root.pxDiff(hc, normal) >= 1, "the themed background differs from high-contrast")
         }
     }
@@ -385,7 +391,7 @@ Item {
         property var store: null
         property var swipe: null
 
-        function snap(item, n) { var i = grabImage(item); i.save("gui-evidence/shellpreset_" + n + ".png"); return i }
+        function snap(item, n) { var i = G.grabItem(this, item, win.contentItem); i.save("gui-evidence/shellpreset_" + n + ".png"); return i }
 
         function initTestCase() {
             var c = Qt.createComponent("../../ui/qml/main.qml")
@@ -605,7 +611,9 @@ Item {
 
         property var wiz: null
 
-        function snap(item, n) { var i = grabImage(item); i.save("gui-evidence/shellwiz_" + n + ".png"); return i }
+        // This TestCase hosts the wizard directly on `root`, not in its own
+        // Window — so `root` is the origin item the grab must be relative to.
+        function snap(item, n) { var i = G.grabItem(this, item, root); i.save("gui-evidence/shellwiz_" + n + ".png"); return i }
 
         function findButton(str) {
             return G.findPred(wiz, function (n) {
@@ -799,7 +807,7 @@ Item {
         property var store: null
         property var swipe: null
 
-        function snap(item, n) { var i = grabImage(item); i.save("gui-evidence/shellempty_" + n + ".png"); return i }
+        function snap(item, n) { var i = G.grabItem(this, item, win.contentItem); i.save("gui-evidence/shellempty_" + n + ".png"); return i }
 
         function initTestCase() {
             var c = Qt.createComponent("../../ui/qml/main.qml")

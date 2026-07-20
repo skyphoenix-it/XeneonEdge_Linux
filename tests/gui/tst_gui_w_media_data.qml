@@ -152,7 +152,7 @@ Item {
         when: windowShown
         visible: true
 
-        function snap(item, n) { var i = grabImage(item); i.save("gui-evidence/wmedia_" + n + ".png"); return i }
+        function snap(item, n) { var i = G.grabItem(this, item, root); i.save("gui-evidence/wmedia_" + n + ".png"); return i }
 
         function initTestCase() { tryVerify(function () { return mh.ready }, 5000) }
 
@@ -169,7 +169,7 @@ Item {
         }
         // Min RGB distance to `col` scanned over a node's grabbed pixels.
         function nodeMinDist(node, col) {
-            var img = grabImage(node)
+            var img = G.grabItem(this, node, root)
             var er = Math.round(col.r * 255), eg = Math.round(col.g * 255), eb = Math.round(col.b * 255)
             var best = 99999, W = img.width, H = img.height
             // Dense enough to land inside a thin glyph stroke, not just its box.
@@ -331,7 +331,7 @@ Item {
             var play = root.iconByName(it, "ui-pause")[0].parent
             var d = nodeMinDist(play, it.effAccent)
             snap(mh, "chrome_accent_auto")
-            var dimg = grabImage(play)
+            var dimg = G.grabItem(this, play, root)
             console.warn("DBG media accent auto dist=" + d.toFixed(0) + " eff=" + it.effAccent
                          + " c=" + dimg.pixel(30,30) + " q=" + dimg.pixel(15,15) + " r=" + dimg.pixel(45,30)
                          + " rgb(30,30)=" + dimg.red(30,30) + "," + dimg.green(30,30) + "," + dimg.blue(30,30))
@@ -363,7 +363,7 @@ Item {
         when: windowShown
         visible: true
 
-        function snap(item, n) { var i = grabImage(item); i.save("gui-evidence/whttp_" + n + ".png"); return i }
+        function snap(item, n) { var i = G.grabItem(this, item, root); i.save("gui-evidence/whttp_" + n + ".png"); return i }
 
         property var lastFake: null
         function initTestCase() {
@@ -394,7 +394,7 @@ Item {
                 { httpList: items, httpText: n + " items", httpVal: undefined, httpErr: "" })
         }
         function nodeMinDist(node, col) {
-            var img = grabImage(node)
+            var img = G.grabItem(this, node, root)
             var er = Math.round(col.r * 255), eg = Math.round(col.g * 255), eb = Math.round(col.b * 255)
             var best = 99999, W = img.width, H = img.height
             // Dense enough to land inside a thin glyph stroke, not just its box.
@@ -663,7 +663,7 @@ Item {
         when: windowShown
         visible: true
 
-        function snap(item, n) { var i = grabImage(item); i.save("gui-evidence/wkpi_" + n + ".png"); return i }
+        function snap(item, n) { var i = G.grabItem(this, item, root); i.save("gui-evidence/wkpi_" + n + ".png"); return i }
 
         property var lastFake: null
         function initTestCase() {
@@ -694,7 +694,7 @@ Item {
             for (var i = 0; i < vals.length; i++) kh.item._apply(vals[i])
         }
         function nodeMinDist(node, col) {
-            var img = grabImage(node)
+            var img = G.grabItem(this, node, root)
             var er = Math.round(col.r * 255), eg = Math.round(col.g * 255), eb = Math.round(col.b * 255)
             var best = 99999, W = img.width, H = img.height
             // Dense enough to land inside a thin glyph stroke, not just its box.

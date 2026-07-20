@@ -34,7 +34,7 @@ Item {
         property var _glass: null       // the glass Slider
 
         function snap(item, name) {
-            var img = grabImage(item)
+            var img = G.grabItem(this, item, mh.win.contentItem)
             img.save("gui-evidence/mgrbg_" + name + ".png")
             return img
         }
@@ -607,9 +607,9 @@ Item {
             goTab(1)
             var sw = switchByText("Widget glow"); scrollIntoView(sw)
             _store.setAppearance("glow", true); wait(150)
-            var indOn = grabImage(sw.indicator)
+            var indOn = G.grabItem(this, sw.indicator, mh.win.contentItem)
             _store.setAppearance("glow", false); wait(150)
-            var indOff = grabImage(sw.indicator)
+            var indOff = G.grabItem(this, sw.indicator, mh.win.contentItem)
             // The indicator fill differs between checked (accent) and unchecked (panelAlt).
             var cOn = "" + indOn.pixel(indOn.width - 6, indOn.height / 2)
             var cOff = "" + indOff.pixel(indOff.width - 6, indOff.height / 2)

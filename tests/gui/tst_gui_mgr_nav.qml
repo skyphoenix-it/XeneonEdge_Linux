@@ -32,7 +32,7 @@ Item {
         readonly property var headings: ["Screens", "Look", "Images", "Device", "About"]
 
         // ── evidence ──
-        function snap(item, nm) { var i = grabImage(item); i.save("gui-evidence/mgrnav_" + nm + ".png"); return i }
+        function snap(item, nm) { var i = G.grabItem(this, item, mh.win.contentItem); i.save("gui-evidence/mgrnav_" + nm + ".png"); return i }
 
         // ── tree helpers (search the whole live window) ──
         function find(p) { return G.findPred(mh.win, p) }

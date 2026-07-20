@@ -28,7 +28,7 @@ Item {
         visible: true
 
         // ── evidence ────────────────────────────────────────────────────────
-        function snap(item, n) { var i = grabImage(item); i.save("gui-evidence/mgredge_" + n + ".png"); return i }
+        function snap(item, n) { var i = G.grabItem(this, item, mh.win.contentItem); i.save("gui-evidence/mgredge_" + n + ".png"); return i }
 
         // ── window / tree seams ─────────────────────────────────────────────
         function win_()  { return mh.win }

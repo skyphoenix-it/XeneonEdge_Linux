@@ -68,7 +68,7 @@ Item {
         readonly property var rotSet: [0, 90, 180, 270]
 
         function snap(item, name) {
-            var img = grabImage(item)
+            var img = G.grabItem(this, item, win.contentItem)
             img.save("gui-evidence/sos_" + name + ".png")
             return img
         }
@@ -319,9 +319,9 @@ Item {
             win.reduceMotion = true
             win.width = 720; win.height = 1280
             win.orientationMode = "portrait";  wait(120)
-            var p = grabImage(cr); var pRatio = p.height / p.width
+            var p = G.grabItem(this, cr, win.contentItem); var pRatio = p.height / p.width
             win.orientationMode = "landscape"; wait(120)
-            var l = grabImage(cr); var lRatio = l.height / l.width
+            var l = G.grabItem(this, cr, win.contentItem); var lRatio = l.height / l.width
             verify(pRatio > 1.0, "portrait aspect is tall (" + pRatio.toFixed(2) + ")")
             verify(lRatio < 1.0, "landscape aspect is wide (" + lRatio.toFixed(2) + ")")
             verify(pRatio > lRatio, "the aspect inverted between the two orientations")

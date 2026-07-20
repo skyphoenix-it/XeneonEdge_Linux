@@ -27,7 +27,8 @@ Item {
 
         function snap(item, name) {
             if (!item) return null
-            var img = grabImage(item); img.save("gui-evidence/mgrta_" + name + ".png"); return img
+            var img = G.grabItem(this, item, mh.win.contentItem)
+            img.save("gui-evidence/mgrta_" + name + ".png"); return img
         }
 
         // ── one-time hosting ────────────────────────────────────────────────
@@ -215,12 +216,12 @@ Item {
         function test_D6_free_theme_applies(d) {
             var baseline = (d.k === "light") ? "dark" : "light"
             _store.setAppearance("themeMode", baseline); wait(120)
-            var before = grabImage(lookClone())
+            var before = G.grabItem(this, lookClone(), mh.win.contentItem)
             openThemePopup()
             clickThemeRow(d.k)                                   // commits + closes popup
             wait(220)
             compare(_store.appearance().themeMode, d.k, "themeMode committed to " + d.k)
-            var after = grabImage(lookClone())
+            var after = G.grabItem(this, lookClone(), mh.win.contentItem)
             verify(maxChDist(before, after) > 20, "preview backdrop repainted for " + d.k)
             var img = snap(lookClone(), "theme_" + d.k)
             verify(G.looksRendered(img), "preview rendered non-blank")
@@ -411,7 +412,7 @@ Item {
             var sw = swatchByName("oi_black"); verify(sw, "oi_black swatch")
             ensureVisible(sw)
             compare(("" + sw.color).toLowerCase(), "#000000", "swatch fill is pure black")
-            var img = grabImage(sw)
+            var img = G.grabItem(this, sw, mh.win.contentItem)
             var cx = Math.floor(sw.width / 2), cy = Math.floor(sw.height / 2)
             verify(img.red(cx, cy) < 40 && img.green(cx, cy) < 40 && img.blue(cx, cy) < 40, "centre pixel is black")
             // A distinct (non-black) border ring around the circle proves the swatch
@@ -432,7 +433,7 @@ Item {
             ensureVisible(sw)
             verify(sw.sel === true, "oi_black selected")
             compare(sw.border.width, 3, "3px ring even for the black swatch")
-            var img = grabImage(sw)
+            var img = G.grabItem(this, sw, mh.win.contentItem)
             verify(hasNearWhite(img, 8, 8, img.width - 8, img.height - 8),
                    "white ui-check pixels legible over the black fill")
             img.save("gui-evidence/mgrta_black_selected.png")

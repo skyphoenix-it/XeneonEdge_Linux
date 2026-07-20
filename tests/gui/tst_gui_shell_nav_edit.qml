@@ -72,7 +72,7 @@ Item {
         visible: true
 
         // ── Helpers that click / wait (TestCase-scoped) ──────────────────────
-        function snap(item, name) { var img = grabImage(item); img.save("gui-evidence/shellnav_" + name + ".png"); return img }
+        function snap(item, name) { var img = G.grabItem(this, item, win.contentItem); img.save("gui-evidence/shellnav_" + name + ".png"); return img }
         function clickItem(it) { verify(it, "click target present"); mouseClick(it, it.width / 2, it.height / 2) }
         function clickIcon(scope, nm) {
             var ic = iconAny(scope, nm)
