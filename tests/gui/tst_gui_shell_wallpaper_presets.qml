@@ -72,7 +72,7 @@ Item {
     W.BackgroundPicker {
         id: bpick
         x: 20; y: 20; width: 1180
-        store: null; pageIndex: -1
+        st: null; pageIndex: -1
         col: root.col; bgCatalog: bgc; wpCatalog: wpc
     }
 
@@ -157,7 +157,14 @@ Item {
             var sv = G.findPred(win.contentItem, function (n) {
                 return n && typeof n.push === "function" && n.currentItem !== undefined })
             verify(sv, "found StackView")
-            sv.push(Qt.resolvedUrl("../../ui/qml/Dashboard.qml"))
+            // Exactly ONE Dashboard on the stack. This used to be guaranteed by a BUG:
+            // main.qml's initialItem was "qrc:/qml/Dashboard.qml", which cannot resolve
+            // under qmltestrunner, so the stack was empty and this push produced the only
+            // instance. Now that initialItem resolves from the source tree, pushing
+            // without clearing leaves TWO stacked Dashboards — the test then drives the
+            // one underneath, so every "is it hidden?" assertion passes and every click
+            // silently lands on the wrong instance.
+            sv.clear(); sv.push(Qt.resolvedUrl("../../ui/qml/Dashboard.qml"))
             tryVerify(function () {
                 dash = root.findDash(win); store = root.findStore(win)
                 return dash !== null && store !== null
@@ -389,7 +396,7 @@ Item {
             win.orientationMode = "portrait"
             var sv = G.findPred(win.contentItem, function (n) {
                 return n && typeof n.push === "function" && n.currentItem !== undefined })
-            sv.push(Qt.resolvedUrl("../../ui/qml/Dashboard.qml"))
+            sv.clear(); sv.push(Qt.resolvedUrl("../../ui/qml/Dashboard.qml"))
             tryVerify(function () {
                 dash = root.findDash(win); store = root.findStore(win); swipe = root.findSwipe(win)
                 return dash !== null && store !== null && swipe !== null
@@ -802,7 +809,7 @@ Item {
             win.orientationMode = "portrait"
             var sv = G.findPred(win.contentItem, function (n) {
                 return n && typeof n.push === "function" && n.currentItem !== undefined })
-            sv.push(Qt.resolvedUrl("../../ui/qml/Dashboard.qml"))
+            sv.clear(); sv.push(Qt.resolvedUrl("../../ui/qml/Dashboard.qml"))
             tryVerify(function () {
                 dash = root.findDash(win); store = root.findStore(win); swipe = root.findSwipe(win)
                 return dash !== null && store !== null && swipe !== null

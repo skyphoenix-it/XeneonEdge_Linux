@@ -186,7 +186,15 @@ Item {
             var sv0 = G.findPred(win.contentItem, function (n) {
                 return n && typeof n.push === "function" && n.currentItem !== undefined })
             verify(sv0, "found StackView")
-            sv0.push(Qt.resolvedUrl("../../ui/qml/Dashboard.qml"))
+            // Exactly ONE Dashboard on the stack. This used to be guaranteed by a BUG:
+            // main.qml's initialItem was "qrc:/qml/Dashboard.qml", which cannot resolve
+            // under qmltestrunner, so the stack was empty and this push produced the only
+            // instance. Now that initialItem resolves from the source tree, pushing
+            // without clearing leaves TWO stacked Dashboards — the test then drives the
+            // one underneath, so every "is it hidden?" assertion passes and every click
+            // silently lands on the wrong instance.
+            sv0.clear()
+            sv0.clear(); sv0.push(Qt.resolvedUrl("../../ui/qml/Dashboard.qml"))
 
             tryVerify(function () {
                 swipe = G.byObjName(win.contentItem, "pageSwipe")
