@@ -156,7 +156,10 @@ Item {
                                             color: theme.textPrimary
                                         }
                                         Rectangle {
-                                            visible: modelData.likelyXeneonEdge
+                                            // Coerced: a screen record without the key yields
+                                            // undefined, and "Unable to assign [undefined] to bool"
+                                            // is a QWARN the new gate treats as a failure.
+                                            visible: modelData.likelyXeneonEdge === true
                                             color: theme.success
                                             radius: 4
                                             width: detectedLabel.width + 8

@@ -267,4 +267,17 @@ echo " GUI SUITE TOTALS: pass=$TOTAL_PASS fail=$TOTAL_FAIL skip=$TOTAL_SKIP  (fi
 echo " evidence: $EVID   logs: $LOGDIR"
 [ -n "$FAILFILES" ] && echo " FAILED FILES:$FAILFILES" && echo " see $FAILLOG"
 echo "==================================================================="
-[ "$TOTAL_FAIL" = 0 ] && [ -z "$FAILFILES" ] && echo "RESULT: SUCCESS" || echo "RESULT: FAILURE"
+# Anti-vacuity floor: a run that judged NOTHING is a failure, not a pass. This
+# suite was orphaned for months; when it was finally wired up, "0 files, 0
+# failures" must not read as green. Same rule as the other guards in scripts/.
+if [ "$FILECOUNT" -eq 0 ]; then
+  echo "RESULT: FAILURE (no test files were executed — refusing to report success)"
+  exit 1
+fi
+
+if [ "$TOTAL_FAIL" = 0 ] && [ -z "$FAILFILES" ]; then
+  echo "RESULT: SUCCESS"
+  exit 0
+fi
+echo "RESULT: FAILURE"
+exit 1

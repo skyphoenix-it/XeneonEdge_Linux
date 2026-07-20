@@ -1,6 +1,36 @@
 # Test Strategy v2 — why we regress, and what to do about it
 
-Status: PROPOSED, awaiting Simon's approval. Written 2026-07-20 at r230.
+Status: Phase 0 APPROVED by Simon 2026-07-20 (CI on v1.0-alpha). Written at r230.
+
+## CORRECTION (post-verification) — read this before acting on the tally
+
+The 30/11/19 pinning tally below came from READING diffs and assertions, not
+from reverting fixes and running the suite. A later verification pass using real
+commands moved two verdicts, so treat the aggregates as directional only.
+
+It also showed the diagnosis is **three problems, not one**:
+
+- **Category A — absent pins.** Manager-opens-on-Edge (3x), wheel-scroll step
+  (3x), glass border on light themes, resetConfirm binding loop. `screenIsEdge()`
+  and `placeManagerOffEdge()` are `static` in `manager/src/main.cpp`, and
+  `tests/cpp/CMakeLists.txt` pulls only `reconcile.cpp` + `manager_backend.h` —
+  `main.cpp` is in no test target, so those symbols are **not linkable from a
+  test at all**. CI would never have caught this. Needs Phase 2.7.
+- **Category B — pins that cannot observe the failure.** Add-page snap-back is
+  pinned in `tst_dashboard.qml` and regressed TWICE after the pin existed.
+  qmltestrunner cannot load `main.qml`'s `qrc:` Dashboard, so the real stack is
+  only reachable via `XENEON_QA_ADDPAGES`, and offscreen cannot reproduce the
+  compositor timing. Needs the compositor tier, not more CI.
+- **Category C — pins that work but never run.** The em-dash case. This is the
+  only category Phase 0 closes.
+
+Also corrected: the glass slider IS genuinely well pinned in the enforced suite
+(`tst_manager.qml:764-788` asserts the handle does not move on a revision bump;
+its comment states it bites on the old code). The claim that 5 PINNED verdicts
+sat in the red suite was unverified and is at least partly wrong.
+
+**Before Phase 3 acts on any individual line: revert the fix and run the suite.
+That is the only thing that proves a pin bites.**
 
 ## The question
 

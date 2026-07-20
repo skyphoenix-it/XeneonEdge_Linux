@@ -1,19 +1,27 @@
 name: CI
 
-# master ONLY. v1.0-alpha is kept in ff-only lockstep with master (same SHA), so
-# triggering on it ran EVERY job twice per merge for zero information — that
-# double-run is what ate the Actions quota. If the alpha branch ever genuinely
-# diverges again (it did once, and a real break hid there for 8 commits), re-add
-# it — the lockstep is the precondition for this optimization.
+# master AND v1.0-alpha.
+#
+# This previously triggered on master only, on the stated precondition that
+# v1.0-alpha was kept in ff-only lockstep with master (same SHA), making a second
+# run pure quota burn. That precondition is VOID: on 2026-07-20 v1.0-alpha was
+# measured 86 commits ahead of master, and 31 of the last 62 fixes — 28 of them
+# user-visible — had received zero CI runs. A real break hid there once before
+# for 8 commits; this time thirteen defects were fixed between two and five times
+# each, all inside the un-gated window.
+#
+# Do NOT restore the master-only optimization without first restoring the
+# lockstep it depends on. If the double-run cost matters, merge alpha into master
+# rather than narrowing the trigger. See docs/agent-memory/TEST-STRATEGY-v2.md.
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, 'v1.0-alpha']
     paths-ignore:
       - 'docs/**'
       - '**.md'
       - 'LICENSE*'
   pull_request:
-    branches: [main, master]
+    branches: [main, master, 'v1.0-alpha']
   workflow_dispatch:
 
 # Cancel superseded runs on the same ref (e.g. rapid pushes to a PR branch).

@@ -38,17 +38,38 @@ RUN_TIMEOUT=${RUN_TIMEOUT:-600}
 RUN_MEM_MAX_MB=${RUN_MEM_MAX_MB:-8192}
 
 fail=0
+filecount=0
+# Per-file stdout is kept so check_qml_diagnostics.sh can scan it. QML runtime
+# errors surface as QWARN lines on STDOUT (measured — NOT stderr), and until
+# this landed nothing anywhere treated them as failures: the inert
+# BackgroundPicker threw a TypeError on every click while three suites reported
+# 5/5, 16/16 and 16/16.
+QLOGDIR="${QLOGDIR:-$(mktemp -d -t xe-uilogs-XXXXXX)}"
+mkdir -p "$QLOGDIR"
+
 for t in tests/ui/tst_*.qml; do
     echo "==> $t"
+    filecount=$((filecount+1))
+    base=$(basename "$t" .qml)
     # `set -e` must not skip the bookkeeping below, so capture rc explicitly.
     rc=0
-    run_bounded "$QMLTESTRUNNER" -input "$t" "${IMPORTS[@]}" || rc=$?
+    run_bounded "$QMLTESTRUNNER" -input "$t" "${IMPORTS[@]}" \
+        > >(tee "$QLOGDIR/$base.log") 2>&1 || rc=$?
     case "$rc" in
         0)  ;;
         97) echo "!! $t MEMKILLed (>${RUN_MEM_MAX_MB} MiB RSS) — treat as a leak"; fail=1 ;;
         98) echo "!! $t TIMEKILLed (>${RUN_TIMEOUT}s) — treat as a hang"; fail=1 ;;
         *)  fail=1 ;;
     esac
+    # A QML runtime diagnostic fails the file even when every assertion passed.
+    "$PROJECT_DIR/scripts/check_qml_diagnostics.sh" "$QLOGDIR/$base.log" || fail=1
 done
 
+# Anti-vacuity floor: a glob that matched nothing must not report success.
+if [ "$filecount" -eq 0 ]; then
+    echo "!! no test files matched tests/ui/tst_*.qml — refusing to report success"
+    exit 1
+fi
+
+echo "  logs: $QLOGDIR  ($filecount files)"
 [ "$fail" -eq 0 ] && echo "ALL UI TESTS PASSED" || { echo "SOME UI TESTS FAILED"; exit 1; }
