@@ -130,6 +130,13 @@ available.
 > Watch the 52-second tour:
 > https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/download/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-feature-tour.mp4
 
+## Theme showcase post
+
+> Dark, Light, OLED, Aurora, Sunset, Nord, Dracula, Gruvbox, Catppuccin, Tokyo
+> Night, and more. Compare all 20 themes included in EdgeHub Free, then see ten
+> accent colours on the same layout:
+> https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/download/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-manager-theme-showcase.mp4
+
 ## Hashtag pool
 
 Use sparingly and per channel:

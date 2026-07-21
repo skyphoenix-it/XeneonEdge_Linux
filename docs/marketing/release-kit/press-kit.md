@@ -109,6 +109,10 @@ generated concepts, or third-party hardware branding as release evidence.
 ## Media files
 
 - `edgehub-v1.0.0-beta.1-feature-tour.mp4`: 52-second captioned product tour.
+- `edgehub-v1.0.0-beta.1-manager-theme-showcase.mp4`: 45-second captioned reel
+  covering all 20 Free themes and ten accent colours.
+- `edgehub-v1.0.0-beta.1-manager-theme-sheet.png`: complete Free theme sheet.
+- `edgehub-v1.0.0-beta.1-manager-accent-sheet.png`: representative accent sheet.
 - `edgehub-v1.0.0-beta.1-website-hero.png`: wide Hub and Manager hero.
 - `edgehub-v1.0.0-beta.1-social-landscape.png`: 16:9 social image.
 - `edgehub-v1.0.0-beta.1-social-square.png`: square social image.

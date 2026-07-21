@@ -12,6 +12,11 @@ require Qt 6.5 or newer.
 **Watch the 52-second feature tour:**
 https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/download/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-feature-tour.mp4
 
+**Explore all 20 Free themes and ten accent looks:**
+https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/download/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-manager-theme-showcase.mp4
+
+Both videos include original sample-free ambient music created for EdgeHub.
+
 This release turns the 2560×720 touch panel into swipeable dashboard pages with
 live system, time, focus, media, data, and information widgets. You can arrange
 the dashboard by touch on the panel or edit it from the companion EdgeHub
@@ -59,6 +64,7 @@ https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/blob/v1.0.0-beta.1/doc
 
 - Download: https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/tag/v1.0.0-beta.1
 - Feature tour: https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/download/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-feature-tour.mp4
+- Theme and accent showcase: https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/download/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-manager-theme-showcase.mp4
 - Release notes: https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/tag/v1.0.0-beta.1
 - Installation: https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/blob/v1.0.0-beta.1/README.md#install
 - Evidence and checksums: https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/blob/v1.0.0-beta.1/docs/testing/hardware-validation-2026-07-21.md

@@ -104,7 +104,11 @@ for index in $(seq -w 1 11); do
     printf "file '%s'\n" "$work_dir/clips/${index}.mp4" >> "$concat_file"
 done
 ffmpeg -hide_banner -loglevel error -y -f concat -safe 0 -i "$concat_file" \
-    -c copy -movflags +faststart "$output_dir/edgehub-v1.0.0-beta.1-feature-tour.mp4"
+    -c copy "$work_dir/feature-tour-silent.mp4"
+"${repo_dir}/scripts/render_original_soundtrack.sh" 52 "$work_dir/feature-tour.wav"
+ffmpeg -hide_banner -loglevel error -y -i "$work_dir/feature-tour-silent.mp4" \
+    -i "$work_dir/feature-tour.wav" -c:v copy -c:a aac -b:a 192k -shortest \
+    -movflags +faststart "$output_dir/edgehub-v1.0.0-beta.1-feature-tour.mp4"
 ffmpeg -hide_banner -loglevel error -y -i "$work_dir/cards/06.png" \
     -vf "scale=1280:720" -frames:v 1 \
     "$output_dir/edgehub-v1.0.0-beta.1-video-thumbnail.png"

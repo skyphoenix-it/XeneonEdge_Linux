@@ -21,6 +21,8 @@ is required. Broad display and desktop support remains evidence-gated.
 **[Watch the 52-second feature tour](docs/marketing-site/trailer.html)** or
 **[open the MP4 directly](docs/marketing-site/assets/release/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-feature-tour.mp4)**.
 
+**[Watch all 20 Free themes and ten accent colours](docs/marketing-site/assets/release/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-manager-theme-showcase.mp4)**.
+
 ---
 
 ## What it is
@@ -143,6 +145,8 @@ result is **FAIL**, and the required 24/48-hour evidence is still incomplete.
 - **First-run wizard**, on-device **Settings**, and a **Diagnostics** screen.
 
 ![EdgeHub with the aurora background](docs/marketing-site/assets/edge-dashboard-aurora.png)
+
+![Twenty Free EdgeHub themes shown through EdgeHub Manager](docs/marketing-site/assets/release/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-manager-theme-sheet.png)
 
 *These screenshots predate the preset library and the data widgets - they show the dashboard and theming, not the presets.*
 

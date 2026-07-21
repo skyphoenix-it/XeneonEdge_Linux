@@ -3,8 +3,10 @@
 ## Result
 
 **PASS.** The beta.1 marketing video and launch stills show real output from the
-exact signed portable candidate. The physical display baseline and the user's
-normal Hub configuration were restored and verified after capture.
+exact signed portable candidate. The physical display baseline was restored and
+verified after capture. The normal Hub configuration was not overwritten during
+cleanup because its timestamp and content had changed outside the isolated
+capture state.
 
 ## Candidate identity
 
@@ -24,9 +26,12 @@ normal Hub configuration were restored and verified after capture.
 - Physical Edge output: `DP-3`.
 - Baseline: `720x2560` logical, right rotation, position `5120,2880`.
 - Hub and Manager used isolated temporary `XDG_CONFIG_HOME` and runtime paths.
-- The normal Hub configuration hash stayed
-  `05221f282de252f1568a5e59728a47cbc43cd08042b00c88c8d8fbfc205ffd8a`
-  before and after the campaign.
+- The normal Hub configuration was backed up with SHA-256
+  `05221f282de252f1568a5e59728a47cbc43cd08042b00c88c8d8fbfc205ffd8a`.
+  It was later observed at SHA-256
+  `efc68511175a2a75d0dff9c07819441e44c8a9811fbe2cbbc2fbacef99817daa`
+  with an earlier external modification time. Cleanup preserved the newer live
+  file instead of replacing it with the backup.
 - Physical orientation was changed through KScreen, verified in landscape, and
   restored to the exact baseline in a `finally` path.
 - Full-desktop capture frames were private temporary files. They were cropped
@@ -62,9 +67,9 @@ or fabricated performance data is presented as live behavior.
 | Asset | Value |
 |---|---|
 | Video | `edgehub-v1.0.0-beta.1-feature-tour.mp4` |
-| Format | H.264 MP4, 1920x1080, 30 fps, no audio |
+| Format | H.264 MP4, 1920x1080, 30 fps, AAC stereo at 48 kHz |
 | Duration | 52 seconds |
-| SHA-256 | `91f12a297df65dd70db287a6e3b965f709df99fefc85cc55a5529be4ef550488` |
+| SHA-256 | `2b4a7228da7f437bdd0343074254fecd52f153e0affcd8197cd3b219cbec5d26` |
 | Captions | `docs/marketing/release-kit/video-captions.vtt` |
 | Asset hashes | `docs/marketing-site/assets/release/v1.0.0-beta.1/SHA256SUMS` |
 
@@ -73,9 +78,42 @@ captures, and Manager captures are derived from those verified frames. Designed
 campaign assets avoid third-party logos and include the independent-project
 disclaimer where legal context is needed.
 
+## Manager theme and accent expansion
+
+The additional Manager gallery is exact-candidate rendering, but it is not
+physical-hardware evidence. To guarantee that the Manager never opens on the
+physical Edge, `scripts/capture_manager_themes.py` runs the signed beta.1 Manager
+inside a private 1920x1080 Xvfb display. It restarts the Manager with an isolated
+configuration for each frame and emits no pointer or keyboard input.
+
+- 20/20 themes included in Free captured and labeled.
+- 10/10 representative accent colours captured on a fixed Nord base.
+- Exact Manager SHA-256:
+  `66213bf7d535b52042df9119b303e308e8a15abcff5fe5036e21103727e32eac`.
+- Exact tag commit:
+  `009f2892d2c9426dc19d2fa25c3ad86611820ae0`.
+- Theme reel: H.264, 1920x1080, 30 fps, AAC stereo at 48 kHz, 45 seconds.
+- Theme reel SHA-256:
+  `c627ac868be7d21d299ca03d5f7d06e25f07a64dd3b36c538017bd9028ebc9f2`.
+- Theme sheet SHA-256:
+  `e0efd7a08dda8f93c2c3c96ff99f6bc1254b41d902f38ac7f9df0ad989696424`.
+- Accent sheet SHA-256:
+  `883662204eccdd1463a1979f02d5d1c26b2a2da5af44af9bf8cbc08510bc73c5`.
+
+The first physical-display gallery attempt was stopped because the Manager was
+not proven on a desktop monitor. Its rejected crop was moved to the desktop
+Trash. No physical-display Manager frame from that attempt is published.
+
+Both videos use audio produced locally by
+`scripts/render_original_soundtrack.sh`. The soundtrack contains no external
+recording or sample. Its construction and reuse grant are documented in
+`docs/marketing/release-kit/original-soundtrack.md`.
+
 ## Reproduction
 
-Use `scripts/capture_release_media.py` to perform a guarded exact-candidate
-capture and `scripts/render_release_video.sh` to render the final tour. The
-capture helper must never be used to bypass the repository's synthetic-input
+Use `scripts/capture_release_media.py` to perform a guarded physical-candidate
+capture and `scripts/render_release_video.sh` to render the final tour. Use
+`scripts/capture_manager_themes.py` and
+`scripts/render_manager_theme_showcase.sh` for the virtual Manager gallery. The
+capture helpers must never be used to bypass the repository's synthetic-input
 activity guard.

@@ -63,10 +63,13 @@ support, performance, stability or store fulfilment.
 2. Manager screen creation, orientation preview, and Appearance captures from
    the exact candidate.
 3. A 52-second feature tour showing the Hub, real display rotation, live screen
-   creation, preview orientation, and appearance states.
-4. A media evidence appendix with the exact tag, binary hashes, display layout,
+   creation, preview orientation, and appearance states, with original music.
+4. A 45-second Manager showcase covering all 20 Free themes and ten
+   representative accent colours, captured inside an isolated virtual display.
+5. Theme and accent proof sheets plus selected full-size Manager theme frames.
+6. A media evidence appendix with the exact tag, binary hashes, display layout,
    isolated configuration controls, and output checksums.
-5. Website, release, press, social, and community copy generated from this
+7. Website, release, press, social, and community copy generated from this
    register and reviewed against the beta.1 claim boundary.
 
 Only the versioned files under
