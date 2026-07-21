@@ -464,17 +464,18 @@ smoke_root="$(mktemp -d -t xeneon-release-smoke-XXXXXX)"
 cleanup_release_smoke() { rm -rf -- "$smoke_root"; }
 trap cleanup_release_smoke EXIT INT TERM
 tar -xzf "${DIST_DIR}/${bin_tarball}" -C "$smoke_root"
-[ -x "$smoke_root/usr/bin/xeneon-edge-hub" ] \
+portable_root="$smoke_root/${bin_tarball%.tar.gz}"
+[ -x "$portable_root/usr/bin/xeneon-edge-hub" ] \
     || die "portable payload is missing executable usr/bin/xeneon-edge-hub"
-[ -x "$smoke_root/usr/bin/xeneon-edge-manager" ] \
+[ -x "$portable_root/usr/bin/xeneon-edge-manager" ] \
     || die "portable payload is missing executable usr/bin/xeneon-edge-manager"
-hub_version="$("$smoke_root/usr/bin/xeneon-edge-hub" --version)"
-manager_version="$("$smoke_root/usr/bin/xeneon-edge-manager" --version)"
+hub_version="$("$portable_root/usr/bin/xeneon-edge-hub" --version)"
+manager_version="$("$portable_root/usr/bin/xeneon-edge-manager" --version)"
 [ "$hub_version" = "Xeneon Edge Linux Hub $pkgver" ] \
     || die "Hub payload version mismatch: $hub_version"
 [ "$manager_version" = "Xeneon Edge Manager $pkgver" ] \
     || die "Manager payload version mismatch: $manager_version"
-PATH="$smoke_root/usr/bin:$PATH" SRC_ROOT="$RELEASE_SOURCE_DIR" \
+PATH="$portable_root/usr/bin:$PATH" SRC_ROOT="$RELEASE_SOURCE_DIR" \
     bash "$RELEASE_SOURCE_DIR/packaging/ci/smoke.sh" \
     || die "the exact QA-off portable payload failed its runtime/QML smoke test"
 cleanup_release_smoke

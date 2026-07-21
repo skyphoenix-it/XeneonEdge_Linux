@@ -330,8 +330,9 @@ if [ -n "$portable_copy_line" ] && [ -n "$portable_extract_line" ] \
         && [ "$portable_copy_line" -lt "$portable_extract_line" ] \
         && [ "$portable_extract_line" -lt "$portable_smoke_line" ] \
         && [ "$portable_smoke_line" -lt "$signing_line" ] \
-        && grep -Fq 'hub_version="$("$smoke_root/usr/bin/xeneon-edge-hub" --version)"' "$RELEASE_SCRIPT" \
-        && grep -Fq 'manager_version="$("$smoke_root/usr/bin/xeneon-edge-manager" --version)"' "$RELEASE_SCRIPT" \
+        && grep -Fq 'portable_root="$smoke_root/${bin_tarball%.tar.gz}"' "$RELEASE_SCRIPT" \
+        && grep -Fq 'hub_version="$("$portable_root/usr/bin/xeneon-edge-hub" --version)"' "$RELEASE_SCRIPT" \
+        && grep -Fq 'manager_version="$("$portable_root/usr/bin/xeneon-edge-manager" --version)"' "$RELEASE_SCRIPT" \
         && grep -Fq '[ "$hub_version" = "Xeneon Edge Linux Hub $pkgver" ]' "$RELEASE_SCRIPT" \
         && grep -Fq '[ "$manager_version" = "Xeneon Edge Manager $pkgver" ]' "$RELEASE_SCRIPT"; then
     echo "  ok   exact dist payload is extracted, both versions checked, and smoke-tested before signing"
