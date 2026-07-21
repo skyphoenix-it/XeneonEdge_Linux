@@ -351,6 +351,13 @@ jobs:
           cmake -B build -DCMAKE_BUILD_TYPE=Release -DXENEON_BUILD_TESTS=ON
           cmake --build build --target xeneon-qmltestrunner -j"$(nproc)"
       - name: Run compositor suite
+        # GitHub's GPU-less runner exposes KWin through LLVMpipe, but Qt Quick's
+        # automatic Mesa selection can still pick Zink and leave Wayland windows
+        # permanently unexposed. Keep the real OpenGL scenegraph (and therefore
+        # rendered-pixel coverage), while selecting Mesa's CPU renderer explicitly.
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "true"
+          GALLIUM_DRIVER: llvmpipe
         run: bash tests/gui/run_gui_tests.sh -j8
       - name: Upload GUI evidence
         if: always()

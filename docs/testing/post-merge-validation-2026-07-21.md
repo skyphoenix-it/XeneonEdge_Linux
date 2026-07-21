@@ -3,10 +3,11 @@
 ## Outcome
 
 The release-candidate implementation and embargoed marketing kit were merged to
-`master` and pushed. Two failures then appeared in the remote checks. Both were
-reproduced, fixed in the repository, and covered by local regression checks
-before the corrective push. The successful rerun also exposed one maintenance
-warning, which was corrected rather than carried into the release branch.
+`master` and pushed. Subsequent remote checks exposed documentation, analysis,
+runtime-lifecycle, coverage, dependency-runtime, and headless-renderer defects.
+Each finding was retained in this report, reproduced where possible, fixed in
+the repository, and covered by local regression checks before its corrective
+push.
 
 This report complements the [real-hardware validation report](hardware-validation-2026-07-21.md).
 
@@ -43,7 +44,7 @@ This report complements the [real-hardware validation report](hardware-validatio
 
 ### F-11 — GitHub Actions dependencies still targeted deprecated Node 20
 
-- Status: fixed; final artifact-action verification pending remotely.
+- Status: fixed and verified remotely.
 - Symptom: GitHub-hosted jobs warned that `actions/checkout@v4` targets the
   deprecated Node 20 runtime and had to be forced onto Node 24.
 - Scope: all checkout, artifact-upload, and artifact-download steps in CI, Docs,
@@ -53,13 +54,13 @@ This report complements the [real-hardware validation report](hardware-validatio
   `actions/download-artifact@v8`. These documented releases run on Node 24. All
   affected jobs use GitHub-hosted runners, and the active runner already
   demonstrated the required Node 24 support.
-- Verification: workflow syntax and reference audits pass locally. Checkout v5
-  is verified across every workflow; the final remote runs are the authoritative
-  execution check for the upgraded artifact pair.
+- Verification: workflow syntax and reference audits pass locally. Checkout v5,
+  upload-artifact v7, and download-artifact v8 all completed on the final hosted
+  workflows without the Node 20 warning.
 
 ### F-12 — Runtime restart test killed the timeout wrapper, not the Hub
 
-- Status: fixed and verified locally; remote rerun pending.
+- Status: fixed and verified locally and remotely.
 - Symptom: the CI runtime battery's single-writer scenario persisted the pushed
   layout correctly but its immediate restart exited cleanly instead of staying
   alive. The fresh Hub had collided with the still-live first instance.
@@ -70,11 +71,12 @@ This report complements the [real-hardware validation report](hardware-validatio
   guard, and stop/reap the guard and exact Hub PID before restarting. No broad
   process-name kill is used, so a user's real Hub cannot be targeted.
 - Regression proof: the focused real-binary scenario passes three consecutive
-  runs, including the immediate restart and durable pushed-layout readback.
+  local runs, including the immediate restart and durable pushed-layout
+  readback. The complete hosted runtime battery also passes.
 
 ### F-13 — C++ coverage fell below the release floor without actionable output
 
-- Status: fixed locally; final remote coverage measurement pending.
+- Status: fixed and verified locally and remotely.
 - Symptom: the main CI gate measured 94.00% C++ line coverage against its 95%
   floor. The failing threshold prevented the LCOV upload, and the log originally
   omitted the per-file uncovered lines.
@@ -89,7 +91,29 @@ This report complements the [real-hardware validation report](hardware-validatio
   sorted per-file gap table before enforcing the threshold.
 - Regression proof: the isolated integration case passes without a skip or
   leaked activation process; all C++ tests pass 22/22; the release-gate contract
-  passes. The hosted GCC 13 rerun provides the authoritative percentage.
+  passes. Hosted coverage is 96.60% C++, 96.62% Rust, and 97.06% merged.
+
+### F-14 — Qt Quick selected unusable Zink rendering on the hosted runner
+
+- Status: fixed and verified locally; final remote rerun pending.
+- Symptom: the required compositor job ran for 45 minutes, then reported 27
+  interaction failures and eleven 15-minute process-tree timeouts. Its retained
+  logs showed that affected Qt Quick windows were never exposed.
+- Cause: nested KWin correctly used Mesa LLVMpipe on the GPU-less runner, but the
+  Qt 6.7 binary independently selected Zink. Vulkan instance creation failed,
+  leaving some Wayland windows unexposed and making later input assertions
+  meaningless. The runner's memory budget also reduced concurrency from eight
+  files to five, which turned the per-file hangs into a 45-minute cascade.
+- Fix: retain the real OpenGL scenegraph and rendered-pixel coverage while
+  explicitly selecting Mesa's CPU renderer for this headless job with
+  `LIBGL_ALWAYS_SOFTWARE=true` and `GALLIUM_DRIVER=llvmpipe`. Physical-device
+  validation continues to use the native GPU path.
+- Regression proof: the previously hung sample passes 5/5 with the Qt log
+  identifying OpenGL/LLVMpipe. The exact full compositor command passes
+  1,311/1,311 checks across all 16 files with no failure or skip. A rejected
+  intermediate software-scenegraph attempt passed 1,310 checks but produced one
+  empty Wayland shared-memory capture; it was not committed because it weakened
+  the rendered evidence.
 
 ## Safety and traceability
 
@@ -97,6 +121,8 @@ This report complements the [real-hardware validation report](hardware-validatio
   `/home/simon/IdeaProjects/.codex-backups/XeneonEdge_Linux/20260721T172611Z`.
 - Marketing pre-commit backup:
   `/home/simon/IdeaProjects/.codex-backups/XeneonEdge_Linux/20260721T173138Z-marketing`.
+- Pre-renderer-fix backup:
+  `/home/simon/IdeaProjects/.codex-backups/XeneonEdge_Linux/20260721T192300Z-gui-ci-renderer`.
 - The attempted read-modify-write audit of GitHub default CodeQL configuration
   was rejected by the API before any change. The remote configuration remained
   unchanged; the fix is entirely in repository source.
