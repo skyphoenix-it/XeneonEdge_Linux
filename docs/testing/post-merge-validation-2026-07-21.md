@@ -5,7 +5,8 @@
 The release-candidate implementation and embargoed marketing kit were merged to
 `master` and pushed. Two failures then appeared in the remote checks. Both were
 reproduced, fixed in the repository, and covered by local regression checks
-before the corrective push.
+before the corrective push. The successful rerun also exposed one maintenance
+warning, which was corrected rather than carried into the release branch.
 
 This report complements the [real-hardware validation report](hardware-validation-2026-07-21.md).
 
@@ -39,6 +40,18 @@ This report complements the [real-hardware validation report](hardware-validatio
 - Regression proof: both files pass `node --check`; the complete 93-file QML
   suite passes; the 16-file nested-KWin GUI suite passes 1,311/1,311 checks with
   no failures or skips.
+
+### F-11 — GitHub Actions checkout still targeted deprecated Node 20
+
+- Status: fixed; remote verification pending on the corrective push.
+- Symptom: GitHub-hosted jobs warned that `actions/checkout@v4` targets the
+  deprecated Node 20 runtime and had to be forced onto Node 24.
+- Scope: all checkout steps in CI, Docs, Distro Packages, and Supply Chain.
+- Fix: move every checkout reference to `actions/checkout@v5`, whose documented
+  runtime is Node 24. All affected jobs use GitHub-hosted runners, and the active
+  runner already demonstrated Node 24 support while issuing the warning.
+- Verification: workflow syntax and reference audit pass locally; the new remote
+  runs provide the authoritative execution check.
 
 ## Safety and traceability
 

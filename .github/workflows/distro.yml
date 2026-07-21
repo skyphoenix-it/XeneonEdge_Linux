@@ -42,7 +42,7 @@ jobs:
         release: ['43']
     container: fedora:${{ matrix.release }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install build dependencies
         run: |
@@ -92,7 +92,7 @@ jobs:
     steps:
       # actions/checkout needs git present in the container image.
       - run: dnf -y install git
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/download-artifact@v4
         with:
           name: fedora-${{ matrix.release }}-rpm
@@ -121,7 +121,7 @@ jobs:
     name: AppImage (Qt 6.7 bundled)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           # NOT optional, and not a caching nicety. build-appimage.sh names the
           # artifact — and stamps the binary's appVersion() — from `git describe
@@ -185,7 +185,7 @@ jobs:
       DEBIAN_FRONTEND: noninteractive
     steps:
       - run: apt-get update -qq && apt-get install -y --no-install-recommends git ca-certificates
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/download-artifact@v4
         with:
           name: appimage
@@ -246,7 +246,7 @@ jobs:
     env:
       DEBIAN_FRONTEND: noninteractive
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install build dependencies
         # ca-certificates is not optional: without it cargo's crates.io fetch
@@ -298,7 +298,7 @@ jobs:
     steps:
       # actions/checkout needs git present in the container image.
       - run: apt-get update -qq && apt-get install -y --no-install-recommends git ca-certificates
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/download-artifact@v4
         with:
           name: ubuntu-${{ matrix.release }}-deb
