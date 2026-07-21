@@ -1,6 +1,6 @@
 # EdgeHub
 
-**Pick the screen for what you're doing, and it's built for you.**
+**Leaving Windows behind? Your Edge can come with you.**
 
 EdgeHub by [SKYPhoenix IT](https://skyphoenix-it.com) is a native Linux widget
 dashboard designed for the Corsair Xeneon Edge and selected secondary/portrait
@@ -24,6 +24,8 @@ is required. Broad display and desktop support remains evidence-gated.
 It shows the running Hub change screens, turn between landscape and portrait
 while Manager follows, add a screen and widget from Manager, and apply a theme
 and accent live.
+
+![EdgeHub Manager and the running Hub showing the same three-widget dashboard](docs/marketing-site/assets/release/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-manager-hub-live-sync.png)
 
 **[Watch all 20 Free themes and ten accent colours](docs/marketing-site/assets/release/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-manager-theme-showcase.mp4)**.
 
@@ -148,11 +150,12 @@ result is **FAIL**, and the required 24/48-hour evidence is still incomplete.
 - **Edit mode** to add, remove, move and resize tiles across multiple pages, with schema-driven per-widget configuration.
 - **First-run wizard**, on-device **Settings**, and a **Diagnostics** screen.
 
-![EdgeHub with the aurora background](docs/marketing-site/assets/edge-dashboard-aurora.png)
+![EdgeHub Manager changing the live Hub theme](docs/marketing-site/assets/release/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-live-theme-control.png)
 
 ![Twenty Free EdgeHub themes shown through EdgeHub Manager](docs/marketing-site/assets/release/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-manager-theme-sheet.png)
 
-*These screenshots predate the preset library and the data widgets - they show the dashboard and theming, not the presets.*
+*The live-sync and theme-control frames come from the final beta.1 Product Film,
+rendered from the exact signed Hub and Manager binaries.*
 
 ### EdgeHub Manager
 
@@ -160,10 +163,10 @@ A companion desktop app (`xeneon-edge-manager`) that mirrors your Edge in real t
 
 | Tab | What it does |
 |---|---|
-| **Layout** | Drag, reorder and resize tiles on a live clone of your Edge |
-| **Appearance** | Themes, accents, backgrounds, glass/glow |
+| **Screens** | Add screens and widgets, then arrange and resize them on a live preview |
+| **Look** | Themes, accents, backgrounds, Manager chrome, glass and glow |
 | **Images** | Wallpapers and per-widget imagery |
-| **Display** | Pick and orient the target screen |
+| **Device** | Pick and orient the target screen, control startup and update checks |
 | **About** | Version and project info |
 
 ---
@@ -171,6 +174,42 @@ A companion desktop app (`xeneon-edge-manager`) that mirrors your Edge in real t
 ## Install
 
 The current release is **[v1.0.0-beta.1](https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/tag/v1.0.0-beta.1)**.
+
+### CachyOS / Arch Linux, exact beta.1
+
+The committed Arch recipe is pinned to the signed `v1.0.0-beta.1` source asset.
+Build the replacement first, back up the current configuration, gracefully stop
+the applications, remove the old package, and install the new pacman-owned
+package:
+
+```sh
+cd /path/to/skyphoenix-edgehub-linux
+gpg --import packaging/edgehub-signing.pub
+(cd packaging/aur && makepkg -Csf)
+
+config_file="${XDG_CONFIG_HOME:-$HOME/.config}/xeneon-edge-hub/config.toml"
+if [ -f "$config_file" ]; then
+    cp -- "$config_file" "$config_file.before-v1.0.0-beta.1.$(date +%Y%m%d-%H%M%S)"
+fi
+
+pkill -TERM -f '^/usr/bin/xeneon-edge-manager($| )' 2>/dev/null || true
+pkill -TERM -f '^/usr/bin/xeneon-edge-hub($| )' 2>/dev/null || true
+for _ in $(seq 1 20); do
+    pgrep -f '^/usr/bin/xeneon-edge-hub($| )' >/dev/null || break
+    sleep 0.5
+done
+if pgrep -f '^/usr/bin/xeneon-edge-hub($| )' >/dev/null; then
+    echo "Hub did not exit cleanly; installation stopped to protect the configuration." >&2
+    exit 1
+fi
+
+sudo pacman -R xeneon-edge-hub
+sudo pacman -U packaging/aur/xeneon-edge-hub-1.0.0beta1-1-x86_64.pkg.tar.zst
+/usr/bin/xeneon-edge-hub --version
+```
+
+The final command must print `Xeneon Edge Linux Hub 1.0.0-beta.1`. The Manager
+is installed by the same package but is not started by this procedure.
 
 ### Portable tarball (compatible x86-64 distributions)
 
@@ -189,10 +228,10 @@ extracting, run the Hub or Manager from the archive's `usr/bin/` directory, or
 use a native package on the supported distributions. An AppImage, when attached
 to a release, bundles Qt for systems that do not provide a compatible version.
 
-An AUR recipe exists in [`packaging/aur/PKGBUILD`](packaging/aur/PKGBUILD), but
-the presence of a recipe is not evidence that a current package is published or
-release-gated. Use the tagged release assets or build from source unless the AUR
-package's current status has been independently verified. (`v1.0.0-alpha.1`
+The signed beta.1 recipe lives in
+[`packaging/aur/PKGBUILD`](packaging/aur/PKGBUILD). Its presence does not imply
+that a current package has been published to the AUR. The command above builds
+the pinned recipe locally from the signed release source. (`v1.0.0-alpha.1`
 remains unsigned because it predates the release key.)
 
 ### Verifying your download

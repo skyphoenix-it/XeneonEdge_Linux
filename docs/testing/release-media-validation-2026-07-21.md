@@ -172,6 +172,11 @@ environment: CachyOS, based on Arch Linux, with KDE Plasma on Wayland. The film
 uses the project's own product icon and SKYPhoenix IT mark, and no third-party
 distro logo.
 
+The README stills `edgehub-v1.0.0-beta.1-manager-hub-live-sync.png` and
+`edgehub-v1.0.0-beta.1-live-theme-control.png` were exported directly from the
+final MP4. Their SHA-256 values are recorded in the release media
+`SHA256SUMS`; they introduce no additional capture source or product state.
+
 ## Reproduction
 
 Use `scripts/capture_release_media.py` to perform a guarded physical-candidate
