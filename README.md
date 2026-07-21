@@ -9,14 +9,17 @@ is required. Broad display and desktop support remains evidence-gated.
 
 [![CI](https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/actions/workflows/ci.yml/badge.svg)](https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/actions/workflows/ci.yml)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
-[![Release: v1.0.0-alpha.2](https://img.shields.io/badge/release-v1.0.0--alpha.2-orange.svg)](https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/tag/v1.0.0-alpha.2)
+[![Release: v1.0.0-beta.1](https://img.shields.io/badge/release-v1.0.0--beta.1-blue.svg)](https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/tag/v1.0.0-beta.1)
 
-![EdgeHub running on the Corsair Xeneon Edge with the animated orbs background](docs/marketing-site/assets/edge-dashboard-orbs.png)
+![EdgeHub running in portrait and landscape beside EdgeHub Manager](docs/marketing-site/assets/release/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-website-hero.png)
 
-> **Current public status: alpha.** `v1.0.0-alpha.2` is the latest tagged release.
-> The current branch contains substantial unreleased work, but no beta, feature
-> freeze, code freeze, or release-readiness declaration has been made. See
-> [Alpha status](#alpha-status) before relying on it.
+> **Current public status: beta.** `v1.0.0-beta.1` is published with accepted
+> risks. The release owner waived the planned 48-hour soak, so this beta makes
+> no long-duration stability or formal performance claim. See the
+> [beta decision](docs/BETA_PLAN.md) and [release notes](RELEASE_NOTES.md).
+
+**[Watch the 52-second feature tour](docs/marketing-site/trailer.html)** or
+**[open the MP4 directly](docs/marketing-site/assets/release/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-feature-tour.mp4)**.
 
 ---
 
@@ -159,16 +162,16 @@ A companion desktop app (`xeneon-edge-manager`) that mirrors your Edge in real t
 
 ## Install
 
-The current release is **[v1.0.0-alpha.2](https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/tag/v1.0.0-alpha.2)** - the first **signed** release.
+The current release is **[v1.0.0-beta.1](https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/tag/v1.0.0-beta.1)**.
 
 ### Portable tarball (compatible x86-64 distributions)
 
-Download `xeneon-edge-hub_1.0.0-alpha.2_x86_64.tar.gz`, `SHA256SUMS` and `SHA256SUMS.asc` from the [release page](https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/tag/v1.0.0-alpha.2), then:
+Download `xeneon-edge-hub_1.0.0-beta.1_x86_64.tar.gz`, `SHA256SUMS` and `SHA256SUMS.asc` from the [release page](https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/tag/v1.0.0-beta.1), then:
 
 ```sh
 gpg --verify SHA256SUMS.asc SHA256SUMS   # key import: see "Verifying your download"
 sha256sum -c SHA256SUMS
-tar -xf xeneon-edge-hub_1.0.0-alpha.2_x86_64.tar.gz
+tar -xf xeneon-edge-hub_1.0.0-beta.1_x86_64.tar.gz
 ```
 
 The tarball is a relocatable `/usr` payload, not a self-contained bundle: its
@@ -186,7 +189,7 @@ remains unsigned because it predates the release key.)
 
 ### Verifying your download
 
-The `v1.0.0-alpha.2` release provides `SHA256SUMS` alongside a detached
+The `v1.0.0-beta.1` release provides `SHA256SUMS` alongside a detached
 `SHA256SUMS.asc`, made with the EdgeHub release key. (`v1.0.0-alpha.1` predates
 the key and is checksum-only - it has no `.asc`.)
 
@@ -302,30 +305,29 @@ The intended CI gate runs Rust format, Clippy, tests and dependency checks; the
 build; docs/link checks; QML and C++ suites; and coverage at ≥95% - see
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml). The hardware suite needs a
 physical Edge and therefore runs locally. A working-tree run is development
-evidence, not a release certificate: the final release gate must run again from
-the immutable, signed candidate. Full plan: [`docs/DEV_AND_TEST_PLAN.md`](docs/DEV_AND_TEST_PLAN.md).
+evidence, not a release certificate. The beta.1 decision and its accepted risks
+are recorded in [`docs/BETA_PLAN.md`](docs/BETA_PLAN.md). Full plan:
+[`docs/DEV_AND_TEST_PLAN.md`](docs/DEV_AND_TEST_PLAN.md).
 
 The hardware suite asserts its widget list against `WidgetCatalog.qml`, so a new widget cannot go silently unexercised - a drift check added after the list had quietly omitted two widgets while still reporting green.
 
 ---
 
-## Alpha status
+## Beta status
 
-What is not yet established for the next release:
+What is deliberately not claimed for beta.1:
 
-- **No beta or freeze has been declared.** The development branch is ahead of
-  `v1.0.0-alpha.2`; it remains unreleased until the complete gate passes.
 - **Packaging is incomplete.** AppImage, Flatpak, `.deb` and `.rpm` recipes are
   authored, but native distro jobs still need candidate evidence and the
   AppImage zsync update round trip has never been exercised against a published
   release.
-- **Performance currently fails.** The formal dirty-development run met startup
-  and CPU limits but exceeded both RSS limits; the required 24/48-hour resource
-  evidence and 48–72-hour physical-hardware soak are still outstanding.
+- **No formal performance or long-soak claim.** The release owner accepted the
+  beta without the planned 48-hour soak, and earlier development RSS results do
+  not support a release performance claim.
 - **The current defaults are selected, not pending:** Nord, Atkinson Hyperlegible,
   animated background and widget glow off, with normal transitions on and a
   separate reduce-motion preference. Legal review of the Inspired themes and any
-  payment/store delivery route remain open before a public beta or paid offering.
+  payment/store delivery route remain open before a paid offering.
 - **Weather and Calendar reach the network** for the feeds you configure - as designed, through the same audited gate as everything else.
 - **The Manager follows a single-writer rule.** While the Hub is connected,
   display/autostart changes go over the control socket and the Hub persists them;
@@ -337,12 +339,10 @@ What is not yet established for the next release:
 
 ## Roadmap
 
-The current branch contains 30 widgets, 19 presets, the Manager, and the expanded
-test/release tooling. The next milestone is determined by evidence, not by the
-branch name: requirements audit, zero unresolved release blockers, candidate
-packaging, measured performance, the physical-hardware soak, then the immutable
-final gate. Only after those pass can a feature freeze, code freeze, or new tag be
-declared.
+Beta.1 contains 30 widgets, 19 presets, the Manager, and expanded test and
+release tooling. The next milestone remains evidence-led: address beta reports,
+revisit resource targets, complete longer stability evidence, and verify any
+newly advertised package lifecycle before broadening release claims.
 
 Beyond 1.0: segment integration packs (OBS, MangoHud, Prometheus, smart home, market data), a WASM widget SDK, and internationalization.
 
@@ -352,7 +352,7 @@ Full plan: **[ROADMAP.md](ROADMAP.md)** · changes: **[CHANGELOG.md](CHANGELOG.m
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md). Bug reports from the alpha are especially welcome - please say what broke and on what hardware.
+See [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md). Bug reports from the beta are especially welcome - please say what broke and on what hardware.
 
 ## Security
 

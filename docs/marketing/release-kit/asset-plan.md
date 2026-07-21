@@ -20,15 +20,18 @@ and easier to audit against the shipped build.
 | [`calm-focus.png`](../../marketing-site/assets/generated/calm-focus.png) | Productivity/focus campaign reference | “A calm EdgeHub focus dashboard with time and task widgets.” |
 | [`health-aurora.png`](../../marketing-site/assets/generated/health-aurora.png) | Health/routine campaign reference | “An EdgeHub health dashboard with hydration and routine widgets.” |
 
-## Required exact-candidate captures
+## Completed exact-candidate captures
 
-1. Portrait Hub hero on the physical Edge.
-2. Landscape Hub hero on the physical Edge.
-3. Manager Layout with the same dashboard mirrored on the Hub.
-4. Manager Appearance with a Free theme selected.
-5. Touch navigation sequence showing a real page swipe.
-6. Manager add, resize, and drag-reorder sequence with the Hub visible.
-7. Optional Pro theme sheet only after store/licence delivery and legal review.
+1. Portrait Hub hero on the physical Edge: complete.
+2. Landscape Hub hero after real KScreen rotation: complete.
+3. Manager screen list with the live Hub mirroring selected pages: complete.
+4. Manager Appearance with light and matrix theme states: complete.
+5. Manager orientation previews for portrait and landscape: complete.
+6. Manager add-screen sequence with the live Hub following new page 4: complete.
+
+Touch swipe, resize, and drag-reorder remain demonstrated by the existing
+hardware validation campaign rather than this short marketing edit. No Pro
+theme sheet is published because Pro keys are not sold in beta.1.
 
 Every capture must record:
 
@@ -51,6 +54,10 @@ Every capture must record:
 | Social portrait | 1080×1350 | Physical Edge or portrait Hub capture, subject inside 4:5 safe area |
 | Press screenshot | Native resolution | Uncropped exact-candidate capture with descriptive filename |
 | Demo thumbnail | 1280×720 | Real panel and Manager; headline added in editable layout, not generated into UI |
+
+Completed launch exports are versioned under
+`docs/marketing-site/assets/release/v1.0.0-beta.1/`, with file hashes in that
+directory's `SHA256SUMS`.
 
 ## File naming
 

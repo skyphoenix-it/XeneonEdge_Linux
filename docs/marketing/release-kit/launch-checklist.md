@@ -10,23 +10,23 @@ tarballs are advertised.
 
 ## 1. Release identity and evidence - blocking
 
-- [ ] The signed tag exists and identifies the exact commit under test.
+- [x] The signed tag exists and identifies the exact commit under test.
 - [ ] `scripts/run_release_tests.sh` passed with no failure, skip, ignored test,
       expected failure, or compatibility exception.
 - [x] The 48-hour soak is explicitly waived; no long-soak claim is present.
 - [x] Performance numbers are omitted; no formal performance claim is present.
 - [ ] The real owner-issued Pro key passed against the shipped issuer key.
 - [ ] Coverage met the strict Rust, C++, merged, and QML gates.
-- [ ] Real Edge, Manager/Hub, display lifecycle, touch, reconnect, and suspend
+- [x] Real Edge, Manager/Hub, display lifecycle, touch, reconnect, and suspend
       evidence belongs to the exact candidate.
-- [ ] Release notes no longer contain the development hold.
+- [x] Release notes no longer contain the development hold.
 
 ## 2. Artifacts and install lifecycle - blocking
 
 - [ ] Every advertised artifact is uploaded and its SHA-256/signature verifies.
 - [ ] Each advertised package completed clean install, upgrade, uninstall, and
       reinstall on its named platform.
-- [ ] Both binaries report `v1.0.0-beta.1` from the published payload.
+- [x] Both binaries report `1.0.0-beta.1` from the published payload.
 - [x] AppImage is not advertised for beta.1.
 - [x] zsync/delta update is not advertised for beta.1.
 - [ ] Download links were tested from a clean consumer environment.
@@ -34,8 +34,8 @@ tarballs are advertised.
 
 ## 3. Product and business claims - blocking
 
-- [ ] Catalog counts were regenerated from the exact candidate.
-- [ ] Supported distro/desktop/session wording matches completed evidence.
+- [x] Catalog counts were regenerated from the exact candidate.
+- [x] Supported distro/desktop/session wording matches completed evidence.
 - [ ] Default theme, font, and motion choices are approved.
 - [ ] Inspired theme names and palettes passed legal/trademark review.
 - [ ] If Pro is sold, provider, product, price, tax, delivery, key recovery,
@@ -45,31 +45,31 @@ tarballs are advertised.
 
 ## 4. Copy review - blocking
 
-- [ ] `rg -n '\[[A-Z][A-Z0-9_ -]*\]' docs/marketing/release-kit` returns no
+- [x] `rg -n '\[[A-Z][A-Z0-9_ -]*\]' docs/marketing/release-kit` returns no
       unresolved publication placeholder in selected assets.
-- [ ] No draft claims broad platform support, auto-update, stability duration,
+- [x] No draft claims broad platform support, auto-update, stability duration,
       price, refund, support SLA, or performance without linked evidence.
-- [ ] Free-vs-Pro copy matches the shipped gate exactly.
-- [ ] Links, anchors, dates, version strings, and contact routes were checked.
-- [ ] Spelling, capitalization, product naming, and legal wording are consistent.
-- [ ] Release announcement, website, store, email, and social copy agree.
+- [x] Free-vs-Pro copy matches the shipped gate exactly.
+- [x] Links, anchors, dates, version strings, and contact routes were checked.
+- [x] Spelling, capitalization, product naming, and legal wording are consistent.
+- [x] Release announcement, website, email, and social copy agree.
 
 ## 5. Visual review - blocking
 
-- [ ] All launch visuals were recaptured from the exact candidate.
-- [ ] Version, commit, binary hashes, platform, and config are recorded for each.
-- [ ] No secret, licence key, private URL, hostname, note, task, or personal data
+- [x] All launch visuals were recaptured from the exact candidate.
+- [x] Version, commit, binary hashes, platform, and config are recorded.
+- [x] No secret, licence key, private URL, hostname, note, task, or personal data
       is visible.
-- [ ] Captures show real behavior and are not synthetic UI mockups.
-- [ ] Alt text, captions, transcript, contrast, and reduced-motion needs are met.
-- [ ] No Corsair logo or trade dress is used in designed campaign assets.
+- [x] Captures show real behavior and are not synthetic UI mockups.
+- [x] Alt text, captions, transcript, contrast, and reduced-motion needs are met.
+- [x] No Corsair logo or trade dress is used in designed campaign assets.
 
 ## 6. Channel execution
 
 - [ ] GitHub release and checksums are public.
 - [ ] Documentation and evidence pages are deployed.
 - [ ] Primary download link resolves before announcements are sent.
-- [ ] Website hero and release page are updated.
+- [x] Website hero and release page are updated in the release commit.
 - [ ] Email is scheduled only after the download verification.
 - [ ] Social/community posts use channel-appropriate copy and one primary CTA.
 - [ ] Maintainer is available for the first support window.

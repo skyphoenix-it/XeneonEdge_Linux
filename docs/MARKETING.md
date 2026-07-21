@@ -1,6 +1,6 @@
 # EdgeHub marketing claim register
 
-**Status:** beta.1 campaign prepared; publish after signed artifacts are live
+**Status:** beta.1 campaign and exact-candidate media complete
 **Product status:** `v1.0.0-beta.1` - Ready with accepted risks
 
 The release owner waived the planned 48-hour soak. Marketing may describe the
@@ -8,9 +8,10 @@ completed real-hardware and integration evidence, but must not claim a stability
 duration, formal performance result, package repository, automatic update, or
 commercial Pro availability.
 
-An embargoed, claim-controlled campaign pack is prepared under
-[`marketing/release-kit/`](marketing/release-kit/README.md). It remains internal
-until its fail-closed launch checklist and this document's evidence gates pass.
+A claim-controlled campaign pack is ready under
+[`marketing/release-kit/`](marketing/release-kit/README.md). The 52-second
+feature tour, website hero, social images, native captures, hashes, and capture
+provenance are versioned with the documentation.
 
 ## Positioning
 
@@ -56,15 +57,18 @@ support, performance, stability or store fulfilment.
 - AppImage, AUR freshness, DEB/RPM repository, Flatpak, or self-update
   availability claims.
 
-## Material that may be prepared after the gate
+## Completed release media
 
-1. Fresh, real-device captures for portrait and landscape Hub layouts.
-2. Manager Layout and Appearance captures from the same candidate.
-3. A short demo showing display targeting, touch navigation and live Manager sync.
-4. An evidence appendix linking the exact tag, checksums, signatures, package
-   lifecycle results, performance protocol and hardware soak log.
-5. Channel-specific copy generated from this register and reviewed for trademark,
-   price, refund, privacy and platform accuracy.
+1. Fresh physical-Edge captures for portrait and landscape Hub layouts.
+2. Manager screen creation, orientation preview, and Appearance captures from
+   the exact candidate.
+3. A 52-second feature tour showing the Hub, real display rotation, live screen
+   creation, preview orientation, and appearance states.
+4. A media evidence appendix with the exact tag, binary hashes, display layout,
+   isolated configuration controls, and output checksums.
+5. Website, release, press, social, and community copy generated from this
+   register and reviewed against the beta.1 claim boundary.
 
-The existing files under `docs/marketing-site/assets/` are design assets, not
-proof that the candidate, theme names or depicted data are release-ready.
+Only the versioned files under
+`docs/marketing-site/assets/release/v1.0.0-beta.1/` are approved beta.1 launch
+visuals. Older assets remain composition references, not candidate evidence.

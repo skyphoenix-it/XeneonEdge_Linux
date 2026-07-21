@@ -10,7 +10,8 @@
 > live with EdgeHub Manager. Local config, no account, no telemetry
 > implementation. https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/tag/v1.0.0-beta.1
 
-Attach: exact-candidate landscape Hub capture or the Hub + Manager composite.
+Attach `edgehub-v1.0.0-beta.1-social-landscape.png`, or link the feature tour:
+https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/download/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-feature-tour.mp4
 
 ## Short launch post with Free/Pro clarity
 
@@ -19,7 +20,8 @@ Attach: exact-candidate landscape Hub capture or the Hub + Manager composite.
 > 19 presets, layouts, backgrounds, and the full Manager. Pro adds nine optional
 > colour themes; keys are not sold in this beta. https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/tag/v1.0.0-beta.1
 
-Attach: Manager Appearance capture, only if Pro delivery is actually available.
+Attach `edgehub-v1.0.0-beta.1-social-square.png`. Do not imply that Pro keys are
+available.
 
 ## Technical launch post
 
@@ -42,6 +44,7 @@ Attach: Manager Appearance capture, only if Pro delivery is actually available.
 > implementation. The project source is available under MIT OR Apache-2.0.
 >
 > Download and release evidence: https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/tag/v1.0.0-beta.1
+> Watch it work: https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/download/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-feature-tour.mp4
 >
 > EdgeHub is independent and is not affiliated with, sponsored by or endorsed
 > by Corsair.
@@ -119,13 +122,13 @@ Attach: Manager Appearance capture, only if Pro delivery is actually available.
 > Demo and evidence: https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/blob/v1.0.0-beta.1/docs/testing/hardware-validation-2026-07-21.md
 > Source: https://github.com/skyphoenix-it/skyphoenix-edgehub-linux
 
-## Pre-release progress post
+## Video-first launch post
 
-> EdgeHub v1.0.0-beta.1 is prepared but not published yet. Real Edge and
-> Manager/Hub integration testing is complete. The owner accepted release
-> without the planned 48-hour soak; signed portable artifacts are the remaining
-> publication step. Status:
-> https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/blob/master/docs/BETA_PLAN.md
+> Turn a secondary touch display into a dashboard that follows what you are
+> doing. EdgeHub beta.1 brings 30 widgets, 19 ready-made screens, portrait and
+> landscape layouts, plus a desktop Manager that changes the live Hub locally.
+> Watch the 52-second tour:
+> https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/download/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-feature-tour.mp4
 
 ## Hashtag pool
 

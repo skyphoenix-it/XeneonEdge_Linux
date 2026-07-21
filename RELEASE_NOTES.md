@@ -5,6 +5,15 @@ Manager for the Corsair Xeneon Edge. It focuses on the complete physical-panel
 workflow: display targeting, touch navigation, portrait and landscape layouts,
 live Manager-to-Hub editing, reconnect behavior, and durable configuration.
 
+## See it in action
+
+Watch the [52-second Hub and Manager feature tour](https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/download/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-feature-tour.mp4).
+It uses the exact signed beta.1 binaries on the physical secondary display and
+shows portrait and landscape layouts, screen creation, live page selection,
+Manager previews, and theme changes. English captions are included in the
+repository and the [capture evidence](docs/testing/release-media-validation-2026-07-21.md)
+records the binaries, hashes, display, and safety controls.
+
 ## Highlights
 
 - 30 first-party widgets and 19 preset screens.
@@ -31,6 +40,8 @@ The development candidate completed the real-device and integration campaign:
 - Rust: 242 tests; QML: 93 files; C++: 22 tests;
 - nested compositor: 1,311/1,311 local checks;
 - hosted coverage: 96.60% C++, 96.62% Rust, 97.06% combined.
+- exact-candidate marketing capture: 8/8 Manager reflection checks and 8/8
+  Manager-to-Hub screen mirror checks on KDE Plasma Wayland.
 
 The release owner accepted the risk of publishing beta.1 without the previously
 planned 48-hour soak. The final hosted compositor rerun was cancelled to stop

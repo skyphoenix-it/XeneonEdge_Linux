@@ -3,23 +3,30 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>EdgeHub development-preview storyboard</title>
+  <title>EdgeHub beta.1 feature tour</title>
+  <meta name="description" content="Watch EdgeHub and EdgeHub Manager work together on a real secondary display.">
   <style>
-    :root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#070a10;color:#f4f7fb;font:16px/1.55 system-ui,sans-serif}.wrap{width:min(980px,calc(100% - 36px));margin:50px auto}.hold{color:#ffc66d;text-transform:uppercase;letter-spacing:.1em;font-weight:750;font-size:13px}.frame{margin-top:28px;border:1px solid #29364d;background:#101722;border-radius:18px;padding:24px}.frame img{display:block;width:100%;border-radius:12px}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}.card{border:1px solid #29364d;border-radius:14px;padding:18px;background:#0d131d}.dim{color:#aab5c6}a{color:#69adff}@media(max-width:680px){.grid{grid-template-columns:1fr}}
+    :root{color-scheme:dark;--line:#29364d;--dim:#aab5c6;--blue:#69adff;--mint:#62dfc5}*{box-sizing:border-box}body{margin:0;background:radial-gradient(900px 500px at 70% 0,#17294a 0,transparent 65%),#070a10;color:#f4f7fb;font:16px/1.6 Inter,system-ui,sans-serif}.wrap{width:min(1100px,calc(100% - 36px));margin:54px auto}.eyebrow{color:var(--mint);text-transform:uppercase;letter-spacing:.1em;font-weight:750;font-size:13px}h1{font-size:clamp(38px,7vw,68px);line-height:1.04;letter-spacing:-.045em;margin:.35em 0}.lede,.dim{color:var(--dim)}.lede{font-size:20px;max-width:780px}.video{width:100%;display:block;margin-top:30px;border:1px solid var(--line);border-radius:18px;background:#000;box-shadow:0 30px 80px #0009}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:30px}.card{border:1px solid var(--line);border-radius:14px;padding:18px;background:#0d131d}.card h2{font-size:18px;margin-top:0}.card p{margin-bottom:0;color:var(--dim)}a{color:var(--blue)}.links{display:flex;gap:18px;flex-wrap:wrap;margin-top:28px}.legal{border-top:1px solid var(--line);margin-top:46px;padding-top:26px;font-size:14px;color:var(--dim)}@media(max-width:760px){.grid{grid-template-columns:1fr}}
   </style>
 </head>
 <body><main class="wrap">
-  <div class="hold">Internal development preview - not launch material</div>
-  <h1>EdgeHub video storyboard is on hold</h1>
-  <p class="dim">The previous trailer advertised a paid Pro offering before the store, fulfilment, package and release gates existed. It has been replaced with this factual storyboard until the immutable candidate passes.</p>
-  <div class="frame"><img src="assets/generated/hero-system.png" alt="Development capture of EdgeHub system widgets"></div>
-  <section class="grid">
-    <article class="card"><h2>Scene 1 - Hub</h2><p>Show a real-device portrait layout and identify it as a development build.</p></article>
-    <article class="card"><h2>Scene 2 - Orientation</h2><p>Show the same exact candidate reflowing in landscape after the display gate passes.</p></article>
-    <article class="card"><h2>Scene 3 - Manager</h2><p>Show reorder and appearance changes reaching the running Hub over the local socket.</p></article>
-    <article class="card"><h2>Scene 4 - Evidence</h2><p>End with the actual tag, supported packages and measured results-never planned numbers.</p></article>
+  <div class="eyebrow">Exact-candidate product tour</div>
+  <h1>Build the screen you want to glance at.</h1>
+  <p class="lede">See EdgeHub switch between portrait and landscape, then watch the desktop Manager add screens and preview orientation and appearance changes for the running Hub.</p>
+  <video class="video" controls autoplay muted playsinline preload="metadata" poster="assets/release/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-video-thumbnail.png">
+    <source src="assets/release/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-feature-tour.mp4" type="video/mp4">
+    <track kind="captions" srclang="en" label="English" src="../marketing/release-kit/video-captions.vtt" default>
+    Your browser does not support embedded video. <a href="assets/release/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-feature-tour.mp4">Open the MP4 directly.</a>
+  </video>
+  <section class="grid" aria-label="Tour chapters">
+    <article class="card"><h2>0:00 Hub</h2><p>A native dashboard on the physical secondary display, with live system widgets and multi-page layouts.</p></article>
+    <article class="card"><h2>0:11 Orientation</h2><p>The display turns through KScreen and EdgeHub reflows for the new shape.</p></article>
+    <article class="card"><h2>0:21 Manager</h2><p>The desktop Manager adds a screen and the live Hub follows the selected page.</p></article>
+    <article class="card"><h2>0:31 Preview</h2><p>Portrait and landscape previews make it possible to design from the main display.</p></article>
+    <article class="card"><h2>0:39 Appearance</h2><p>Theme changes are reflected in the Manager preview for the same candidate.</p></article>
+    <article class="card"><h2>0:47 Release</h2><p>Thirty widgets, nineteen screens, local configuration, and no cloud account.</p></article>
   </section>
-  <p class="dim">Current source counts: 30 widgets, 19 presets, 29 themes, 29 accents, and 10 animated backgrounds plus Gradient. No CPU/RSS, auto-update, store, refund or broad-platform claim is approved.</p>
-  <p><a href="index.html">Current status page</a> · <a href="../BETA_PLAN.md">Release gate</a></p>
+  <div class="links"><a href="index.html">Product page</a><a href="https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/tag/v1.0.0-beta.1">Download v1.0.0-beta.1</a><a href="../testing/release-media-validation-2026-07-21.md">Capture evidence</a><a href="assets/release/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-feature-tour.mp4">Direct MP4</a></div>
+  <p class="legal">Captured from the signed EdgeHub v1.0.0-beta.1 portable payload on KDE Plasma Wayland. The tour is an edited sequence of verified real product captures, not a continuous raw session. Independent project; not affiliated with, sponsored by or endorsed by Corsair.</p>
 </main></body>
 </html>

@@ -1,6 +1,6 @@
 # EdgeHub release campaign kit
 
-**Status:** prepared beta.1 launch material; publish after signed artifacts are live
+**Status:** beta.1 launch material complete; publish with the release
 
 **Target:** `v1.0.0-beta.1` - 2026-07-21
 
@@ -29,6 +29,22 @@ self-update, performance, or long-soak promise.
   required recaptures, crop guidance, and alt text.
 - [`launch-checklist.md`](launch-checklist.md) - fail-closed review and channel
   checklist.
+- [`video-captions.vtt`](video-captions.vtt) - English captions for the release
+  feature tour.
+
+## Finished media
+
+The versioned launch assets live under
+[`../../marketing-site/assets/release/v1.0.0-beta.1/`](../../marketing-site/assets/release/v1.0.0-beta.1/):
+
+- `edgehub-v1.0.0-beta.1-feature-tour.mp4`, a 52-second 1080p tour;
+- portrait and landscape physical-Hub captures;
+- Manager screen creation, orientation preview, and theme captures;
+- website hero, social landscape, social square, and video thumbnail;
+- `SHA256SUMS` for every published media file.
+
+Capture provenance is recorded in
+[`../../testing/release-media-validation-2026-07-21.md`](../../testing/release-media-validation-2026-07-21.md).
 
 ## Release values
 

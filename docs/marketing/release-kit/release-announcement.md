@@ -9,6 +9,9 @@ EdgeHub v1.0.0-beta.1 is now available for the Corsair Xeneon Edge on
 **CachyOS/Arch Linux with KDE Plasma on Wayland**. Portable x86-64 builds
 require Qt 6.5 or newer.
 
+**Watch the 52-second feature tour:**
+https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/download/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-feature-tour.mp4
+
 This release turns the 2560×720 touch panel into swipeable dashboard pages with
 live system, time, focus, media, data, and information widgets. You can arrange
 the dashboard by touch on the panel or edit it from the companion EdgeHub
@@ -55,9 +58,11 @@ https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/blob/v1.0.0-beta.1/doc
 ### Download and documentation
 
 - Download: https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/tag/v1.0.0-beta.1
+- Feature tour: https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/download/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-feature-tour.mp4
 - Release notes: https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/tag/v1.0.0-beta.1
 - Installation: https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/blob/v1.0.0-beta.1/README.md#install
 - Evidence and checksums: https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/blob/v1.0.0-beta.1/docs/testing/hardware-validation-2026-07-21.md
+- Media evidence: https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/blob/master/docs/testing/release-media-validation-2026-07-21.md
 - Source and issues: https://github.com/skyphoenix-it/skyphoenix-edgehub-linux
 - Support: https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/issues
 

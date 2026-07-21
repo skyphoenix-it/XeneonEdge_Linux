@@ -31,6 +31,7 @@ under MIT OR Apache-2.0.
 | Source licence | MIT OR Apache-2.0 |
 | Price/store | Not offered for sale in beta.1 |
 | Download | https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/tag/v1.0.0-beta.1 |
+| Feature tour | https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/download/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-feature-tour.mp4 |
 | Release evidence | https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/blob/v1.0.0-beta.1/docs/testing/hardware-validation-2026-07-21.md |
 | Support | https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/issues |
 | Contact | simon.kreitmayer@skyphoenix-it.com |
@@ -104,3 +105,16 @@ recipes as published repositories.
 Only distribute the exact-candidate captures approved in
 [`asset-plan.md`](asset-plan.md). Do not present development screenshots,
 generated concepts, or third-party hardware branding as release evidence.
+
+## Media files
+
+- `edgehub-v1.0.0-beta.1-feature-tour.mp4`: 52-second captioned product tour.
+- `edgehub-v1.0.0-beta.1-website-hero.png`: wide Hub and Manager hero.
+- `edgehub-v1.0.0-beta.1-social-landscape.png`: 16:9 social image.
+- `edgehub-v1.0.0-beta.1-social-square.png`: square social image.
+- `edgehub-v1.0.0-beta.1-hub-portrait-hero-01.png`: native portrait Hub.
+- `edgehub-v1.0.0-beta.1-hub-landscape-hero-01.png`: native landscape Hub.
+
+All files are exact-candidate captures or compositions made from those captures.
+Hashes and provenance are in the release media directory and the media
+validation report.

@@ -3,53 +3,61 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>EdgeHub - alpha development status</title>
-  <meta name="description" content="Current, evidence-led development status for EdgeHub, a native Linux dashboard for secondary touch displays.">
+  <title>EdgeHub for Linux</title>
+  <meta name="description" content="A native Linux dashboard for secondary touch displays, with live desktop editing through EdgeHub Manager.">
+  <meta property="og:title" content="EdgeHub for Linux">
+  <meta property="og:description" content="Thirty widgets, nineteen ready-made screens, portrait and landscape layouts, and a live desktop Manager.">
+  <meta property="og:image" content="assets/release/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-social-landscape.png">
   <style>
     :root{color-scheme:dark;--bg:#070a10;--panel:#111722;--line:#263248;--ink:#f4f7fb;--dim:#aab5c6;--blue:#69adff;--mint:#62dfc5;--warn:#ffc66d}
-    *{box-sizing:border-box}body{margin:0;background:radial-gradient(900px 540px at 78% -10%,#17294a 0,transparent 65%),var(--bg);color:var(--ink);font:16px/1.6 Inter,system-ui,sans-serif}a{color:var(--blue)}.wrap{width:min(1100px,calc(100% - 40px));margin:auto}nav{border-bottom:1px solid var(--line);background:#070a10dd;position:sticky;top:0;backdrop-filter:blur(14px);z-index:2}nav .wrap{height:68px;display:flex;align-items:center;gap:18px}.brand{font-weight:800;letter-spacing:.02em;text-decoration:none;color:var(--ink)}.brand small{color:var(--dim);font-weight:500;margin-left:8px}.spacer{flex:1}.button{display:inline-flex;padding:10px 16px;border:1px solid var(--line);border-radius:10px;text-decoration:none;color:var(--ink)}header{padding:86px 0 58px}.status{display:inline-block;color:var(--warn);border:1px solid #725a31;background:#2a2113;padding:6px 11px;border-radius:999px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}h1{font-size:clamp(42px,7vw,76px);line-height:1.02;letter-spacing:-.05em;max-width:850px;margin:24px 0}.grad{background:linear-gradient(100deg,var(--blue),var(--mint));-webkit-background-clip:text;background-clip:text;color:transparent}.lede{font-size:20px;color:var(--dim);max-width:760px}.callout{margin-top:34px;padding:20px 22px;border:1px solid #725a31;background:#18140d;border-radius:14px;max-width:830px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:15px;margin:28px 0 74px}.stat,.card{border:1px solid var(--line);background:linear-gradient(145deg,#141c29,#0e131c);border-radius:16px;padding:22px}.stat b{display:block;font-size:36px;color:var(--mint)}section{padding:34px 0 68px}h2{font-size:34px;margin:0 0 18px}.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}.card h3{margin-top:0}.card p,.fine{color:var(--dim)}ul{padding-left:22px}.shot{width:100%;border:1px solid var(--line);border-radius:18px;margin-top:25px}.links{display:flex;gap:14px;flex-wrap:wrap;margin-top:28px}footer{border-top:1px solid var(--line);padding:38px 0;color:var(--dim);font-size:14px}@media(max-width:760px){.grid{grid-template-columns:repeat(2,1fr)}.cards{grid-template-columns:1fr}header{padding-top:58px}.button.hide-small{display:none}}@media(max-width:430px){.grid{grid-template-columns:1fr}}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(900px 540px at 78% -10%,#17294a 0,transparent 65%),var(--bg);color:var(--ink);font:16px/1.6 Inter,system-ui,sans-serif}a{color:var(--blue)}.wrap{width:min(1120px,calc(100% - 40px));margin:auto}nav{border-bottom:1px solid var(--line);background:#070a10dd;position:sticky;top:0;backdrop-filter:blur(14px);z-index:2}nav .wrap{min-height:68px;display:flex;align-items:center;gap:18px}.brand{font-weight:800;letter-spacing:.02em;text-decoration:none;color:var(--ink)}.brand small{color:var(--dim);font-weight:500;margin-left:8px}.spacer{flex:1}.button{display:inline-flex;padding:10px 16px;border:1px solid var(--line);border-radius:10px;text-decoration:none;color:var(--ink)}.primary{background:linear-gradient(100deg,#387de8,#2ba894);border:0;font-weight:750}header{padding:78px 0 50px}.status{display:inline-block;color:var(--mint);border:1px solid #316d65;background:#102a27;padding:6px 11px;border-radius:999px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}h1{font-size:clamp(42px,7vw,76px);line-height:1.02;letter-spacing:-.05em;max-width:850px;margin:24px 0}.grad{background:linear-gradient(100deg,var(--blue),var(--mint));-webkit-background-clip:text;background-clip:text;color:transparent}.lede{font-size:20px;color:var(--dim);max-width:780px}.hero{width:100%;border:1px solid var(--line);border-radius:22px;margin-top:38px;box-shadow:0 30px 80px #0008}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:15px;margin:30px 0 74px}.stat,.card{border:1px solid var(--line);background:linear-gradient(145deg,#141c29,#0e131c);border-radius:16px;padding:22px}.stat b{display:block;font-size:36px;color:var(--mint)}section{padding:34px 0 68px}h2{font-size:clamp(30px,5vw,42px);line-height:1.15;margin:0 0 18px}.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}.card h3{margin-top:0}.card p,.fine{color:var(--dim)}.video{width:100%;display:block;border:1px solid var(--line);border-radius:18px;background:#000;box-shadow:0 24px 70px #0008}.media-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:24px}.shot{width:100%;border:1px solid var(--line);border-radius:18px}.links{display:flex;gap:14px;flex-wrap:wrap;margin-top:28px}.proof{border:1px solid #315764;background:#0d2026;border-radius:16px;padding:20px 22px}footer{border-top:1px solid var(--line);padding:38px 0;color:var(--dim);font-size:14px}@media(max-width:760px){.grid{grid-template-columns:repeat(2,1fr)}.cards,.media-grid{grid-template-columns:1fr}header{padding-top:58px}.button.hide-small{display:none}}@media(max-width:430px){.grid{grid-template-columns:1fr}.brand small{display:none}}
   </style>
 </head>
 <body>
-  <nav><div class="wrap"><a class="brand" href="#top">EdgeHub<small>by SKYPhoenix IT</small></a><div class="spacer"></div><a class="button hide-small" href="../../README.md">Project README</a><a class="button" href="../../ROADMAP.md">Release gate</a></div></nav>
+  <nav><div class="wrap"><a class="brand" href="#top">EdgeHub<small>by SKYPhoenix IT</small></a><div class="spacer"></div><a class="button hide-small" href="trailer.html">Watch demo</a><a class="button primary" href="https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/tag/v1.0.0-beta.1">Get beta.1</a></div></nav>
   <main id="top">
     <header><div class="wrap">
-      <span class="status">Alpha development preview</span>
-      <h1>Your second screen, <span class="grad">native on Linux.</span></h1>
-      <p class="lede">EdgeHub is a Rust + Qt 6/QML dashboard for the Corsair Xeneon Edge and other secondary or portrait displays, with a companion Manager for live layout and appearance editing.</p>
-      <div class="callout"><strong>No beta or release offer is live.</strong> The current branch is unreleased. Feature freeze, code freeze, performance certification, broad distro support, paid delivery and the final release gate are not complete. This page intentionally contains no checkout or download promise.</div>
+      <span class="status">v1.0.0-beta.1</span>
+      <h1>Your second screen, <span class="grad">built for Linux.</span></h1>
+      <p class="lede">Turn a secondary touch display into swipeable pages for system health, focus, time, media, data, and everyday information. Shape it from the panel or edit it live from EdgeHub Manager.</p>
+      <div class="links"><a class="button primary" href="trailer.html">Watch the 52-second tour</a><a class="button" href="https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/tag/v1.0.0-beta.1">Download the beta</a></div>
+      <img class="hero" src="assets/release/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-website-hero.png" alt="EdgeHub running in portrait and landscape beside the desktop Manager">
     </div></header>
 
-    <div class="wrap grid" aria-label="Current source catalog counts">
+    <div class="wrap grid" aria-label="Product catalog counts">
       <div class="stat"><b>30</b>first-party widgets</div>
-      <div class="stat"><b>19</b>preset screens</div>
-      <div class="stat"><b>29 + 29</b>themes · accents</div>
-      <div class="stat"><b>10 + 1</b>animated styles + Gradient</div>
+      <div class="stat"><b>19</b>ready-made screens</div>
+      <div class="stat"><b>29 + 29</b>themes and accents</div>
+      <div class="stat"><b>1</b>live desktop Manager</div>
     </div>
 
-    <section><div class="wrap">
-      <h2>What exists today</h2>
-      <div class="cards">
-        <article class="card"><h3>Touch-first Hub</h3><p>Swipeable multi-page layouts, portrait and landscape rendering, display targeting, hot-plug handling and on-device controls.</p></article>
-        <article class="card"><h3>Desktop Manager</h3><p>A standalone companion mirrors the layout and pushes reorder, resize and appearance changes to a running Hub over a local socket.</p></article>
-        <article class="card"><h3>Local and inspectable</h3><p>Plain local TOML configuration, no account requirement, no telemetry implementation, and one central egress gate for configured network features.</p></article>
-        <article class="card"><h3>Layered verification</h3><p>Rust, C++, QML, compositor-backed GUI, runtime, Manager and physical-hardware suites exist. The final immutable-candidate run is still required.</p></article>
-      </div>
-      <img class="shot" src="assets/generated/hero-system.png" alt="Development capture of EdgeHub system widgets on a portrait display">
+    <section id="demo"><div class="wrap">
+      <h2>See the Hub and Manager work together</h2>
+      <p class="lede">This tour uses the exact signed beta.1 binaries on a real secondary display. It shows physical orientation changes, responsive layouts, Manager previews, themes, and live screen creation.</p>
+      <video class="video" controls preload="metadata" poster="assets/release/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-video-thumbnail.png">
+        <source src="assets/release/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-feature-tour.mp4" type="video/mp4">
+        <track kind="captions" srclang="en" label="English" src="../marketing/release-kit/video-captions.vtt" default>
+        Your browser does not support embedded video. <a href="assets/release/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-feature-tour.mp4">Open the MP4 directly.</a>
+      </video>
     </div></section>
 
     <section><div class="wrap">
-      <h2>What remains before release</h2>
-      <ul>
-        <li>Close every release requirement and release-blocking defect.</li>
-        <li>Complete the integrated physical-Edge run and 48–72-hour soak.</li>
-        <li>Measure CPU, memory, startup and growth on the exact candidate.</li>
-        <li>Verify every advertised package lifecycle and AppImage zsync update.</li>
-        <li>Close legal, default, payment, refund, support and fulfilment decisions.</li>
-        <li>Enter feature freeze, then code freeze, then run the final strict gate.</li>
-      </ul>
-      <p class="fine">No unsupported CPU/RSS number, store availability, auto-update, refund, support or “shipping quality” claim belongs on a public page before those items pass.</p>
-      <div class="links"><a href="../../README.md">README</a><a href="../../CHANGELOG.md">Changelog</a><a href="../../ROADMAP.md">Roadmap</a><a href="../BETA_PLAN.md">Release gate</a><a href="../DISTRIBUTION.md">Distribution evidence</a></div>
+      <h2>One dashboard, two ways to shape it</h2>
+      <div class="cards">
+        <article class="card"><h3>Touch-first Hub</h3><p>Swipeable multi-page layouts, portrait and landscape rendering, display targeting, hot-plug handling, and large on-device controls.</p></article>
+        <article class="card"><h3>Live desktop Manager</h3><p>Add screens, switch pages, arrange widgets, and change orientation or appearance from your main display. The running Hub follows over a local socket.</p></article>
+        <article class="card"><h3>Local and inspectable</h3><p>Plain local TOML configuration, no account requirement, no telemetry implementation, and one central egress gate for configured network features.</p></article>
+        <article class="card"><h3>Native Linux stack</h3><p>A Rust core handles configuration and metrics while Qt 6/QML renders the Hub and Manager. There is no browser shell or web server.</p></article>
+      </div>
+      <div class="media-grid">
+        <img class="shot" src="assets/release/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-hub-landscape-hero-01.png" alt="EdgeHub system dashboard reflowed across a landscape display">
+        <img class="shot" src="assets/release/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-manager-after-add-screen-01.png" alt="EdgeHub Manager after adding another screen to the live dashboard">
+      </div>
+    </div></section>
+
+    <section><div class="wrap">
+      <div class="proof"><strong>Real product proof.</strong> These launch visuals were captured from the signed v1.0.0-beta.1 portable payload on KDE Plasma Wayland. The Hub ran on physical output DP-3, the Manager acted on the live Hub, the display baseline was restored, and the normal Hub configuration was not modified.</div>
+      <div class="links"><a href="../../README.md">README</a><a href="../../RELEASE_NOTES.md">Release notes</a><a href="../testing/release-media-validation-2026-07-21.md">Media evidence</a><a href="../BETA_PLAN.md">Beta decision</a><a href="https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/issues">Report an issue</a></div>
     </div></section>
   </main>
   <footer><div class="wrap"><strong>EdgeHub is an independent product by SKYPhoenix IT.</strong> It is not affiliated with, sponsored by or endorsed by Corsair. “Corsair” and “Xeneon Edge” are used only to describe hardware compatibility.</div></footer>
