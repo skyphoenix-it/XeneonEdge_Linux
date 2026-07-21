@@ -230,6 +230,13 @@ jobs:
             --exclude '.*main\.cpp' \
             --lcov coverage/cpp-lcov.info \
             build
+      - name: Report C++ coverage gaps
+        run: |
+          gcovr --root . \
+            --filter 'app/src/' --filter 'manager/src/' \
+            --exclude '.*main\.cpp' \
+            --txt --sort uncovered-number --sort-reverse \
+            build
       - name: Enforce C++ >= 95%
         run: |
           pct=$(gcovr --root . \
@@ -240,6 +247,7 @@ jobs:
           echo "C++ line coverage: ${pct}%"
           python3 -c "import sys; sys.exit(0 if float('${pct}') >= 95 else 1)"
       - name: Upload C++ lcov
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: cpp-lcov
