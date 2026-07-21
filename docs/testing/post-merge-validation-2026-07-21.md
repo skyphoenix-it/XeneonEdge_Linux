@@ -41,18 +41,21 @@ This report complements the [real-hardware validation report](hardware-validatio
   suite passes; the 16-file nested-KWin GUI suite passes 1,311/1,311 checks with
   no failures or skips.
 
-### F-11 — GitHub Actions checkout still targeted deprecated Node 20
+### F-11 — GitHub Actions dependencies still targeted deprecated Node 20
 
-- Status: fixed and verified remotely.
+- Status: fixed; final artifact-action verification pending remotely.
 - Symptom: GitHub-hosted jobs warned that `actions/checkout@v4` targets the
   deprecated Node 20 runtime and had to be forced onto Node 24.
-- Scope: all checkout steps in CI, Docs, Distro Packages, and Supply Chain.
-- Fix: move every checkout reference to `actions/checkout@v5`, whose documented
-  runtime is Node 24. All affected jobs use GitHub-hosted runners, and the active
-  runner already demonstrated Node 24 support while issuing the warning.
-- Verification: workflow syntax and reference audit pass locally. Docs, CodeQL,
-  Distro Packages, Supply Chain, and every main-CI job checked out successfully
-  with `actions/checkout@v5`; the Node 20 warning is absent.
+- Scope: all checkout, artifact-upload, and artifact-download steps in CI, Docs,
+  Distro Packages, and Supply Chain.
+- Fix: move checkout to `actions/checkout@v5`, uploads to
+  `actions/upload-artifact@v7`, and downloads to
+  `actions/download-artifact@v8`. These documented releases run on Node 24. All
+  affected jobs use GitHub-hosted runners, and the active runner already
+  demonstrated the required Node 24 support.
+- Verification: workflow syntax and reference audits pass locally. Checkout v5
+  is verified across every workflow; the final remote runs are the authoritative
+  execution check for the upgraded artifact pair.
 
 ### F-12 — Runtime restart test killed the timeout wrapper, not the Hub
 
@@ -68,6 +71,25 @@ This report complements the [real-hardware validation report](hardware-validatio
   process-name kill is used, so a user's real Hub cannot be targeted.
 - Regression proof: the focused real-binary scenario passes three consecutive
   runs, including the immediate restart and durable pushed-layout readback.
+
+### F-13 — C++ coverage fell below the release floor without actionable output
+
+- Status: fixed locally; final remote coverage measurement pending.
+- Symptom: the main CI gate measured 94.00% C++ line coverage against its 95%
+  floor. The failing threshold prevented the LCOV upload, and the log originally
+  omitted the per-file uncovered lines.
+- Cause: `SystemSettingsProbe` parsing and state-fold behavior had thorough
+  hermetic coverage, but its 32-line asynchronous D-Bus transport path was
+  skipped on the hosted runner because no session bus existed. Only 12
+  additional covered lines were needed to restore the gate.
+- Fix: run that QtTest under an isolated `dbus-run-session`; claim the portal
+  service name inside the test without exporting an object, so both real async
+  reads and their error handling execute without touching or activating the
+  desktop portal. The coverage workflow now always uploads LCOV and prints a
+  sorted per-file gap table before enforcing the threshold.
+- Regression proof: the isolated integration case passes without a skip or
+  leaked activation process; all C++ tests pass 22/22; the release-gate contract
+  passes. The hosted GCC 13 rerun provides the authoritative percentage.
 
 ## Safety and traceability
 

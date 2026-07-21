@@ -66,7 +66,7 @@ jobs:
           n=$(python3 -c 'import json;print(len(json.load(open("dist/xeneon-core-sbom.cdx.json")).get("components",[])))')
           [ "$n" -gt 10 ] || { echo "FAIL: SBOM has only $n components — generation is broken"; exit 1; }
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: sbom
           path: dist/xeneon-core-sbom.cdx.json

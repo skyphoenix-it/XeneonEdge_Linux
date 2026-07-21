@@ -166,7 +166,7 @@ jobs:
         run: bash scripts/check_appimage_update_contract.sh
       - name: Upload uncovered-behavior list
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: qml-behavior-coverage
           path: coverage-qml.txt
@@ -248,7 +248,7 @@ jobs:
           python3 -c "import sys; sys.exit(0 if float('${pct}') >= 95 else 1)"
       - name: Upload C++ lcov
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cpp-lcov
           path: coverage/cpp-lcov.info
@@ -284,7 +284,7 @@ jobs:
           echo "Rust line coverage: ${pct}%"
           python3 -c "import sys; sys.exit(0 if float('${pct}') >= 95 else 1)"
       - name: Download C++ lcov artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: cpp-lcov
           path: coverage
@@ -311,7 +311,7 @@ jobs:
           python3 -c "import sys; sys.exit(0 if float('${pct}') >= 95 else 1)"
       - name: Upload coverage reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage
           path: coverage/
@@ -354,7 +354,7 @@ jobs:
         run: bash tests/gui/run_gui_tests.sh -j8
       - name: Upload GUI evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gui-evidence
           path: |

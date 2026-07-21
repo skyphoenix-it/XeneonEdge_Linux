@@ -75,7 +75,7 @@ jobs:
         run: cpack -G RPM
         working-directory: build
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: fedora-${{ matrix.release }}-rpm
           path: build/*.rpm
@@ -93,7 +93,7 @@ jobs:
       # actions/checkout needs git present in the container image.
       - run: dnf -y install git
       - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: fedora-${{ matrix.release }}-rpm
           path: pkg
@@ -167,7 +167,7 @@ jobs:
       - name: Build AppImage
         run: ./packaging/appimage/build-appimage.sh
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: appimage
           path: '*.AppImage'
@@ -186,7 +186,7 @@ jobs:
     steps:
       - run: apt-get update -qq && apt-get install -y --no-install-recommends git ca-certificates
       - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: appimage
           path: pkg
@@ -279,7 +279,7 @@ jobs:
         run: cpack -G DEB
         working-directory: build
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ubuntu-${{ matrix.release }}-deb
           path: build/*.deb
@@ -299,7 +299,7 @@ jobs:
       # actions/checkout needs git present in the container image.
       - run: apt-get update -qq && apt-get install -y --no-install-recommends git ca-certificates
       - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: ubuntu-${{ matrix.release }}-deb
           path: pkg
