@@ -9,8 +9,13 @@ EdgeHub v1.0.0-beta.1 is now available for the Corsair Xeneon Edge on
 **CachyOS/Arch Linux with KDE Plasma on Wayland**. Portable x86-64 builds
 require Qt 6.5 or newer.
 
-**Watch the 52-second feature tour:**
-https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/download/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-feature-tour.mp4
+**Watch the 59-second live product film:**
+https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/download/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-live-product-film.mp4
+
+The camera pushes into the running Hub, turns the display smoothly from
+landscape to portrait, then pulls back to show Manager selecting screens, adding
+a screen and widget, changing the page layout, applying a theme and accent,
+restyling Manager, and updating a Device preference.
 
 **Explore all 20 Free themes and ten accent looks:**
 https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/download/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-manager-theme-showcase.mp4
@@ -63,7 +68,7 @@ https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/blob/v1.0.0-beta.1/doc
 ### Download and documentation
 
 - Download: https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/tag/v1.0.0-beta.1
-- Feature tour: https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/download/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-feature-tour.mp4
+- Live product film: https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/download/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-live-product-film.mp4
 - Theme and accent showcase: https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/download/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-manager-theme-showcase.mp4
 - Release notes: https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/tag/v1.0.0-beta.1
 - Installation: https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/blob/v1.0.0-beta.1/README.md#install

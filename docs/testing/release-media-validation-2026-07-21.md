@@ -109,6 +109,44 @@ Both videos use audio produced locally by
 recording or sample. Its construction and reuse grant are documented in
 `docs/marketing/release-kit/original-soundtrack.md`.
 
+## Live product behavior film continuity revision
+
+The primary 59.4-second product film uses the exact signed beta.1 Hub and
+Manager binaries listed above. The applications ran on two private Xvfb
+displays with one isolated configuration and runtime directory. The Hub used a
+portrait-native 720x2560 surface in fixed landscape mode, transposed into its
+front-facing 2560x720 view for the edit. This keeps the Manager preview and the
+side-by-side Hub in the same horizontal orientation.
+
+The synchronized take records real Manager input for page selection, screen
+creation, widget insertion, a two-column layout change, Aurora theme selection,
+Manager dark mode, purple accent selection, the Device panel, and the automatic
+update preference. The running Hub responds over the real local control socket.
+No physical display or physical input was used for this take.
+
+The rounded display bezel and desktop monitor are unbranded SVG presentation
+frames. The Hub frame is a front view without a stand or foot. The camera moves
+and the 1.5-second eased landscape-to-portrait turn are editorial animation.
+Every pixel inside the Hub and Manager apertures comes from the synchronized
+application recordings.
+
+| Item | SHA-256 or verified value |
+|---|---|
+| Landscape Hub recording | `d8e68f3d4aa0573622ef4d2a6363e0225bc61527bfbdb209f942cdbdba17dafc` |
+| Manager recording | `20200480096062607fe2383c9ed063a84ce478a404aa2c5822937161abb63c66` |
+| Capture manifest | `68634392160802cd309b74e9e223b5a0f3c1a76311fe8a2ce65f2ae9e310d1fc` |
+| Portrait Hub recording | `c48ca70f678c8e9e70c4849680a4f89c1026d7780cef88c3cbd6d196be891fdc` |
+| Portrait manifest | `421517c5cfb43acfa0552039a2efbca152f74db3c70a5e2b16b47d05ab9fee57` |
+| Final MP4 | `b397252e00a0167fb91693b61542722aa87502417058572582208b6a9e695315` |
+| Thumbnail | `d7a6c865faf56aaa1b2120dd271d7484ebcb94b87797a141dc7037ee9fcf0371` |
+| Format | H.264 1920x1080 at 30 fps, AAC stereo at 48 kHz |
+| Duration | 59.400 seconds |
+
+The film is reproduced by `scripts/capture_live_behavior.py`,
+`scripts/capture_live_portrait.py`, and `scripts/render_product_film.sh`. Its
+music is generated locally by `scripts/render_original_soundtrack.sh` with no
+third-party recording or sample.
+
 ## Reproduction
 
 Use `scripts/capture_release_media.py` to perform a guarded physical-candidate

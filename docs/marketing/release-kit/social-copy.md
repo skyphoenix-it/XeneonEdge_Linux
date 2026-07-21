@@ -11,7 +11,7 @@
 > implementation. https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/tag/v1.0.0-beta.1
 
 Attach `edgehub-v1.0.0-beta.1-social-landscape.png`, or link the feature tour:
-https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/download/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-feature-tour.mp4
+https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/download/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-live-product-film.mp4
 
 ## Short launch post with Free/Pro clarity
 
@@ -44,7 +44,7 @@ available.
 > implementation. The project source is available under MIT OR Apache-2.0.
 >
 > Download and release evidence: https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/tag/v1.0.0-beta.1
-> Watch it work: https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/download/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-feature-tour.mp4
+> Watch it work: https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/download/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-live-product-film.mp4
 >
 > EdgeHub is independent and is not affiliated with, sponsored by or endorsed
 > by Corsair.
@@ -127,8 +127,8 @@ available.
 > Turn a secondary touch display into a dashboard that follows what you are
 > doing. EdgeHub beta.1 brings 30 widgets, 19 ready-made screens, portrait and
 > landscape layouts, plus a desktop Manager that changes the live Hub locally.
-> Watch the 52-second tour:
-> https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/download/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-feature-tour.mp4
+> Watch the 59-second live film:
+> https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/download/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-live-product-film.mp4
 
 ## Theme showcase post
 

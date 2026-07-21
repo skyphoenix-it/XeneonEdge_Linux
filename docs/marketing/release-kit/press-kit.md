@@ -31,7 +31,7 @@ under MIT OR Apache-2.0.
 | Source licence | MIT OR Apache-2.0 |
 | Price/store | Not offered for sale in beta.1 |
 | Download | https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/tag/v1.0.0-beta.1 |
-| Feature tour | https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/download/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-feature-tour.mp4 |
+| Live product film | https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/releases/download/v1.0.0-beta.1/edgehub-v1.0.0-beta.1-live-product-film.mp4 |
 | Release evidence | https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/blob/v1.0.0-beta.1/docs/testing/hardware-validation-2026-07-21.md |
 | Support | https://github.com/skyphoenix-it/skyphoenix-edgehub-linux/issues |
 | Contact | simon.kreitmayer@skyphoenix-it.com |
@@ -108,7 +108,9 @@ generated concepts, or third-party hardware branding as release evidence.
 
 ## Media files
 
-- `edgehub-v1.0.0-beta.1-feature-tour.mp4`: 52-second captioned product tour.
+- `edgehub-v1.0.0-beta.1-live-product-film.mp4`: 59-second captioned behavior
+  film with animated hardware rotation and synchronized Manager-to-Hub edits.
+- `edgehub-v1.0.0-beta.1-feature-tour.mp4`: earlier capture-led product tour.
 - `edgehub-v1.0.0-beta.1-manager-theme-showcase.mp4`: 45-second captioned reel
   covering all 20 Free themes and ten accent colours.
 - `edgehub-v1.0.0-beta.1-manager-theme-sheet.png`: complete Free theme sheet.

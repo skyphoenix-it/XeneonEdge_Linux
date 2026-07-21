@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="1000" viewBox="0 0 1400 1000">
+  <defs>
+    <linearGradient id="monitor" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#343a45"/>
+      <stop offset="0.08" stop-color="#171b21"/>
+      <stop offset="0.92" stop-color="#080a0d"/>
+      <stop offset="1" stop-color="#272c34"/>
+    </linearGradient>
+    <linearGradient id="metal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4b5360"/>
+      <stop offset="0.45" stop-color="#171b21"/>
+      <stop offset="1" stop-color="#050608"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="180%">
+      <feGaussianBlur stdDeviation="20"/>
+    </filter>
+    <mask id="screen-cutout">
+      <rect width="1400" height="1000" fill="black"/>
+      <rect x="90" y="35" width="1220" height="858" rx="30" fill="white"/>
+      <rect x="120" y="65" width="1160" height="806" rx="12" fill="black"/>
+    </mask>
+  </defs>
+  <ellipse cx="700" cy="950" rx="420" ry="30" fill="#000" opacity="0.42" filter="url(#shadow)"/>
+  <path d="M630 865 H770 L805 932 H595 Z" fill="url(#metal)"/>
+  <path d="M470 928 H930 Q966 928 995 950 H405 Q434 928 470 928 Z" fill="#0b0d11"/>
+  <rect x="90" y="35" width="1220" height="858" rx="30" fill="url(#monitor)"
+        mask="url(#screen-cutout)"/>
+  <rect x="90" y="35" width="1220" height="858" rx="30" fill="none"
+        stroke="#59616c" stroke-width="5"/>
+  <rect x="116" y="61" width="1168" height="814" rx="16" fill="none"
+        stroke="#050608" stroke-width="8"/>
+  <circle cx="700" cy="881" r="4" fill="#7e8794" opacity="0.55"/>
+</svg>

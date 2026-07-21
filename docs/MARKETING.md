@@ -9,9 +9,9 @@ duration, formal performance result, package repository, automatic update, or
 commercial Pro availability.
 
 A claim-controlled campaign pack is ready under
-[`marketing/release-kit/`](marketing/release-kit/README.md). The 52-second
-feature tour, website hero, social images, native captures, hashes, and capture
-provenance are versioned with the documentation.
+[`marketing/release-kit/`](marketing/release-kit/README.md). The 59-second live
+product film, theme reel, website hero, social images, native captures, hashes,
+and capture provenance are versioned with the documentation.
 
 ## Positioning
 
@@ -62,8 +62,9 @@ support, performance, stability or store fulfilment.
 1. Fresh physical-Edge captures for portrait and landscape Hub layouts.
 2. Manager screen creation, orientation preview, and Appearance captures from
    the exact candidate.
-3. A 52-second feature tour showing the Hub, real display rotation, live screen
-   creation, preview orientation, and appearance states, with original music.
+3. A 59-second product film with a front-facing rounded Edge frame, animated
+   landscape-to-portrait turn, camera pullback, and synchronized live Manager
+   actions that change the running Hub, with original music.
 4. A 45-second Manager showcase covering all 20 Free themes and ten
    representative accent colours, captured inside an isolated virtual display.
 5. Theme and accent proof sheets plus selected full-size Manager theme frames.

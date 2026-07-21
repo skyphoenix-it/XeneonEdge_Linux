@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="620" viewBox="0 0 1600 620">
+  <defs>
+    <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#303640"/>
+      <stop offset="0.10" stop-color="#171b21"/>
+      <stop offset="0.84" stop-color="#080a0d"/>
+      <stop offset="1" stop-color="#1c2027"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#737b87" stop-opacity="0.72"/>
+      <stop offset="0.25" stop-color="#2d333c" stop-opacity="0.35"/>
+      <stop offset="0.85" stop-color="#050608" stop-opacity="0.9"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-30%" width="140%" height="180%">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+    <mask id="bezel-cutout">
+      <rect x="0" y="0" width="1600" height="620" fill="black"/>
+      <rect x="54" y="74" width="1492" height="466" rx="30" fill="white"/>
+      <rect x="86" y="105" width="1428" height="402" rx="18" fill="black"/>
+    </mask>
+  </defs>
+
+  <rect x="56" y="77" width="1488" height="466" rx="30" fill="#000" opacity="0.45"
+        filter="url(#shadow)"/>
+
+  <rect x="54" y="74" width="1492" height="466" rx="30" fill="url(#edge)"
+        mask="url(#bezel-cutout)"/>
+  <rect x="54" y="74" width="1492" height="466" rx="30" fill="none"
+        stroke="url(#rim)" stroke-width="7"/>
+  <rect x="82" y="101" width="1436" height="410" rx="21" fill="none"
+        stroke="#59616d" stroke-opacity="0.56" stroke-width="3"/>
+  <path d="M93 92 H1500" stroke="#ffffff" stroke-opacity="0.20" stroke-width="3"/>
+  <circle cx="1526" cy="306" r="3" fill="#8c95a0" opacity="0.45"/>
+</svg>
