@@ -475,7 +475,12 @@ manager_version="$("$portable_root/usr/bin/xeneon-edge-manager" --version)"
     || die "Hub payload version mismatch: $hub_version"
 [ "$manager_version" = "Xeneon Edge Manager $pkgver" ] \
     || die "Manager payload version mismatch: $manager_version"
-PATH="$portable_root/usr/bin:$PATH" SRC_ROOT="$RELEASE_SOURCE_DIR" \
+install -d -m 700 "$smoke_root/config" "$smoke_root/cache" "$smoke_root/runtime"
+PATH="$portable_root/usr/bin:$PATH" \
+    SRC_ROOT="$RELEASE_SOURCE_DIR" \
+    XDG_CONFIG_HOME="$smoke_root/config" \
+    XDG_CACHE_HOME="$smoke_root/cache" \
+    XDG_RUNTIME_DIR="$smoke_root/runtime" \
     bash "$RELEASE_SOURCE_DIR/packaging/ci/smoke.sh" \
     || die "the exact QA-off portable payload failed its runtime/QML smoke test"
 cleanup_release_smoke

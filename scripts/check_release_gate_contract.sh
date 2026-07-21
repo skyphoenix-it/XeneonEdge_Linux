@@ -334,8 +334,11 @@ if [ -n "$portable_copy_line" ] && [ -n "$portable_extract_line" ] \
         && grep -Fq 'hub_version="$("$portable_root/usr/bin/xeneon-edge-hub" --version)"' "$RELEASE_SCRIPT" \
         && grep -Fq 'manager_version="$("$portable_root/usr/bin/xeneon-edge-manager" --version)"' "$RELEASE_SCRIPT" \
         && grep -Fq '[ "$hub_version" = "Xeneon Edge Linux Hub $pkgver" ]' "$RELEASE_SCRIPT" \
-        && grep -Fq '[ "$manager_version" = "Xeneon Edge Manager $pkgver" ]' "$RELEASE_SCRIPT"; then
-    echo "  ok   exact dist payload is extracted, both versions checked, and smoke-tested before signing"
+        && grep -Fq '[ "$manager_version" = "Xeneon Edge Manager $pkgver" ]' "$RELEASE_SCRIPT" \
+        && grep -Fq 'XDG_CONFIG_HOME="$smoke_root/config"' "$RELEASE_SCRIPT" \
+        && grep -Fq 'XDG_CACHE_HOME="$smoke_root/cache"' "$RELEASE_SCRIPT" \
+        && grep -Fq 'XDG_RUNTIME_DIR="$smoke_root/runtime"' "$RELEASE_SCRIPT"; then
+    echo "  ok   exact dist payload is versioned and smoke-tested in isolated XDG state before signing"
 else
     echo "  FAIL portable payload is not fully checked before signing"
     fail=$((fail + 1))
