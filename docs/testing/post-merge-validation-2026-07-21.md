@@ -43,15 +43,31 @@ This report complements the [real-hardware validation report](hardware-validatio
 
 ### F-11 — GitHub Actions checkout still targeted deprecated Node 20
 
-- Status: fixed; remote verification pending on the corrective push.
+- Status: fixed and verified remotely.
 - Symptom: GitHub-hosted jobs warned that `actions/checkout@v4` targets the
   deprecated Node 20 runtime and had to be forced onto Node 24.
 - Scope: all checkout steps in CI, Docs, Distro Packages, and Supply Chain.
 - Fix: move every checkout reference to `actions/checkout@v5`, whose documented
   runtime is Node 24. All affected jobs use GitHub-hosted runners, and the active
   runner already demonstrated Node 24 support while issuing the warning.
-- Verification: workflow syntax and reference audit pass locally; the new remote
-  runs provide the authoritative execution check.
+- Verification: workflow syntax and reference audit pass locally. Docs, CodeQL,
+  Distro Packages, Supply Chain, and every main-CI job checked out successfully
+  with `actions/checkout@v5`; the Node 20 warning is absent.
+
+### F-12 — Runtime restart test killed the timeout wrapper, not the Hub
+
+- Status: fixed and verified locally; remote rerun pending.
+- Symptom: the CI runtime battery's single-writer scenario persisted the pushed
+  layout correctly but its immediate restart exited cleanly instead of staying
+  alive. The fresh Hub had collided with the still-live first instance.
+- Cause: the test backgrounded `timeout --foreground` and later sent SIGKILL to
+  the timeout PID. SIGKILL cannot be forwarded, so the child Hub could survive,
+  keep its single-instance lock, and reject the restart.
+- Fix: background the Hub itself, retain a separate 25-second hard-deadline
+  guard, and stop/reap the guard and exact Hub PID before restarting. No broad
+  process-name kill is used, so a user's real Hub cannot be targeted.
+- Regression proof: the focused real-binary scenario passes three consecutive
+  runs, including the immediate restart and durable pushed-layout readback.
 
 ## Safety and traceability
 

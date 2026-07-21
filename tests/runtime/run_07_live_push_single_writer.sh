@@ -48,17 +48,33 @@ PUSHED='{"version":1,"appearance":{"mode":"light","accent":"#FF8800"},"settings"
 rt_mkroot live
 printf '%s' "$SEEDED" | python3 "$HERE/seed_config.py" "$RT_CFG" >/dev/null
 
-# The hub must be ALIVE while we talk to it, so it runs in the background under
-# the same `timeout -s KILL` bound the other scenarios use. Safe despite the
-# no-SIGKILL-before-the-save rule: every write asserted here has already landed
-# by the time its ack is read (step 2's comment), and the window is generous.
+# The hub must be ALIVE while we talk to it. Run the hub itself in the background
+# and keep a separate hard deadline. Do not put `timeout` in the background and
+# later kill only its PID: `timeout --foreground` has a child process, so SIGKILL
+# cannot be forwarded and the orphaned hub can still own the instance lock when
+# step 4 relaunches. Safe despite the no-SIGKILL-before-the-save rule: every write
+# asserted here has already landed by the time its ack is read (step 2's comment),
+# and the window is generous.
 env XDG_CONFIG_HOME="$RT_ROOT/config" XDG_RUNTIME_DIR="$RT_ROOT/run" \
     QT_QPA_PLATFORM=offscreen \
-    timeout --foreground -s KILL 25 "$HUB" --windowed >"$RT_ROOT/hub.log" 2>&1 &
+    "$HUB" --windowed >"$RT_ROOT/hub.log" 2>&1 &
 HUB_PID=$!
-# Reap by PID only — never `pkill -f xeneon-edge-hub`: it would match this
-# script's own command line and any real hub the user has open.
-trap 'kill "$HUB_PID" 2>/dev/null; rm -rf "$RT_WORK"' EXIT
+(
+    sleep 25
+    kill -9 "$HUB_PID" 2>/dev/null
+) &
+HUB_GUARD_PID=$!
+# Reap exact PIDs only — never `pkill -f xeneon-edge-hub`: it would match this
+# script's own command line and any real hub the user has open. Stop the guard
+# first so it cannot act on a PID after the hub has been reaped.
+cleanup_live_hub() {
+    kill "$HUB_GUARD_PID" 2>/dev/null
+    wait "$HUB_GUARD_PID" 2>/dev/null
+    kill -9 "$HUB_PID" 2>/dev/null
+    wait "$HUB_PID" 2>/dev/null
+    rm -rf "$RT_WORK"
+}
+trap cleanup_live_hub EXIT
 
 ipc() { python3 "$HERE/ipc_client.py" "$RT_ROOT/run" "$1"; }
 pages_of() { rt_json "$(rt_read_config "$1")" '[p["name"] for p in d["ui_state"]["pages"]]'; }
@@ -128,6 +144,8 @@ fi
 # under test landed at step 2's ack and was read back off disk there.
 kill -9 "$HUB_PID" 2>/dev/null
 wait "$HUB_PID" 2>/dev/null
+kill "$HUB_GUARD_PID" 2>/dev/null
+wait "$HUB_GUARD_PID" 2>/dev/null
 trap 'rm -rf "$RT_WORK"' EXIT
 
 # ── 4. The push was DURABLE: it is what a fresh hub loads ───────────────────
